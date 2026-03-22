@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1a2332">
+<title>Service Call Report — Northern Wolves AC</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root {
+  --nw-dark: #1a2332;
+  --nw-blue: #2563eb;
+  --nw-blue-light: #3b82f6;
+  --nw-accent: #f59e0b;
+  --nw-bg: #f1f5f9;
+  --nw-card: #ffffff;
+  --nw-border: #e2e8f0;
+  --nw-text: #1e293b;
+  --nw-muted: #64748b;
+  --nw-success: #10b981;
+  --nw-danger: #ef4444;
+  --nw-section: #f8fafc;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--nw-bg);
+  color: var(--nw-text);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 100px;
+}
+
+/* HEADER */
+.header {
+  background: linear-gradient(135deg, var(--nw-dark) 0%, #2d3a4a 100%);
+  color: white;
+  padding: 16px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+.header .subtitle { font-size: 12px; color: var(--nw-accent); font-weight: 600; margin-top: 2px; }
+.header .report-id { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+/* SECTIONS */
+.section {
+  background: var(--nw-card);
+  margin: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.section-header {
+  background: var(--nw-dark);
+  color: white;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.section-header .icon { font-size: 16px; }
+.section-header .collapse-arrow {
+  margin-left: auto;
+  transition: transform 0.2s;
+  font-size: 12px;
+}
+.section-header.collapsed .collapse-arrow { transform: rotate(-90deg); }
+.section-body { padding: 16px; }
+.section-body.collapsed { display: none; }
+
+/* FORM ELEMENTS */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nw-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.field input, .field select, .field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--nw-border);
+  border-radius: 8px;
+  font-size: 16px;
+  color: var(--nw-text);
+  background: var(--nw-section);
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none;
+  border-color: var(--nw-blue);
+  background: white;
+}
+.field textarea { min-height: 80px; resize: vertical; }
+.field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+
+.row { display: flex; gap: 10px; }
+.row .field { flex: 1; }
+
+/* CHECKBOX/RADIO GROUPS */
+.check-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.check-item {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--nw-section); padding: 8px 12px;
+  border-radius: 8px; border: 2px solid var(--nw-border);
+  cursor: pointer; font-size: 14px; transition: all 0.2s;
+}
+.check-item.selected { border-color: var(--nw-blue); background: #eff6ff; }
+.check-item input { display: none; }
+
+/* READINGS TABLE */
+.readings-table { width: 100%; border-collapse: collapse; }
+.readings-table th {
+  background: var(--nw-dark); color: white;
+  padding: 8px 10px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; text-align: left;
+}
+.readings-table td { padding: 6px 8px; border-bottom: 1px solid var(--nw-border); }
+.readings-table td:first-child { font-weight: 600; font-size: 13px; white-space: nowrap; }
+.readings-table input {
+  width: 100%; padding: 8px; border: 1px solid var(--nw-border);
+  border-radius: 6px; font-size: 14px; text-align: center;
+  background: var(--nw-section);
+}
+.readings-table input:focus { border-color: var(--nw-blue); background: white; outline: none; }
+
+/* PHOTO CAPTURE */
+.photo-area {
+  border: 2px dashed var(--nw-border);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  background: var(--nw-section);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.photo-area:hover { border-color: var(--nw-blue); background: #eff6ff; }
+.photo-area .icon { font-size: 32px; margin-bottom: 8px; }
+.photo-area p { font-size: 13px; color: var(--nw-muted); }
+.photo-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.photo-preview img {
+  width: 80px; height: 80px; object-fit: cover;
+  border-radius: 8px; border: 2px solid var(--nw-border);
+}
+.photo-preview .remove-photo {
+  position: absolute; top: -6px; right: -6px;
+  background: var(--nw-danger); color: white;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; cursor: pointer; border: 2px solid white;
+}
+.photo-thumb { position: relative; display: inline-block; }
+
+/* SIGNATURE */
+.sig-container { position: relative; }
+.sig-canvas {
+  width: 100%;
+  height: 150px;
+  border: 2px solid var(--nw-border);
+  border-radius: 10px;
+  background: white;
+  touch-action: none;
+  cursor: crosshair;
+}
+.sig-actions { display: flex; gap: 8px; margin-top: 8px; }
+.sig-label { font-size: 11px; color: var(--nw-muted); text-align: center; margin-top: 4px; }
+
+/* BUTTONS */
+.btn {
+  padding: 14px 24px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+.btn-primary { background: var(--nw-blue); color: white; }
+.btn-primary:hover { background: var(--nw-blue-light); }
+.btn-secondary { background: var(--nw-section); color: var(--nw-text); border: 2px solid var(--nw-border); }
+.btn-success { background: var(--nw-success); color: white; }
+.btn-danger { background: var(--nw-danger); color: white; }
+.btn-small { padding: 8px 14px; font-size: 13px; width: auto; }
+.btn-outline { background: transparent; border: 2px solid var(--nw-border); color: var(--nw-muted); }
+
+/* BOTTOM BAR */
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  padding: 12px 16px;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+  display: flex;
+  gap: 10px;
+  z-index: 100;
+}
+.bottom-bar .btn { flex: 1; }
+
+/* STATUS BADGES */
+.status-badge {
+  display: inline-block; padding: 4px 10px;
+  border-radius: 20px; font-size: 11px;
+  font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.status-operational { background: #d1fae5; color: #065f46; }
+.status-needs-repair { background: #fef3c7; color: #92400e; }
+.status-not-operational { background: #fee2e2; color: #991b1b; }
+
+/* PARTS TABLE */
+.parts-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.parts-row input { flex: 1; padding: 10px; border: 1px solid var(--nw-border); border-radius: 6px; font-size: 14px; background: var(--nw-section); }
+.parts-row input:focus { border-color: var(--nw-blue); background: white; outline: none; }
+.parts-row .qty { width: 60px; text-align: center; }
+
+/* TOAST */
+.toast {
+  position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+  background: var(--nw-dark); color: white;
+  padding: 12px 24px; border-radius: 10px;
+  font-size: 14px; font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 200; opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* AUTOSAVE INDICATOR */
+.autosave-indicator {
+  position: fixed; top: 68px; right: 12px;
+  font-size: 11px; color: var(--nw-success);
+  font-weight: 600; z-index: 101;
+  opacity: 0; transition: opacity 0.3s;
+}
+.autosave-indicator.show { opacity: 1; }
+
+/* Responsive */
+@media (max-width: 400px) {
+  .row { flex-direction: column; gap: 0; }
+  .section { margin: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>NORTHERN WOLVES AC</h1>
+  <div class="subtitle">SERVICE CALL REPORT</div>
+  <div class="report-id" id="reportId"></div>
+</div>
+
+<div class="autosave-indicator" id="autosaveIndicator">Saved</div>
+<div class="toast" id="toast"></div>
+
+<!-- CALL INFO -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">📋</span> Call Information
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="row">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="callDate" data-save>
+      </div>
+      <div class="field">
+        <label>Time Arrived</label>
+        <input type="time" id="timeArrive" data-save>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Time Departed</label>
+        <input type="time" id="timeDepart" data-save>
+      </div>
+      <div class="field">
+        <label>Work Order #</label>
+        <input type="text" id="workOrder" placeholder="WO-" data-save>
+      </div>
+    </div>
+    <div class="field">
+      <label>Technician</label>
+      <input type="text" id="techName" placeholder="Your name" data-save>
+    </div>
+    <div class="field">
+      <label>Call Type</label>
+      <div class="check-group" id="callType">
+        <label class="check-item" onclick="selectRadio(this,'callType')">
+          <input type="radio" name="callType" value="Emergency" data-save>Emergency
+        </label>
+        <label class="check-item" onclick="selectRadio(this,'callType')">
+          <input type="radio" name="callType" value="Service Call" data-save>Service Call
+        </label>
+        <label class="check-item" onclick="selectRadio(this,'callType')">
+          <input type="radio" name="callType" value="PM Visit" data-save>PM Visit
+        </label>
+        <label class="check-item" onclick="selectRadio(this,'callType')">
+          <input type="radio" name="callType" value="Callback" data-save>Callback
+        </label>
+        <label class="check-item" onclick="selectRadio(this,'callType')">
+          <input type="radio" name="callType" value="Installation" data-save>Installation
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMER INFO -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">👤</span> Customer Information
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="field">
+      <label>Customer / Company Name</label>
+      <input type="text" id="custName" placeholder="Name or business" data-save>
+    </div>
+    <div class="field">
+      <label>Address</label>
+      <input type="text" id="custAddress" placeholder="Full address" data-save>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Contact Person</label>
+        <input type="text" id="custContact" placeholder="On-site contact" data-save>
+      </div>
+      <div class="field">
+        <label>Phone</label>
+        <input type="tel" id="custPhone" placeholder="(___) ___-____" data-save>
+      </div>
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="custEmail" placeholder="For report delivery" data-save>
+    </div>
+  </div>
+</div>
+
+<!-- EQUIPMENT INFO -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">⚙️</span> Equipment Information
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="field">
+      <label>Equipment Type</label>
+      <select id="equipType" data-save>
+        <option value="">Select equipment...</option>
+        <optgroup label="Residential">
+          <option>Split System (AC)</option>
+          <option>Split System (Heat Pump)</option>
+          <option>Mini-Split / Ductless</option>
+          <option>Furnace (Gas)</option>
+          <option>Furnace (Oil)</option>
+          <option>Boiler (Residential)</option>
+        </optgroup>
+        <optgroup label="Commercial - Cooling">
+          <option>RTU (Rooftop Unit)</option>
+          <option>AHU (Air Handling Unit)</option>
+          <option>Chiller (Air-Cooled)</option>
+          <option>Chiller (Water-Cooled)</option>
+          <option>Cooling Tower</option>
+          <option>VRF System</option>
+          <option>WSHP (Water Source Heat Pump)</option>
+        </optgroup>
+        <optgroup label="Commercial - Heating">
+          <option>Boiler (Fire-Tube)</option>
+          <option>Boiler (Water-Tube)</option>
+          <option>Boiler (Condensing)</option>
+          <option>Unit Heater</option>
+          <option>Hydronic System</option>
+        </optgroup>
+        <optgroup label="Ventilation & Exhaust">
+          <option>DOAS Unit</option>
+          <option>ERV / HRV</option>
+          <option>Exhaust Fan</option>
+          <option>MAU (Make-Up Air)</option>
+          <option>Kitchen Hood System</option>
+          <option>Garage Ventilation</option>
+        </optgroup>
+        <optgroup label="Controls & Terminal">
+          <option>VAV Box</option>
+          <option>Fan Powered Box (FPB)</option>
+          <option>VFD</option>
+          <option>BMS / BAS Controls</option>
+          <option>Thermostat / Controller</option>
+        </optgroup>
+        <optgroup label="Other">
+          <option>Other (specify below)</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Manufacturer</label>
+        <input type="text" id="equipMfg" placeholder="Brand" data-save>
+      </div>
+      <div class="field">
+        <label>Model #</label>
+        <input type="text" id="equipModel" data-save>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Serial #</label>
+        <input type="text" id="equipSerial" data-save>
+      </div>
+      <div class="field">
+        <label>Refrigerant</label>
+        <select id="refrigerant" data-save>
+          <option value="">N/A</option>
+          <option>R-410A</option>
+          <option>R-22</option>
+          <option>R-407C</option>
+          <option>R-134a</option>
+          <option>R-404A</option>
+          <option>R-32</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Location / Tag #</label>
+      <input type="text" id="equipLocation" placeholder="Roof, basement, mech room, etc." data-save>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMER COMPLAINT -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">🔍</span> Customer Complaint
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="field">
+      <label>Reported Issue</label>
+      <textarea id="complaint" placeholder="What did the customer report? Be specific..." data-save></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- SYSTEM READINGS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">📊</span> System Readings
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <p style="font-size:12px;color:var(--nw-muted);margin-bottom:12px;">Fill in applicable readings. Leave blank if N/A.</p>
+    <table class="readings-table">
+      <thead>
+        <tr><th>Parameter</th><th>Before</th><th>After</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Supply Air (°F)</td><td><input type="number" id="r_supplyBefore" data-save></td><td><input type="number" id="r_supplyAfter" data-save></td></tr>
+        <tr><td>Return Air (°F)</td><td><input type="number" id="r_returnBefore" data-save></td><td><input type="number" id="r_returnAfter" data-save></td></tr>
+        <tr><td>Outdoor Temp (°F)</td><td><input type="number" id="r_outdoorBefore" data-save></td><td><input type="number" id="r_outdoorAfter" data-save></td></tr>
+        <tr><td>Suction PSI</td><td><input type="number" id="r_suctionBefore" data-save></td><td><input type="number" id="r_suctionAfter" data-save></td></tr>
+        <tr><td>Head PSI</td><td><input type="number" id="r_headBefore" data-save></td><td><input type="number" id="r_headAfter" data-save></td></tr>
+        <tr><td>Superheat (°F)</td><td><input type="number" id="r_shBefore" data-save></td><td><input type="number" id="r_shAfter" data-save></td></tr>
+        <tr><td>Subcooling (°F)</td><td><input type="number" id="r_scBefore" data-save></td><td><input type="number" id="r_scAfter" data-save></td></tr>
+        <tr><td>Compressor Amps</td><td><input type="number" step="0.1" id="r_compAmpsBefore" data-save></td><td><input type="number" step="0.1" id="r_compAmpsAfter" data-save></td></tr>
+        <tr><td>Condenser Fan Amps</td><td><input type="number" step="0.1" id="r_condFanBefore" data-save></td><td><input type="number" step="0.1" id="r_condFanAfter" data-save></td></tr>
+        <tr><td>Blower Fan Amps</td><td><input type="number" step="0.1" id="r_blowerBefore" data-save></td><td><input type="number" step="0.1" id="r_blowerAfter" data-save></td></tr>
+        <tr><td>Voltage (L-L)</td><td><input type="number" id="r_voltageBefore" data-save></td><td><input type="number" id="r_voltageAfter" data-save></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- DIAGNOSIS & WORK PERFORMED -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">🔧</span> Diagnosis & Work Performed
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="field">
+      <label>Diagnosis / Root Cause</label>
+      <textarea id="diagnosis" placeholder="What was actually wrong? What did you find?" data-save></textarea>
+    </div>
+    <div class="field">
+      <label>Work Performed</label>
+      <textarea id="workPerformed" placeholder="Step-by-step what you did..." data-save></textarea>
+    </div>
+    <div class="field">
+      <label>Recommendations</label>
+      <textarea id="recommendations" placeholder="Follow-up, replacements, monitoring needed..." data-save></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- PARTS & MATERIALS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">📦</span> Parts & Materials Used
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div id="partsList">
+      <div class="parts-row">
+        <input type="text" placeholder="Part / Material" class="part-desc" data-save>
+        <input type="text" placeholder="Qty" class="qty part-qty" data-save>
+      </div>
+    </div>
+    <button class="btn btn-secondary btn-small" onclick="addPartRow()" style="margin-top:10px;">+ Add Part</button>
+    <div class="field" style="margin-top:14px;">
+      <label>Refrigerant Added (lbs)</label>
+      <input type="number" step="0.1" id="refAdded" placeholder="0" data-save>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTOS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">📷</span> Photos
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="photo-area" onclick="document.getElementById('photoInput').click()">
+      <div class="icon">📸</div>
+      <p>Tap to take a photo or choose from gallery</p>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this)">
+    </div>
+    <div class="photo-preview" id="photoPreview"></div>
+  </div>
+</div>
+
+<!-- SYSTEM STATUS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">✅</span> System Status at Departure
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="field">
+      <label>Status</label>
+      <div class="check-group" id="systemStatus">
+        <label class="check-item" onclick="selectRadio(this,'systemStatus')" style="border-color:#10b981;">
+          <input type="radio" name="systemStatus" value="Operational" data-save>✅ Operational
+        </label>
+        <label class="check-item" onclick="selectRadio(this,'systemStatus')" style="border-color:#f59e0b;">
+          <input type="radio" name="systemStatus" value="Needs Follow-Up" data-save>⚠️ Needs Follow-Up
+        </label>
+        <label class="check-item" onclick="selectRadio(this,'systemStatus')" style="border-color:#ef4444;">
+          <input type="radio" name="systemStatus" value="Not Operational" data-save>❌ Not Operational
+        </label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="statusNotes" placeholder="Additional notes for office/billing..." data-save></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- LABOR -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">⏱️</span> Labor Summary
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="row">
+      <div class="field">
+        <label>Regular Hours</label>
+        <input type="number" step="0.25" id="regHours" placeholder="0" data-save>
+      </div>
+      <div class="field">
+        <label>Overtime Hours</label>
+        <input type="number" step="0.25" id="otHours" placeholder="0" data-save>
+      </div>
+    </div>
+    <div class="field">
+      <label>Travel Time (hrs)</label>
+      <input type="number" step="0.25" id="travelTime" placeholder="0" data-save>
+    </div>
+  </div>
+</div>
+
+<!-- SIGNATURES -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">✍️</span> Signatures
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <div class="field">
+      <label>Technician Signature</label>
+      <div class="sig-container">
+        <canvas class="sig-canvas" id="techSig"></canvas>
+        <div class="sig-label">Sign above</div>
+        <div class="sig-actions">
+          <button class="btn btn-outline btn-small" onclick="clearSignature('techSig')">Clear</button>
+        </div>
+      </div>
+    </div>
+    <div class="field" style="margin-top:20px;">
+      <label>Customer Signature</label>
+      <div class="sig-container">
+        <canvas class="sig-canvas" id="custSig"></canvas>
+        <div class="sig-label">Customer signs above</div>
+        <div class="sig-actions">
+          <button class="btn btn-outline btn-small" onclick="clearSignature('custSig')">Clear</button>
+        </div>
+      </div>
+    </div>
+    <div class="field" style="margin-top:12px;">
+      <label>Customer Printed Name</label>
+      <input type="text" id="custPrintName" placeholder="Print name" data-save>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM ACTION BAR -->
+<div class="bottom-bar">
+  <button class="btn btn-secondary" onclick="saveDraft()">💾 Save</button>
+  <button class="btn btn-primary" onclick="generatePDF()">📄 PDF</button>
+  <button class="btn btn-success" onclick="generateAndEmail()">📧 Send</button>
+</div>
+
+<script>
+// ========== REPORT ID ==========
+const reportId = 'SCR-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).substr(2,4).toUpperCase();
+document.getElementById('reportId').textContent = reportId;
+
+// ========== AUTO-DATE ==========
+document.getElementById('callDate').value = new Date().toISOString().slice(0,10);
+const now = new Date();
+document.getElementById('timeArrive').value = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+
+// ========== SECTION COLLAPSE ==========
+function toggleSection(header) {
+  header.classList.toggle('collapsed');
+  const body = header.nextElementSibling;
+  body.classList.toggle('collapsed');
+}
+
+// ========== RADIO/CHECK SELECTION ==========
+function selectRadio(item, groupId) {
+  document.querySelectorAll('#' + groupId + ' .check-item').forEach(el => el.classList.remove('selected'));
+  item.classList.add('selected');
+  item.querySelector('input').checked = true;
+  autoSave();
+}
+
+// ========== PARTS LIST ==========
+function addPartRow() {
+  const row = document.createElement('div');
+  row.className = 'parts-row';
+  row.innerHTML = '<input type="text" placeholder="Part / Material" class="part-desc" data-save><input type="text" placeholder="Qty" class="qty part-qty" data-save><button class="btn btn-danger btn-small" onclick="this.parentElement.remove()" style="width:36px;padding:8px;flex:none;">✕</button>';
+  document.getElementById('partsList').appendChild(row);
+}
+
+// ========== PHOTO HANDLING ==========
+let photos = [];
+function handlePhotos(input) {
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      photos.push({ name: file.name, data: e.target.result });
+      renderPhotos();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+function renderPhotos() {
+  const preview = document.getElementById('photoPreview');
+  preview.innerHTML = '';
+  photos.forEach((photo, i) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb';
+    thumb.innerHTML = `<img src="${photo.data}"><div class="remove-photo" onclick="photos.splice(${i},1);renderPhotos();">✕</div>`;
+    preview.appendChild(thumb);
+  });
+}
+
+// ========== SIGNATURE PAD ==========
+class SignaturePad {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext('2d');
+    this.drawing = false;
+    this.hasSignature = false;
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this.canvas.addEventListener('pointerdown', (e) => this.start(e));
+    this.canvas.addEventListener('pointermove', (e) => this.draw(e));
+    this.canvas.addEventListener('pointerup', () => this.stop());
+    this.canvas.addEventListener('pointerleave', () => this.stop());
+  }
+  resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.ctx.scale(dpr, dpr);
+    this.ctx.strokeStyle = '#1e293b';
+    this.ctx.lineWidth = 2;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+  }
+  getPos(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+  start(e) {
+    e.preventDefault();
+    this.drawing = true;
+    this.hasSignature = true;
+    const pos = this.getPos(e);
+    this.ctx.beginPath();
+    this.ctx.moveTo(pos.x, pos.y);
+  }
+  draw(e) {
+    if (!this.drawing) return;
+    e.preventDefault();
+    const pos = this.getPos(e);
+    this.ctx.lineTo(pos.x, pos.y);
+    this.ctx.stroke();
+  }
+  stop() { this.drawing = false; }
+  clear() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.hasSignature = false;
+  }
+  toDataURL() {
+    return this.hasSignature ? this.canvas.toDataURL() : null;
+  }
+}
+const techSigPad = new SignaturePad('techSig');
+const custSigPad = new SignaturePad('custSig');
+function clearSignature(id) {
+  if (id === 'techSig') techSigPad.clear();
+  else custSigPad.clear();
+}
+
+// ========== AUTO-SAVE (localStorage) ==========
+const SAVE_KEY = 'nw_scr_' + reportId;
+function autoSave() {
+  const data = {};
+  document.querySelectorAll('[data-save]').forEach(el => {
+    if (el.type === 'radio') {
+      if (el.checked) data[el.name + '_radio'] = el.value;
+    } else {
+      data[el.id || el.className] = el.value;
+    }
+  });
+  // Parts
+  const parts = [];
+  document.querySelectorAll('.parts-row').forEach(row => {
+    const desc = row.querySelector('.part-desc');
+    const qty = row.querySelector('.part-qty');
+    if (desc && qty) parts.push({ desc: desc.value, qty: qty.value });
+  });
+  data._parts = parts;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e) {}
+  const indicator = document.getElementById('autosaveIndicator');
+  indicator.classList.add('show');
+  setTimeout(() => indicator.classList.remove('show'), 1500);
+}
+// Auto-save on input
+document.addEventListener('input', () => { clearTimeout(window._saveTimeout); window._saveTimeout = setTimeout(autoSave, 1000); });
+
+function saveDraft() {
+  autoSave();
+  showToast('Draft saved!');
+}
+
+// ========== TOAST ==========
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ========== COLLECT FORM DATA ==========
+function collectData() {
+  const v = id => (document.getElementById(id) || {}).value || '';
+  const radioVal = name => { const r = document.querySelector(`input[name="${name}"]:checked`); return r ? r.value : ''; };
+  const parts = [];
+  document.querySelectorAll('.parts-row').forEach(row => {
+    const d = row.querySelector('.part-desc')?.value;
+    const q = row.querySelector('.part-qty')?.value;
+    if (d) parts.push({ desc: d, qty: q || '1' });
+  });
+  return {
+    reportId, callDate: v('callDate'), timeArrive: v('timeArrive'), timeDepart: v('timeDepart'),
+    workOrder: v('workOrder'), techName: v('techName'), callType: radioVal('callType'),
+    custName: v('custName'), custAddress: v('custAddress'), custContact: v('custContact'),
+    custPhone: v('custPhone'), custEmail: v('custEmail'),
+    equipType: v('equipType'), equipMfg: v('equipMfg'), equipModel: v('equipModel'),
+    equipSerial: v('equipSerial'), refrigerant: v('refrigerant'), equipLocation: v('equipLocation'),
+    complaint: v('complaint'),
+    readings: {
+      supplyBefore: v('r_supplyBefore'), supplyAfter: v('r_supplyAfter'),
+      returnBefore: v('r_returnBefore'), returnAfter: v('r_returnAfter'),
+      outdoorBefore: v('r_outdoorBefore'), outdoorAfter: v('r_outdoorAfter'),
+      suctionBefore: v('r_suctionBefore'), suctionAfter: v('r_suctionAfter'),
+      headBefore: v('r_headBefore'), headAfter: v('r_headAfter'),
+      shBefore: v('r_shBefore'), shAfter: v('r_shAfter'),
+      scBefore: v('r_scBefore'), scAfter: v('r_scAfter'),
+      compAmpsBefore: v('r_compAmpsBefore'), compAmpsAfter: v('r_compAmpsAfter'),
+      condFanBefore: v('r_condFanBefore'), condFanAfter: v('r_condFanAfter'),
+      blowerBefore: v('r_blowerBefore'), blowerAfter: v('r_blowerAfter'),
+      voltageBefore: v('r_voltageBefore'), voltageAfter: v('r_voltageAfter'),
+    },
+    diagnosis: v('diagnosis'), workPerformed: v('workPerformed'), recommendations: v('recommendations'),
+    parts,
+    refAdded: v('refAdded'),
+    systemStatus: radioVal('systemStatus'), statusNotes: v('statusNotes'),
+    regHours: v('regHours'), otHours: v('otHours'), travelTime: v('travelTime'),
+    custPrintName: v('custPrintName'),
+    techSig: techSigPad.toDataURL(), custSig: custSigPad.toDataURL(),
+    photos
+  };
+}
+
+// ========== PDF GENERATION ==========
+function generatePDF() {
+  const d = collectData();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'letter');
+  const pw = 215.9, ph = 279.4;
+  const mx = 15, mxr = pw - 15;
+  let y = 12;
+
+  // Colors
+  const darkBlue = [26, 35, 50];
+  const blue = [37, 99, 235];
+  const accent = [245, 158, 11];
+  const lightGray = [241, 245, 249];
+  const textColor = [30, 41, 59];
+
+  // HEADER BAR
+  doc.setFillColor(...darkBlue);
+  doc.rect(0, 0, pw, 28, 'F');
+  doc.setFillColor(...accent);
+  doc.rect(0, 28, pw, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.text('NORTHERN WOLVES', mx, 12);
+  doc.setFontSize(10);
+  doc.setTextColor(...accent);
+  doc.text('AIR CONDITIONING', mx, 18);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.text('SERVICE CALL REPORT', mxr, 12, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(200, 200, 200);
+  doc.text(d.reportId, mxr, 18, { align: 'right' });
+  doc.text('www.northernwolvesac.com', mxr, 24, { align: 'right' });
+
+  y = 36;
+
+  function sectionHeader(title) {
+    doc.setFillColor(...darkBlue);
+    doc.rect(mx, y, mxr - mx, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text(title.toUpperCase(), mx + 3, y + 5);
+    y += 10;
+  }
+
+  function fieldRow(fields) {
+    const colW = (mxr - mx) / fields.length;
+    fields.forEach((f, i) => {
+      const x = mx + i * colW;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(f.label, x + 2, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...textColor);
+      doc.text(String(f.value || '—'), x + 2, y + 4.5);
+    });
+    y += 9;
+  }
+
+  // CALL INFO
+  sectionHeader('Call Information');
+  fieldRow([
+    { label: 'Date', value: d.callDate },
+    { label: 'Time In', value: d.timeArrive },
+    { label: 'Time Out', value: d.timeDepart },
+    { label: 'WO #', value: d.workOrder }
+  ]);
+  fieldRow([
+    { label: 'Technician', value: d.techName },
+    { label: 'Call Type', value: d.callType }
+  ]);
+
+  // CUSTOMER
+  sectionHeader('Customer Information');
+  fieldRow([
+    { label: 'Customer / Company', value: d.custName },
+    { label: 'Contact', value: d.custContact }
+  ]);
+  fieldRow([
+    { label: 'Address', value: d.custAddress }
+  ]);
+  fieldRow([
+    { label: 'Phone', value: d.custPhone },
+    { label: 'Email', value: d.custEmail }
+  ]);
+
+  // EQUIPMENT
+  sectionHeader('Equipment Information');
+  fieldRow([
+    { label: 'Type', value: d.equipType },
+    { label: 'Manufacturer', value: d.equipMfg }
+  ]);
+  fieldRow([
+    { label: 'Model #', value: d.equipModel },
+    { label: 'Serial #', value: d.equipSerial }
+  ]);
+  fieldRow([
+    { label: 'Refrigerant', value: d.refrigerant },
+    { label: 'Location', value: d.equipLocation }
+  ]);
+
+  // COMPLAINT
+  sectionHeader('Customer Complaint');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...textColor);
+  const complaintLines = doc.splitTextToSize(d.complaint || '—', mxr - mx - 6);
+  doc.text(complaintLines, mx + 3, y);
+  y += complaintLines.length * 4.5 + 4;
+
+  // READINGS TABLE
+  sectionHeader('System Readings');
+  const readingsData = [
+    ['Supply Air (°F)', d.readings.supplyBefore, d.readings.supplyAfter],
+    ['Return Air (°F)', d.readings.returnBefore, d.readings.returnAfter],
+    ['Outdoor Temp (°F)', d.readings.outdoorBefore, d.readings.outdoorAfter],
+    ['Suction PSI', d.readings.suctionBefore, d.readings.suctionAfter],
+    ['Head PSI', d.readings.headBefore, d.readings.headAfter],
+    ['Superheat (°F)', d.readings.shBefore, d.readings.shAfter],
+    ['Subcooling (°F)', d.readings.scBefore, d.readings.scAfter],
+    ['Compressor Amps', d.readings.compAmpsBefore, d.readings.compAmpsAfter],
+    ['Condenser Fan Amps', d.readings.condFanBefore, d.readings.condFanAfter],
+    ['Blower Fan Amps', d.readings.blowerBefore, d.readings.blowerAfter],
+    ['Voltage (L-L)', d.readings.voltageBefore, d.readings.voltageAfter],
+  ].filter(r => r[1] || r[2]);
+
+  if (readingsData.length > 0) {
+    doc.autoTable({
+      startY: y,
+      margin: { left: mx, right: 15 },
+      head: [['Parameter', 'Before', 'After']],
+      body: readingsData.map(r => [r[0], r[1] || '—', r[2] || '—']),
+      theme: 'grid',
+      headStyles: { fillColor: darkBlue, fontSize: 8, fontStyle: 'bold', halign: 'center' },
+      bodyStyles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55 }, 1: { halign: 'center' }, 2: { halign: 'center' } },
+    });
+    y = doc.lastAutoTable.finalY + 4;
+  }
+
+  // Check if need new page
+  if (y > 200) { doc.addPage(); y = 15; }
+
+  // DIAGNOSIS
+  sectionHeader('Diagnosis & Work Performed');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('DIAGNOSIS:', mx + 3, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...textColor);
+  const diagLines = doc.splitTextToSize(d.diagnosis || '—', mxr - mx - 6);
+  doc.text(diagLines, mx + 3, y);
+  y += diagLines.length * 4.5 + 4;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('WORK PERFORMED:', mx + 3, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...textColor);
+  const workLines = doc.splitTextToSize(d.workPerformed || '—', mxr - mx - 6);
+  doc.text(workLines, mx + 3, y);
+  y += workLines.length * 4.5 + 4;
+
+  if (d.recommendations) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('RECOMMENDATIONS:', mx + 3, y);
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...textColor);
+    const recLines = doc.splitTextToSize(d.recommendations, mxr - mx - 6);
+    doc.text(recLines, mx + 3, y);
+    y += recLines.length * 4.5 + 4;
+  }
+
+  // PARTS
+  if (d.parts.length > 0 && d.parts[0].desc) {
+    if (y > 230) { doc.addPage(); y = 15; }
+    sectionHeader('Parts & Materials');
+    doc.autoTable({
+      startY: y,
+      margin: { left: mx, right: 15 },
+      head: [['Part / Material', 'Qty']],
+      body: d.parts.filter(p => p.desc).map(p => [p.desc, p.qty]),
+      theme: 'grid',
+      headStyles: { fillColor: darkBlue, fontSize: 8, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: { 1: { halign: 'center', cellWidth: 25 } },
+    });
+    y = doc.lastAutoTable.finalY + 2;
+    if (d.refAdded) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(`Refrigerant Added: ${d.refAdded} lbs`, mx + 3, y + 4);
+      y += 8;
+    }
+  }
+
+  // STATUS & LABOR
+  if (y > 230) { doc.addPage(); y = 15; }
+  sectionHeader('Status & Labor');
+  const statusColor = d.systemStatus === 'Operational' ? [16, 185, 129] :
+                      d.systemStatus === 'Not Operational' ? [239, 68, 68] : [245, 158, 11];
+  doc.setFillColor(...statusColor);
+  doc.roundedRect(mx + 3, y - 1, 50, 7, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text(d.systemStatus || 'Not Set', mx + 6, y + 4);
+  y += 12;
+  fieldRow([
+    { label: 'Regular Hours', value: d.regHours || '0' },
+    { label: 'OT Hours', value: d.otHours || '0' },
+    { label: 'Travel Time', value: d.travelTime || '0' }
+  ]);
+  if (d.statusNotes) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...textColor);
+    doc.text(doc.splitTextToSize('Notes: ' + d.statusNotes, mxr - mx - 6), mx + 3, y);
+    y += 8;
+  }
+
+  // SIGNATURES
+  if (y > 220) { doc.addPage(); y = 15; }
+  sectionHeader('Signatures');
+  const sigW = 75, sigH = 25;
+  // Tech sig
+  doc.setDrawColor(200, 200, 200);
+  doc.rect(mx + 3, y, sigW, sigH);
+  if (d.techSig) {
+    try { doc.addImage(d.techSig, 'PNG', mx + 3, y, sigW, sigH); } catch(e) {}
+  }
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Technician: ' + (d.techName || ''), mx + 3, y + sigH + 4);
+
+  // Cust sig
+  const cx = mx + sigW + 15;
+  doc.rect(cx, y, sigW, sigH);
+  if (d.custSig) {
+    try { doc.addImage(d.custSig, 'PNG', cx, y, sigW, sigH); } catch(e) {}
+  }
+  doc.text('Customer: ' + (d.custPrintName || ''), cx, y + sigH + 4);
+
+  // FOOTER
+  const footY = ph - 10;
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(0.5);
+  doc.line(mx, footY - 3, mxr, footY - 3);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Northern Wolves Air Conditioning — New York & New Jersey — www.northernwolvesac.com', pw / 2, footY, { align: 'center' });
+  doc.text('Generated: ' + new Date().toLocaleString(), pw / 2, footY + 4, { align: 'center' });
+
+  // PHOTO PAGES
+  if (d.photos.length > 0) {
+    doc.addPage();
+    let py = 12;
+    doc.setFillColor(...darkBlue);
+    doc.rect(0, 0, pw, 14, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('PHOTO DOCUMENTATION', pw / 2, 9, { align: 'center' });
+    py = 20;
+    d.photos.forEach((photo, i) => {
+      if (py > 220) { doc.addPage(); py = 15; }
+      try {
+        doc.addImage(photo.data, 'JPEG', mx, py, 90, 68);
+        py += 72;
+      } catch(e) {}
+    });
+  }
+
+  return doc;
+}
+
+function generateAndDownload() {
+  const doc = generatePDF();
+  const d = collectData();
+  const filename = `ServiceCall_${d.custName.replace(/\s+/g,'_') || 'Report'}_${d.callDate}.pdf`;
+  doc.save(filename);
+  showToast('PDF downloaded!');
+}
+
+function generateAndEmail() {
+  const d = collectData();
+  const doc = generatePDF();
+  const pdfBlob = doc.output('blob');
+  const filename = `ServiceCall_${d.custName.replace(/\s+/g,'_') || 'Report'}_${d.callDate}.pdf`;
+
+  // Try sharing via Web Share API (works great on mobile)
+  if (navigator.share && navigator.canShare) {
+    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+    if (navigator.canShare({ files: [file] })) {
+      navigator.share({
+        title: 'Service Call Report - ' + d.custName,
+        text: `Service Call Report for ${d.custName}\n${d.callDate} | ${d.equipType}\nTech: ${d.techName}`,
+        files: [file]
+      }).then(() => showToast('Shared!')).catch(() => fallbackEmail(doc, d, filename));
+      return;
+    }
+  }
+  fallbackEmail(doc, d, filename);
+}
+
+function fallbackEmail(doc, d, filename) {
+  // Download PDF then open email
+  doc.save(filename);
+  const subject = encodeURIComponent(`Service Call Report - ${d.custName} - ${d.callDate}`);
+  const body = encodeURIComponent(
+    `Service Call Report\n\nCustomer: ${d.custName}\nDate: ${d.callDate}\nEquipment: ${d.equipType}\nTechnician: ${d.techName}\nStatus: ${d.systemStatus}\n\nPlease see attached PDF report.\n\n—\nNorthern Wolves Air Conditioning`
+  );
+  const emailTo = 'ruslan@northernwolvesac.com';
+  window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
+  showToast('PDF downloaded — attach to email');
+}
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

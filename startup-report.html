@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1a2332">
+<title>Start-Up Report — Northern Wolves AC</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{--nw-dark:#1a2332;--nw-blue:#2563eb;--nw-blue-light:#3b82f6;--nw-accent:#f59e0b;--nw-bg:#f1f5f9;--nw-card:#fff;--nw-border:#e2e8f0;--nw-text:#1e293b;--nw-muted:#64748b;--nw-success:#10b981;--nw-danger:#ef4444;--nw-section:#f8fafc}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--nw-bg);color:var(--nw-text);-webkit-font-smoothing:antialiased;padding-bottom:100px}
+.header{background:linear-gradient(135deg,var(--nw-dark) 0%,#2d3a4a 100%);color:#fff;padding:16px 20px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}.header h1{font-size:18px;font-weight:700}.header .subtitle{font-size:12px;color:var(--nw-accent);font-weight:600;margin-top:2px}.header .report-id{font-size:11px;color:#94a3b8;margin-top:4px}
+.section{background:var(--nw-card);margin:12px;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}.section-header{background:var(--nw-dark);color:#fff;padding:12px 16px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}.section-header .collapse-arrow{margin-left:auto;transition:transform .2s;font-size:12px}.section-header.collapsed .collapse-arrow{transform:rotate(-90deg)}.section-body{padding:16px}.section-body.collapsed{display:none}
+.field{margin-bottom:14px}.field label{display:block;font-size:12px;font-weight:600;color:var(--nw-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;padding:12px 14px;border:2px solid var(--nw-border);border-radius:8px;font-size:16px;color:var(--nw-text);background:var(--nw-section);transition:border-color .2s;-webkit-appearance:none}.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--nw-blue);background:#fff}.field textarea{min-height:80px;resize:vertical}.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.row{display:flex;gap:10px}.row .field{flex:1}
+.check-group{display:flex;flex-wrap:wrap;gap:8px}.check-item{display:flex;align-items:center;gap:6px;background:var(--nw-section);padding:8px 12px;border-radius:8px;border:2px solid var(--nw-border);cursor:pointer;font-size:14px;transition:all .2s}.check-item.selected{border-color:var(--nw-blue);background:#eff6ff}.check-item input{display:none}
+/* Checklist items */
+.checklist{list-style:none;padding:0}.checklist li{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--nw-border);font-size:14px;cursor:pointer;transition:background .2s}.checklist li:hover{background:var(--nw-section)}.checklist li:last-child{border-bottom:none}
+.check-box{width:28px;height:28px;border-radius:6px;border:2px solid var(--nw-border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:all .2s}.check-box.checked{background:var(--nw-success);border-color:var(--nw-success);color:#fff}.check-box.na{background:var(--nw-muted);border-color:var(--nw-muted);color:#fff;font-size:10px;font-weight:700}.check-box.fail{background:var(--nw-danger);border-color:var(--nw-danger);color:#fff}
+.check-label{flex:1}.check-actions{display:flex;gap:4px}.check-actions button{padding:4px 8px;border:1px solid var(--nw-border);border-radius:4px;background:#fff;font-size:10px;font-weight:700;cursor:pointer}.check-actions button.active-pass{background:#d1fae5;border-color:var(--nw-success);color:#065f46}.check-actions button.active-fail{background:#fee2e2;border-color:var(--nw-danger);color:#991b1b}.check-actions button.active-na{background:#e2e8f0;border-color:var(--nw-muted);color:var(--nw-muted)}
+.readings-table{width:100%;border-collapse:collapse}.readings-table th{background:var(--nw-dark);color:#fff;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;text-align:left}.readings-table td{padding:6px 8px;border-bottom:1px solid var(--nw-border)}.readings-table td:first-child{font-weight:600;font-size:13px;white-space:nowrap}.readings-table input{width:100%;padding:8px;border:1px solid var(--nw-border);border-radius:6px;font-size:14px;text-align:center;background:var(--nw-section)}.readings-table input:focus{border-color:var(--nw-blue);background:#fff;outline:none}
+.photo-area{border:2px dashed var(--nw-border);border-radius:10px;padding:20px;text-align:center;background:var(--nw-section);cursor:pointer;transition:all .2s}.photo-area:hover{border-color:var(--nw-blue);background:#eff6ff}.photo-area .icon{font-size:32px;margin-bottom:8px}.photo-area p{font-size:13px;color:var(--nw-muted)}.photo-preview{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.photo-preview img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid var(--nw-border)}.photo-thumb{position:relative;display:inline-block}.photo-thumb .remove-photo{position:absolute;top:-6px;right:-6px;background:var(--nw-danger);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;border:2px solid #fff}
+.sig-canvas{width:100%;height:150px;border:2px solid var(--nw-border);border-radius:10px;background:#fff;touch-action:none;cursor:crosshair}.sig-label{font-size:11px;color:var(--nw-muted);text-align:center;margin-top:4px}.sig-actions{display:flex;gap:8px;margin-top:8px}
+.btn{padding:14px 24px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}.btn-primary{background:var(--nw-blue);color:#fff}.btn-secondary{background:var(--nw-section);color:var(--nw-text);border:2px solid var(--nw-border)}.btn-success{background:var(--nw-success);color:#fff}.btn-small{padding:8px 14px;font-size:13px;width:auto}.btn-outline{background:transparent;border:2px solid var(--nw-border);color:var(--nw-muted)}
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:12px 16px;box-shadow:0 -4px 12px rgba(0,0,0,.1);display:flex;gap:10px;z-index:100}.bottom-bar .btn{flex:1}
+.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--nw-dark);color:#fff;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}.toast.show{opacity:1}
+.autosave-indicator{position:fixed;top:68px;right:12px;font-size:11px;color:var(--nw-success);font-weight:600;z-index:101;opacity:0;transition:opacity .3s}.autosave-indicator.show{opacity:1}
+/* Mode tabs */
+.mode-tabs{display:flex;margin:12px;gap:0;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}.mode-tab{flex:1;padding:14px;text-align:center;font-size:14px;font-weight:700;cursor:pointer;background:var(--nw-card);color:var(--nw-muted);border:none;transition:all .2s}.mode-tab.active{background:var(--nw-blue);color:#fff}
+.mode-content{display:none}.mode-content.active{display:block}
+/* Result badge */
+.result-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}.result-pass{background:#d1fae5;color:#065f46}.result-conditional{background:#fef3c7;color:#92400e}.result-fail{background:#fee2e2;color:#991b1b}
+@media(max-width:400px){.row{flex-direction:column;gap:0}.section{margin:8px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>NORTHERN WOLVES AC</h1>
+  <div class="subtitle">EQUIPMENT START-UP REPORT</div>
+  <div class="report-id" id="reportId"></div>
+</div>
+<div class="autosave-indicator" id="autosaveIndicator">Saved</div>
+<div class="toast" id="toast"></div>
+
+<!-- PROJECT / EQUIPMENT INFO -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📋</span> Project & Equipment<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Date</label><input type="date" id="suDate" data-save></div>
+    <div class="field"><label>Project / Customer Name</label><input type="text" id="projectName" placeholder="Project or customer" data-save></div>
+    <div class="field"><label>Address</label><input type="text" id="projAddress" placeholder="Full address" data-save></div>
+    <div class="row">
+      <div class="field"><label>Technician</label><input type="text" id="techName" placeholder="Your name" data-save></div>
+      <div class="field"><label>WO #</label><input type="text" id="workOrder" placeholder="WO-" data-save></div>
+    </div>
+    <div class="field"><label>Equipment Type</label>
+      <select id="equipType" data-save>
+        <option value="">Select...</option>
+        <optgroup label="Cooling"><option>Split System (AC)</option><option>Split System (Heat Pump)</option><option>Mini-Split</option><option>RTU</option><option>AHU</option><option>Chiller (Air-Cooled)</option><option>Chiller (Water-Cooled)</option><option>VRF System</option><option>WSHP</option></optgroup>
+        <optgroup label="Heating"><option>Furnace (Gas)</option><option>Furnace (Oil)</option><option>Boiler</option><option>Unit Heater</option></optgroup>
+        <optgroup label="Ventilation"><option>DOAS</option><option>ERV / HRV</option><option>MAU</option><option>Exhaust Fan</option></optgroup>
+        <optgroup label="Other"><option>Other</option></optgroup>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field"><label>Manufacturer</label><input type="text" id="equipMfg" data-save></div>
+      <div class="field"><label>Model #</label><input type="text" id="equipModel" data-save></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Serial #</label><input type="text" id="equipSerial" data-save></div>
+      <div class="field"><label>Refrigerant</label>
+        <select id="refrigerant" data-save><option value="">N/A</option><option>R-410A</option><option>R-22</option><option>R-407C</option><option>R-134a</option><option>R-32</option></select>
+      </div>
+    </div>
+    <div class="field"><label>Location / Tag</label><input type="text" id="equipLocation" placeholder="Roof, mech room, etc." data-save></div>
+  </div>
+</div>
+
+<!-- MODE TABS: COOLING / HEATING -->
+<div class="mode-tabs">
+  <button class="mode-tab active" onclick="switchMode('cooling')">❄️ Cooling Start-Up</button>
+  <button class="mode-tab" onclick="switchMode('heating')">🔥 Heating Start-Up</button>
+</div>
+
+<!-- COOLING MODE -->
+<div class="mode-content active" id="mode-cooling">
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)"><span class="icon">✅</span> Pre-Start Checklist<span class="collapse-arrow">▼</span></div>
+    <div class="section-body">
+      <ul class="checklist" id="coolChecklist">
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Electrical connections tight and secure</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Refrigerant piping — no visible leaks</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Condensate drain clear and trapped</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Air filter installed and clean</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Disconnect / breaker OFF before inspection</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Thermostat / controller installed & configured</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Condenser coil clear of obstructions</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Ductwork connections sealed</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Crankcase heater energized (if applicable)</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Service valves open</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Proper clearances maintained</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)"><span class="icon">📊</span> Operational Readings<span class="collapse-arrow">▼</span></div>
+    <div class="section-body">
+      <table class="readings-table">
+        <thead><tr><th>Parameter</th><th>Reading</th><th>Spec</th></tr></thead>
+        <tbody>
+          <tr><td>Supply Air (°F)</td><td><input type="number" id="c_supply" data-save></td><td><input type="text" id="c_supplySpec" placeholder="Spec" data-save></td></tr>
+          <tr><td>Return Air (°F)</td><td><input type="number" id="c_return" data-save></td><td><input type="text" id="c_returnSpec" data-save></td></tr>
+          <tr><td>Delta T (°F)</td><td><input type="number" id="c_deltaT" data-save></td><td><input type="text" id="c_deltaTSpec" placeholder="15-22" data-save></td></tr>
+          <tr><td>Outdoor Temp (°F)</td><td><input type="number" id="c_outdoor" data-save></td><td><input type="text" id="c_outdoorSpec" data-save></td></tr>
+          <tr><td>Suction PSI</td><td><input type="number" id="c_suction" data-save></td><td><input type="text" id="c_suctionSpec" data-save></td></tr>
+          <tr><td>Head PSI</td><td><input type="number" id="c_head" data-save></td><td><input type="text" id="c_headSpec" data-save></td></tr>
+          <tr><td>Superheat (°F)</td><td><input type="number" id="c_sh" data-save></td><td><input type="text" id="c_shSpec" placeholder="5-15" data-save></td></tr>
+          <tr><td>Subcooling (°F)</td><td><input type="number" id="c_sc" data-save></td><td><input type="text" id="c_scSpec" placeholder="8-14" data-save></td></tr>
+          <tr><td>Comp Amps (RLA)</td><td><input type="number" step="0.1" id="c_compAmps" data-save></td><td><input type="text" id="c_compSpec" placeholder="RLA" data-save></td></tr>
+          <tr><td>Cond Fan Amps</td><td><input type="number" step="0.1" id="c_condFan" data-save></td><td><input type="text" id="c_condSpec" data-save></td></tr>
+          <tr><td>Blower Amps</td><td><input type="number" step="0.1" id="c_blower" data-save></td><td><input type="text" id="c_blowerSpec" data-save></td></tr>
+          <tr><td>Voltage (L-L)</td><td><input type="number" id="c_voltage" data-save></td><td><input type="text" id="c_voltageSpec" data-save></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- HEATING MODE -->
+<div class="mode-content" id="mode-heating">
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)"><span class="icon">✅</span> Pre-Start Checklist<span class="collapse-arrow">▼</span></div>
+    <div class="section-body">
+      <ul class="checklist" id="heatChecklist">
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Gas supply valve open / oil tank full</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Flue / vent pipe connections secure</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Combustion air supply adequate</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Gas leak test (if applicable)</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Electrical connections tight</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Thermostat / controller configured</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Safety controls tested</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Air filter installed and clean</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Ductwork / piping connections secure</span></li>
+        <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Proper clearances maintained</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)"><span class="icon">📊</span> Operational Readings<span class="collapse-arrow">▼</span></div>
+    <div class="section-body">
+      <table class="readings-table">
+        <thead><tr><th>Parameter</th><th>Reading</th><th>Spec</th></tr></thead>
+        <tbody>
+          <tr><td>Supply Air (°F)</td><td><input type="number" id="h_supply" data-save></td><td><input type="text" id="h_supplySpec" data-save></td></tr>
+          <tr><td>Return Air (°F)</td><td><input type="number" id="h_return" data-save></td><td><input type="text" id="h_returnSpec" data-save></td></tr>
+          <tr><td>Temp Rise (°F)</td><td><input type="number" id="h_rise" data-save></td><td><input type="text" id="h_riseSpec" placeholder="Per nameplate" data-save></td></tr>
+          <tr><td>Gas Pressure In (WC)</td><td><input type="number" step="0.1" id="h_gasIn" data-save></td><td><input type="text" id="h_gasInSpec" data-save></td></tr>
+          <tr><td>Gas Pressure Out (WC)</td><td><input type="number" step="0.1" id="h_gasOut" data-save></td><td><input type="text" id="h_gasOutSpec" data-save></td></tr>
+          <tr><td>Stack Temp (°F)</td><td><input type="number" id="h_stack" data-save></td><td><input type="text" id="h_stackSpec" data-save></td></tr>
+          <tr><td>CO (ppm)</td><td><input type="number" id="h_co" data-save></td><td><input type="text" id="h_coSpec" placeholder="<100" data-save></td></tr>
+          <tr><td>O₂ (%)</td><td><input type="number" step="0.1" id="h_o2" data-save></td><td><input type="text" id="h_o2Spec" data-save></td></tr>
+          <tr><td>Efficiency (%)</td><td><input type="number" step="0.1" id="h_eff" data-save></td><td><input type="text" id="h_effSpec" data-save></td></tr>
+          <tr><td>Voltage (L-L)</td><td><input type="number" id="h_voltage" data-save></td><td><input type="text" id="h_voltageSpec" data-save></td></tr>
+          <tr><td>Amps (total)</td><td><input type="number" step="0.1" id="h_amps" data-save></td><td><input type="text" id="h_ampsSpec" data-save></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- CONTROLS VERIFICATION -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">🎛️</span> Controls Verification<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <ul class="checklist" id="controlsChecklist">
+      <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Thermostat calls for heat/cool correctly</span></li>
+      <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Safety limits/switches functional</span></li>
+      <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Defrost cycle initiates (heat pump)</span></li>
+      <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Economizer operates correctly (if equipped)</span></li>
+      <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">BMS/DDC points verified (if connected)</span></li>
+      <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Sequence of operations confirmed</span></li>
+    </ul>
+  </div>
+</div>
+
+<!-- PHOTOS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="photo-area" onclick="document.getElementById('photoInput').click()">
+      <div class="icon">📸</div><p>Tap to take photo or choose from gallery</p>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this)">
+    </div>
+    <div class="photo-preview" id="photoPreview"></div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">🏁</span> Start-Up Result<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Result</label>
+      <div class="check-group" id="resultGroup">
+        <label class="check-item" onclick="selectRadio(this,'resultGroup')" style="border-color:#10b981"><input type="radio" name="result" value="PASS" data-save>✅ PASS</label>
+        <label class="check-item" onclick="selectRadio(this,'resultGroup')" style="border-color:#f59e0b"><input type="radio" name="result" value="CONDITIONAL" data-save>⚠️ CONDITIONAL</label>
+        <label class="check-item" onclick="selectRadio(this,'resultGroup')" style="border-color:#ef4444"><input type="radio" name="result" value="FAIL" data-save>❌ FAIL</label>
+      </div>
+    </div>
+    <div class="field"><label>Notes / Punch List</label><textarea id="resultNotes" placeholder="Any issues, follow-ups, punch list items..." data-save></textarea></div>
+  </div>
+</div>
+
+<!-- SIGNATURES -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">✍️</span> Signatures<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Technician Signature</label><canvas class="sig-canvas" id="techSig"></canvas><div class="sig-label">Sign above</div><div class="sig-actions"><button class="btn btn-outline btn-small" onclick="clearSig('techSig')">Clear</button></div></div>
+    <div class="field" style="margin-top:20px"><label>Customer / PM Signature</label><canvas class="sig-canvas" id="custSig"></canvas><div class="sig-label">Customer or project manager signs above</div><div class="sig-actions"><button class="btn btn-outline btn-small" onclick="clearSig('custSig')">Clear</button></div></div>
+    <div class="field" style="margin-top:12px"><label>Printed Name</label><input type="text" id="custPrintName" placeholder="Print name" data-save></div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <button class="btn btn-secondary" onclick="saveDraft()">💾 Save</button>
+  <button class="btn btn-primary" onclick="downloadPDF()">📄 PDF</button>
+  <button class="btn btn-success" onclick="sharePDF()">📧 Send</button>
+</div>
+
+<script>
+const reportId='SUR-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
+document.getElementById('reportId').textContent=reportId;
+document.getElementById('suDate').value=new Date().toISOString().slice(0,10);
+
+function toggleSection(h){h.classList.toggle('collapsed');h.nextElementSibling.classList.toggle('collapsed')}
+function selectRadio(item,gid){document.querySelectorAll('#'+gid+' .check-item').forEach(e=>e.classList.remove('selected'));item.classList.add('selected');item.querySelector('input').checked=true;autoSave()}
+
+function switchMode(mode){
+  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.mode-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('mode-'+mode).classList.add('active');
+  document.querySelectorAll('.mode-tab').forEach(t=>{if((mode==='cooling'&&t.textContent.includes('❄️'))||(mode==='heating'&&t.textContent.includes('🔥')))t.classList.add('active')});
+}
+
+// Checklist cycling: empty → pass → fail → N/A → empty
+function cycleCheck(li){
+  const box=li.querySelector('.check-box');
+  if(!box.classList.contains('checked')&&!box.classList.contains('fail')&&!box.classList.contains('na')){
+    box.classList.add('checked');box.textContent='✓';box.className='check-box checked';
+  } else if(box.classList.contains('checked')){
+    box.className='check-box fail';box.textContent='✕';
+  } else if(box.classList.contains('fail')){
+    box.className='check-box na';box.textContent='N/A';
+  } else {
+    box.className='check-box';box.textContent='';
+  }
+  autoSave();
+}
+
+// Photos
+let photos=[];
+function handlePhotos(input){Array.from(input.files).forEach(f=>{const r=new FileReader();r.onload=e=>{photos.push({name:f.name,data:e.target.result});renderPhotos()};r.readAsDataURL(f)});input.value=''}
+function renderPhotos(){const p=document.getElementById('photoPreview');p.innerHTML='';photos.forEach((ph,i)=>{const d=document.createElement('div');d.className='photo-thumb';d.innerHTML=`<img src="${ph.data}"><div class="remove-photo" onclick="photos.splice(${i},1);renderPhotos();">✕</div>`;p.appendChild(d)})}
+
+// Signatures
+class SigPad{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');this.drawing=false;this.has=false;this.resize();window.addEventListener('resize',()=>this.resize());this.canvas.addEventListener('pointerdown',e=>this.start(e));this.canvas.addEventListener('pointermove',e=>this.draw(e));this.canvas.addEventListener('pointerup',()=>this.stop());this.canvas.addEventListener('pointerleave',()=>this.stop())}resize(){const r=this.canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.scale(d,d);this.ctx.strokeStyle='#1e293b';this.ctx.lineWidth=2;this.ctx.lineCap='round';this.ctx.lineJoin='round'}getPos(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}start(e){e.preventDefault();this.drawing=true;this.has=true;const p=this.getPos(e);this.ctx.beginPath();this.ctx.moveTo(p.x,p.y)}draw(e){if(!this.drawing)return;e.preventDefault();const p=this.getPos(e);this.ctx.lineTo(p.x,p.y);this.ctx.stroke()}stop(){this.drawing=false}clear(){this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);this.has=false}toDataURL(){return this.has?this.canvas.toDataURL():null}}
+const techSigPad=new SigPad('techSig'),custSigPad=new SigPad('custSig');
+function clearSig(id){id==='techSig'?techSigPad.clear():custSigPad.clear()}
+
+// Autosave
+function autoSave(){const d={};document.querySelectorAll('[data-save]').forEach(el=>{if(el.type==='radio'){if(el.checked)d[el.name+'_radio']=el.value}else d[el.id||el.className]=el.value});try{localStorage.setItem('nw_sur_'+reportId,JSON.stringify(d))}catch(e){}document.getElementById('autosaveIndicator').classList.add('show');setTimeout(()=>document.getElementById('autosaveIndicator').classList.remove('show'),1500)}
+document.addEventListener('input',()=>{clearTimeout(window._st);window._st=setTimeout(autoSave,1000)});
+function saveDraft(){autoSave();showToast('Draft saved!')}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+function getChecklistData(id){const items=[];document.querySelectorAll('#'+id+' li').forEach(li=>{const box=li.querySelector('.check-box'),label=li.querySelector('.check-label').textContent;let status='';if(box.classList.contains('checked'))status='PASS';else if(box.classList.contains('fail'))status='FAIL';else if(box.classList.contains('na'))status='N/A';items.push({label,status})});return items}
+
+function generatePDF(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  const radioVal=n=>{const r=document.querySelector(`input[name="${n}"]:checked`);return r?r.value:''};
+  const{jsPDF}=window.jspdf;const doc=new jsPDF('p','mm','letter');
+  const pw=215.9,mx=15,mxr=pw-15;let y=12;
+  const dk=[26,35,50],acc=[245,158,11],txt=[30,41,59];
+
+  // Header
+  doc.setFillColor(...dk);doc.rect(0,0,pw,28,'F');
+  doc.setFillColor(...acc);doc.rect(0,28,pw,2,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(255,255,255);doc.text('NORTHERN WOLVES',mx,12);
+  doc.setFontSize(10);doc.setTextColor(...acc);doc.text('AIR CONDITIONING',mx,18);
+  doc.setFontSize(14);doc.setTextColor(255,255,255);doc.text('START-UP REPORT',mxr,12,{align:'right'});
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(200,200,200);doc.text(reportId,mxr,18,{align:'right'});
+  y=36;
+
+  function sH(t){doc.setFillColor(...dk);doc.rect(mx,y,mxr-mx,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text(t.toUpperCase(),mx+3,y+5);y+=10}
+  function fR(fields){const cw=(mxr-mx)/fields.length;fields.forEach((f,i)=>{const x=mx+i*cw;doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);doc.text(f.label,x+2,y);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...txt);doc.text(String(f.value||'—'),x+2,y+4.5)});y+=9}
+
+  sH('Project & Equipment');
+  fR([{label:'Date',value:v('suDate')},{label:'Technician',value:v('techName')},{label:'WO #',value:v('workOrder')}]);
+  fR([{label:'Project/Customer',value:v('projectName')}]);
+  fR([{label:'Address',value:v('projAddress')}]);
+  fR([{label:'Equipment',value:v('equipType')},{label:'Manufacturer',value:v('equipMfg')}]);
+  fR([{label:'Model',value:v('equipModel')},{label:'Serial',value:v('equipSerial')},{label:'Refrigerant',value:v('refrigerant')}]);
+
+  // Checklists
+  const coolItems=getChecklistData('coolChecklist').filter(i=>i.status);
+  const heatItems=getChecklistData('heatChecklist').filter(i=>i.status);
+  const ctrlItems=getChecklistData('controlsChecklist').filter(i=>i.status);
+
+  if(coolItems.length>0){
+    sH('Cooling Pre-Start Checklist');
+    doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Item','Status']],body:coolItems.map(i=>[i.label,i.status]),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center',cellWidth:20,fontStyle:'bold'}}});
+    y=doc.lastAutoTable.finalY+4;
+  }
+
+  // Cooling readings
+  const coolReadings=[
+    ['Supply Air (°F)',v('c_supply'),v('c_supplySpec')],['Return Air (°F)',v('c_return'),v('c_returnSpec')],
+    ['Delta T (°F)',v('c_deltaT'),v('c_deltaTSpec')],['Outdoor Temp (°F)',v('c_outdoor'),v('c_outdoorSpec')],
+    ['Suction PSI',v('c_suction'),v('c_suctionSpec')],['Head PSI',v('c_head'),v('c_headSpec')],
+    ['Superheat (°F)',v('c_sh'),v('c_shSpec')],['Subcooling (°F)',v('c_sc'),v('c_scSpec')],
+    ['Comp Amps',v('c_compAmps'),v('c_compSpec')],['Cond Fan Amps',v('c_condFan'),v('c_condSpec')],
+    ['Blower Amps',v('c_blower'),v('c_blowerSpec')],['Voltage',v('c_voltage'),v('c_voltageSpec')]
+  ].filter(r=>r[1]);
+
+  if(coolReadings.length>0){
+    if(y>220){doc.addPage();y=15}
+    sH('Cooling Operational Readings');
+    doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Parameter','Reading','Spec']],body:coolReadings.map(r=>[r[0],r[1]||'—',r[2]||'—']),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center'},2:{halign:'center'}}});
+    y=doc.lastAutoTable.finalY+4;
+  }
+
+  if(heatItems.length>0){
+    if(y>200){doc.addPage();y=15}
+    sH('Heating Pre-Start Checklist');
+    doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Item','Status']],body:heatItems.map(i=>[i.label,i.status]),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center',cellWidth:20,fontStyle:'bold'}}});
+    y=doc.lastAutoTable.finalY+4;
+  }
+
+  const heatReadings=[
+    ['Supply Air (°F)',v('h_supply'),v('h_supplySpec')],['Return Air (°F)',v('h_return'),v('h_returnSpec')],
+    ['Temp Rise (°F)',v('h_rise'),v('h_riseSpec')],['Gas In (WC)',v('h_gasIn'),v('h_gasInSpec')],
+    ['Gas Out (WC)',v('h_gasOut'),v('h_gasOutSpec')],['Stack Temp (°F)',v('h_stack'),v('h_stackSpec')],
+    ['CO (ppm)',v('h_co'),v('h_coSpec')],['O₂ (%)',v('h_o2'),v('h_o2Spec')],
+    ['Efficiency (%)',v('h_eff'),v('h_effSpec')],['Voltage',v('h_voltage'),v('h_voltageSpec')],
+    ['Amps',v('h_amps'),v('h_ampsSpec')]
+  ].filter(r=>r[1]);
+
+  if(heatReadings.length>0){
+    if(y>220){doc.addPage();y=15}
+    sH('Heating Operational Readings');
+    doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Parameter','Reading','Spec']],body:heatReadings.map(r=>[r[0],r[1]||'—',r[2]||'—']),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center'},2:{halign:'center'}}});
+    y=doc.lastAutoTable.finalY+4;
+  }
+
+  if(ctrlItems.length>0){
+    if(y>220){doc.addPage();y=15}
+    sH('Controls Verification');
+    doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Item','Status']],body:ctrlItems.map(i=>[i.label,i.status]),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center',cellWidth:20,fontStyle:'bold'}}});
+    y=doc.lastAutoTable.finalY+4;
+  }
+
+  // Result
+  if(y>230){doc.addPage();y=15}
+  sH('Start-Up Result');
+  const result=radioVal('result');
+  const rc=result==='PASS'?[16,185,129]:result==='FAIL'?[239,68,68]:[245,158,11];
+  doc.setFillColor(...rc);doc.roundedRect(mx+3,y-1,40,7,2,2,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);
+  doc.text(result||'NOT SET',mx+6,y+4);y+=12;
+  if(v('resultNotes')){doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...txt);const nl=doc.splitTextToSize(v('resultNotes'),mxr-mx-6);doc.text(nl,mx+3,y);y+=nl.length*4.5+4}
+
+  // Signatures
+  if(y>220){doc.addPage();y=15}
+  sH('Signatures');
+  const sigW=75,sigH=25;
+  doc.setDrawColor(200,200,200);doc.rect(mx+3,y,sigW,sigH);
+  if(techSigPad.toDataURL())try{doc.addImage(techSigPad.toDataURL(),'PNG',mx+3,y,sigW,sigH)}catch(e){}
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);
+  doc.text('Technician: '+(v('techName')||''),mx+3,y+sigH+4);
+  const cx2=mx+sigW+15;doc.rect(cx2,y,sigW,sigH);
+  if(custSigPad.toDataURL())try{doc.addImage(custSigPad.toDataURL(),'PNG',cx2,y,sigW,sigH)}catch(e){}
+  doc.text('Customer/PM: '+(v('custPrintName')||''),cx2,y+sigH+4);
+
+  // Footer
+  const fY=279.4-10;doc.setDrawColor(...acc);doc.setLineWidth(.5);doc.line(mx,fY-3,mxr,fY-3);
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);
+  doc.text('Northern Wolves Air Conditioning — New York & New Jersey',pw/2,fY,{align:'center'});
+  doc.text('Generated: '+new Date().toLocaleString(),pw/2,fY+4,{align:'center'});
+
+  return doc;
+}
+
+function downloadPDF(){const d=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';d.save(`StartUp_${v('projectName').replace(/\s+/g,'_')||'Report'}_${v('suDate')}.pdf`);showToast('PDF downloaded!')}
+function sharePDF(){
+  const d=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';
+  const fn=`StartUp_${v('projectName').replace(/\s+/g,'_')||'Report'}_${v('suDate')}.pdf`;
+  if(navigator.share&&navigator.canShare){const f=new File([d.output('blob')],fn,{type:'application/pdf'});if(navigator.canShare({files:[f]})){navigator.share({title:'Start-Up Report',files:[f]}).then(()=>showToast('Shared!')).catch(()=>{d.save(fn);showToast('PDF downloaded')});return}}
+  d.save(fn);const s=encodeURIComponent(`Start-Up Report - ${v('projectName')} - ${v('suDate')}`);
+  window.location.href=`mailto:ruslan@northernwolvesac.com?subject=${s}&body=${encodeURIComponent('Please see attached Start-Up Report.')}`;
+  showToast('PDF downloaded — attach to email');
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

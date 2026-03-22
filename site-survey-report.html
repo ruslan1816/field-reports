@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1a2332">
+<title>Site Survey Report — Northern Wolves AC</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{--nw-dark:#1a2332;--nw-blue:#2563eb;--nw-blue-light:#3b82f6;--nw-accent:#f59e0b;--nw-bg:#f1f5f9;--nw-card:#fff;--nw-border:#e2e8f0;--nw-text:#1e293b;--nw-muted:#64748b;--nw-success:#10b981;--nw-danger:#ef4444;--nw-section:#f8fafc}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--nw-bg);color:var(--nw-text);padding-bottom:100px}
+.header{background:linear-gradient(135deg,var(--nw-dark) 0%,#2d3a4a 100%);color:#fff;padding:16px 20px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}.header h1{font-size:18px;font-weight:700}.header .subtitle{font-size:12px;color:var(--nw-accent);font-weight:600;margin-top:2px}.header .report-id{font-size:11px;color:#94a3b8;margin-top:4px}
+.section{background:var(--nw-card);margin:12px;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}.section-header{background:var(--nw-dark);color:#fff;padding:12px 16px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:8px;cursor:pointer}.section-header .collapse-arrow{margin-left:auto;transition:transform .2s;font-size:12px}.section-header.collapsed .collapse-arrow{transform:rotate(-90deg)}.section-body{padding:16px}.section-body.collapsed{display:none}
+.field{margin-bottom:14px}.field label{display:block;font-size:12px;font-weight:600;color:var(--nw-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;padding:12px 14px;border:2px solid var(--nw-border);border-radius:8px;font-size:16px;color:var(--nw-text);background:var(--nw-section);-webkit-appearance:none}.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--nw-blue);background:#fff}.field textarea{min-height:80px;resize:vertical}.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.row{display:flex;gap:10px}.row .field{flex:1}
+.check-group{display:flex;flex-wrap:wrap;gap:8px}.check-item{display:flex;align-items:center;gap:6px;background:var(--nw-section);padding:8px 12px;border-radius:8px;border:2px solid var(--nw-border);cursor:pointer;font-size:14px;transition:all .2s}.check-item.selected{border-color:var(--nw-blue);background:#eff6ff}.check-item input{display:none}
+.equip-card{background:var(--nw-section);border:2px solid var(--nw-border);border-radius:10px;padding:14px;margin-bottom:12px}.equip-card .equip-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:700;font-size:14px;color:var(--nw-dark)}.equip-card .remove-equip{background:var(--nw-danger);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+.condition-select{display:flex;gap:6px;margin-top:6px}.condition-btn{padding:6px 12px;border:2px solid var(--nw-border);border-radius:6px;background:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}.condition-btn.good{border-color:var(--nw-success);background:#d1fae5;color:#065f46}.condition-btn.fair{border-color:var(--nw-accent);background:#fef3c7;color:#92400e}.condition-btn.poor{border-color:var(--nw-danger);background:#fee2e2;color:#991b1b}.condition-btn.eol{border-color:#7c3aed;background:#ede9fe;color:#5b21b6}
+.photo-area{border:2px dashed var(--nw-border);border-radius:10px;padding:20px;text-align:center;background:var(--nw-section);cursor:pointer}.photo-area:hover{border-color:var(--nw-blue)}.photo-area .icon{font-size:32px;margin-bottom:8px}.photo-area p{font-size:13px;color:var(--nw-muted)}.photo-preview{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.photo-thumb{position:relative;display:inline-block}.photo-thumb img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid var(--nw-border)}.photo-thumb .remove-photo{position:absolute;top:-6px;right:-6px;background:var(--nw-danger);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;border:2px solid #fff}
+.sig-canvas{width:100%;height:150px;border:2px solid var(--nw-border);border-radius:10px;background:#fff;touch-action:none;cursor:crosshair}.sig-label{font-size:11px;color:var(--nw-muted);text-align:center;margin-top:4px}
+.btn{padding:14px 24px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}.btn-primary{background:var(--nw-blue);color:#fff}.btn-secondary{background:var(--nw-section);color:var(--nw-text);border:2px solid var(--nw-border)}.btn-success{background:var(--nw-success);color:#fff}.btn-small{padding:8px 14px;font-size:13px;width:auto}.btn-outline{background:transparent;border:2px solid var(--nw-border);color:var(--nw-muted)}
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:12px 16px;box-shadow:0 -4px 12px rgba(0,0,0,.1);display:flex;gap:10px;z-index:100}.bottom-bar .btn{flex:1}
+.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--nw-dark);color:#fff;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}.toast.show{opacity:1}
+@media(max-width:400px){.row{flex-direction:column;gap:0}.section{margin:8px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>NORTHERN WOLVES AC</h1>
+  <div class="subtitle">SITE SURVEY / HVAC CONDITIONS REPORT</div>
+  <div class="report-id" id="reportId"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- SITE INFO -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📋</span> Site Information<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="row">
+      <div class="field"><label>Date</label><input type="date" id="surveyDate" data-save></div>
+      <div class="field"><label>Surveyed By</label><input type="text" id="techName" placeholder="Your name" data-save></div>
+    </div>
+    <div class="field"><label>Customer / Property Name</label><input type="text" id="custName" placeholder="Building or customer name" data-save></div>
+    <div class="field"><label>Address</label><input type="text" id="address" placeholder="Full address" data-save></div>
+    <div class="row">
+      <div class="field"><label>Contact Person</label><input type="text" id="contact" data-save></div>
+      <div class="field"><label>Phone</label><input type="tel" id="phone" data-save></div>
+    </div>
+    <div class="field"><label>Building Type</label>
+      <select id="buildingType" data-save>
+        <option value="">Select...</option>
+        <option>Single Family Residential</option>
+        <option>Multi-Family Residential</option>
+        <option>Office Building</option>
+        <option>Retail / Restaurant</option>
+        <option>Warehouse / Industrial</option>
+        <option>Medical / Healthcare</option>
+        <option>School / Educational</option>
+        <option>Religious / Assembly</option>
+        <option>Mixed Use</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field"><label>Approx Sq Ft</label><input type="number" id="sqft" data-save></div>
+      <div class="field"><label>Floors / Zones</label><input type="text" id="floors" placeholder="e.g. 3 floors, 8 zones" data-save></div>
+    </div>
+    <div class="field"><label>Purpose of Survey</label>
+      <div class="check-group" id="purposeGroup">
+        <label class="check-item" onclick="toggleCheck(this)"><input type="checkbox" value="Replacement Quote" data-save>Replacement Quote</label>
+        <label class="check-item" onclick="toggleCheck(this)"><input type="checkbox" value="New Install" data-save>New Install</label>
+        <label class="check-item" onclick="toggleCheck(this)"><input type="checkbox" value="PM Contract" data-save>PM Contract</label>
+        <label class="check-item" onclick="toggleCheck(this)"><input type="checkbox" value="Condition Assessment" data-save>Condition Assessment</label>
+        <label class="check-item" onclick="toggleCheck(this)"><input type="checkbox" value="Energy Audit" data-save>Energy Audit</label>
+        <label class="check-item" onclick="toggleCheck(this)"><input type="checkbox" value="Complaint Investigation" data-save>Complaint Investigation</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EXISTING EQUIPMENT INVENTORY -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">⚙️</span> Equipment Inventory<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <p style="font-size:12px;color:var(--nw-muted);margin-bottom:12px;">Add each piece of HVAC equipment on-site.</p>
+    <div id="equipList"></div>
+    <button class="btn btn-secondary btn-small" onclick="addEquipment()" style="margin-top:8px">+ Add Equipment</button>
+  </div>
+</div>
+
+<!-- DUCTWORK / PIPING -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">🔩</span> Ductwork & Piping Conditions<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Ductwork Type</label>
+      <select id="ductType" data-save>
+        <option value="">Select...</option>
+        <option>Sheet Metal</option>
+        <option>Flex Duct</option>
+        <option>Fiberglass Board</option>
+        <option>Mixed</option>
+        <option>None / Ductless</option>
+      </select>
+    </div>
+    <div class="field"><label>Ductwork Condition</label>
+      <div class="condition-select" id="ductCondition">
+        <button class="condition-btn" onclick="selectCondition(this,'ductCondition','Good')">Good</button>
+        <button class="condition-btn" onclick="selectCondition(this,'ductCondition','Fair')">Fair</button>
+        <button class="condition-btn" onclick="selectCondition(this,'ductCondition','Poor')">Poor</button>
+        <button class="condition-btn" onclick="selectCondition(this,'ductCondition','N/A')">N/A</button>
+      </div>
+    </div>
+    <div class="field"><label>Insulation Condition</label>
+      <div class="condition-select" id="insCondition">
+        <button class="condition-btn" onclick="selectCondition(this,'insCondition','Good')">Good</button>
+        <button class="condition-btn" onclick="selectCondition(this,'insCondition','Fair')">Fair</button>
+        <button class="condition-btn" onclick="selectCondition(this,'insCondition','Poor')">Poor</button>
+        <button class="condition-btn" onclick="selectCondition(this,'insCondition','N/A')">N/A</button>
+      </div>
+    </div>
+    <div class="field"><label>Piping Condition (if applicable)</label>
+      <div class="condition-select" id="pipeCondition">
+        <button class="condition-btn" onclick="selectCondition(this,'pipeCondition','Good')">Good</button>
+        <button class="condition-btn" onclick="selectCondition(this,'pipeCondition','Fair')">Fair</button>
+        <button class="condition-btn" onclick="selectCondition(this,'pipeCondition','Poor')">Poor</button>
+        <button class="condition-btn" onclick="selectCondition(this,'pipeCondition','N/A')">N/A</button>
+      </div>
+    </div>
+    <div class="field"><label>Notes on Distribution</label><textarea id="distNotes" placeholder="Visible leaks, disconnected sections, insulation damage, etc." data-save></textarea></div>
+  </div>
+</div>
+
+<!-- ELECTRICAL -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">⚡</span> Electrical & Controls<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="row">
+      <div class="field"><label>Main Service (Amps)</label><input type="text" id="mainService" placeholder="e.g. 200A, 400A" data-save></div>
+      <div class="field"><label>Available Circuits</label><input type="text" id="availCircuits" placeholder="Yes/No/Unknown" data-save></div>
+    </div>
+    <div class="field"><label>Controls Type</label>
+      <select id="controlsType" data-save>
+        <option value="">Select...</option>
+        <option>Manual Thermostat</option>
+        <option>Programmable Thermostat</option>
+        <option>Smart Thermostat (WiFi)</option>
+        <option>BMS / DDC</option>
+        <option>Pneumatic Controls</option>
+        <option>None / Missing</option>
+      </select>
+    </div>
+    <div class="field"><label>Electrical Notes</label><textarea id="elecNotes" placeholder="Panel location, wiring condition, capacity concerns..." data-save></textarea></div>
+  </div>
+</div>
+
+<!-- COMFORT / ISSUES -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">🌡️</span> Comfort & Known Issues<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Customer-Reported Issues</label><textarea id="custIssues" placeholder="Hot spots, cold spots, humidity, noise, odors, high bills..." data-save></textarea></div>
+    <div class="field"><label>Observed Issues During Survey</label><textarea id="observedIssues" placeholder="What did you see? Leaks, corrosion, noise, vibration, code violations..." data-save></textarea></div>
+    <div class="field"><label>Temperature Readings (if taken)</label><textarea id="tempReadings" placeholder="Zone 1: 74°F, Zone 2: 68°F, etc." data-save></textarea></div>
+  </div>
+</div>
+
+<!-- ACCESS & LOGISTICS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">🚪</span> Access & Logistics<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Equipment Access</label><textarea id="accessNotes" placeholder="Roof hatch, ladder needed, tight mech room, crane required, occupied space..." data-save></textarea></div>
+    <div class="field"><label>Rigging / Crane Needed?</label>
+      <div class="check-group" id="craneGroup">
+        <label class="check-item" onclick="selectRadio(this,'craneGroup')"><input type="radio" name="crane" value="No" data-save>No</label>
+        <label class="check-item" onclick="selectRadio(this,'craneGroup')"><input type="radio" name="crane" value="Yes" data-save>Yes</label>
+        <label class="check-item" onclick="selectRadio(this,'craneGroup')"><input type="radio" name="crane" value="TBD" data-save>TBD</label>
+      </div>
+    </div>
+    <div class="field"><label>Parking / Staging Notes</label><textarea id="parkingNotes" placeholder="Loading dock, street parking, permits needed..." data-save></textarea></div>
+  </div>
+</div>
+
+<!-- PHOTOS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="photo-area" onclick="document.getElementById('photoInput').click()">
+      <div class="icon">📸</div><p>Tap to take photo — nameplates, conditions, access, damage</p>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this)">
+    </div>
+    <div class="photo-preview" id="photoPreview"></div>
+  </div>
+</div>
+
+<!-- RECOMMENDATIONS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">💡</span> Recommendations<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Recommended Actions</label><textarea id="recommendations" placeholder="Replace unit X, repair ductwork in zone Y, add PM contract, upgrade controls..." data-save></textarea></div>
+    <div class="field"><label>Priority Level</label>
+      <div class="check-group" id="priorityGroup">
+        <label class="check-item" onclick="selectRadio(this,'priorityGroup')" style="border-color:#ef4444"><input type="radio" name="priority" value="Urgent" data-save>🔴 Urgent</label>
+        <label class="check-item" onclick="selectRadio(this,'priorityGroup')" style="border-color:#f59e0b"><input type="radio" name="priority" value="High" data-save>🟡 High</label>
+        <label class="check-item" onclick="selectRadio(this,'priorityGroup')" style="border-color:#2563eb"><input type="radio" name="priority" value="Standard" data-save>🔵 Standard</label>
+        <label class="check-item" onclick="selectRadio(this,'priorityGroup')" style="border-color:#10b981"><input type="radio" name="priority" value="Low" data-save>🟢 Low</label>
+      </div>
+    </div>
+    <div class="field"><label>Estimated Scope</label><textarea id="scope" placeholder="Brief scope for quoting: equipment, labor, materials, timeline..." data-save></textarea></div>
+  </div>
+</div>
+
+<!-- SIGNATURES -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">✍️</span> Signatures<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Surveyor Signature</label><canvas class="sig-canvas" id="techSig"></canvas><div class="sig-label">Sign above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="clearSig('techSig')">Clear</button></div></div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <button class="btn btn-secondary" onclick="showToast('Draft saved!')">💾 Save</button>
+  <button class="btn btn-primary" onclick="downloadPDF()">📄 PDF</button>
+  <button class="btn btn-success" onclick="sharePDF()">📧 Send</button>
+</div>
+
+<script>
+const reportId='SSR-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
+document.getElementById('reportId').textContent=reportId;
+document.getElementById('surveyDate').value=new Date().toISOString().slice(0,10);
+
+function toggleSection(h){h.classList.toggle('collapsed');h.nextElementSibling.classList.toggle('collapsed')}
+function selectRadio(item,gid){document.querySelectorAll('#'+gid+' .check-item').forEach(e=>e.classList.remove('selected'));item.classList.add('selected');item.querySelector('input').checked=true}
+function toggleCheck(item){item.classList.toggle('selected');item.querySelector('input').checked=item.classList.contains('selected')}
+function selectCondition(btn,gid,val){document.querySelectorAll('#'+gid+' .condition-btn').forEach(b=>{b.classList.remove('good','fair','poor')});btn.classList.add(val==='Good'?'good':val==='Fair'?'fair':val==='Poor'?'poor':'');btn.parentElement.dataset.value=val}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+// Equipment cards
+let equipCount=0;
+function addEquipment(){
+  equipCount++;const id='eq'+equipCount;
+  const card=document.createElement('div');card.className='equip-card';card.id=id;
+  card.innerHTML=`
+    <div class="equip-header"><span>Equipment #${equipCount}</span><button class="remove-equip" onclick="document.getElementById('${id}').remove()">Remove</button></div>
+    <div class="field"><label>Type</label><select class="eq-type" data-save><option value="">Select...</option><optgroup label="Cooling"><option>Split System</option><option>Heat Pump</option><option>Mini-Split</option><option>RTU</option><option>AHU</option><option>Chiller</option><option>VRF</option><option>WSHP</option></optgroup><optgroup label="Heating"><option>Furnace</option><option>Boiler</option><option>Unit Heater</option></optgroup><optgroup label="Ventilation"><option>DOAS</option><option>ERV/HRV</option><option>MAU</option><option>Exhaust Fan</option></optgroup><optgroup label="Other"><option>VAV</option><option>FPB</option><option>VFD</option><option>Other</option></optgroup></select></div>
+    <div class="row"><div class="field"><label>Manufacturer</label><input type="text" class="eq-mfg" data-save></div><div class="field"><label>Model</label><input type="text" class="eq-model" data-save></div></div>
+    <div class="row"><div class="field"><label>Serial #</label><input type="text" class="eq-serial" data-save></div><div class="field"><label>Age / Year</label><input type="text" class="eq-age" placeholder="Est. year" data-save></div></div>
+    <div class="row"><div class="field"><label>Capacity</label><input type="text" class="eq-cap" placeholder="Tons, BTU, HP" data-save></div><div class="field"><label>Location</label><input type="text" class="eq-loc" data-save></div></div>
+    <div class="field"><label>Condition</label>
+      <div class="condition-select" id="cond_${id}">
+        <button class="condition-btn" onclick="selectCondition(this,'cond_${id}','Good')">Good</button>
+        <button class="condition-btn" onclick="selectCondition(this,'cond_${id}','Fair')">Fair</button>
+        <button class="condition-btn" onclick="selectCondition(this,'cond_${id}','Poor')">Poor</button>
+        <button class="condition-btn" onclick="selectCondition(this,'cond_${id}','End of Life')">End of Life</button>
+      </div>
+    </div>
+    <div class="field"><label>Notes</label><textarea class="eq-notes" placeholder="Issues, observations..." data-save></textarea></div>`;
+  document.getElementById('equipList').appendChild(card);
+}
+addEquipment(); // Start with one
+
+// Photos
+let photos=[];
+function handlePhotos(input){Array.from(input.files).forEach(f=>{const r=new FileReader();r.onload=e=>{photos.push({name:f.name,data:e.target.result});renderPhotos()};r.readAsDataURL(f)});input.value=''}
+function renderPhotos(){const p=document.getElementById('photoPreview');p.innerHTML='';photos.forEach((ph,i)=>{const d=document.createElement('div');d.className='photo-thumb';d.innerHTML=`<img src="${ph.data}"><div class="remove-photo" onclick="photos.splice(${i},1);renderPhotos();">✕</div>`;p.appendChild(d)})}
+
+// Signature
+class SigPad{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');this.drawing=false;this.has=false;this.resize();window.addEventListener('resize',()=>this.resize());this.canvas.addEventListener('pointerdown',e=>this.start(e));this.canvas.addEventListener('pointermove',e=>this.draw(e));this.canvas.addEventListener('pointerup',()=>this.stop());this.canvas.addEventListener('pointerleave',()=>this.stop())}resize(){const r=this.canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.scale(d,d);this.ctx.strokeStyle='#1e293b';this.ctx.lineWidth=2;this.ctx.lineCap='round'}getPos(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}start(e){e.preventDefault();this.drawing=true;this.has=true;const p=this.getPos(e);this.ctx.beginPath();this.ctx.moveTo(p.x,p.y)}draw(e){if(!this.drawing)return;e.preventDefault();const p=this.getPos(e);this.ctx.lineTo(p.x,p.y);this.ctx.stroke()}stop(){this.drawing=false}clear(){this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);this.has=false}toDataURL(){return this.has?this.canvas.toDataURL():null}}
+const techSigPad=new SigPad('techSig');
+function clearSig(id){techSigPad.clear()}
+
+function collectEquipment(){
+  const items=[];
+  document.querySelectorAll('.equip-card').forEach(card=>{
+    const v=cls=>(card.querySelector('.'+cls)||{}).value||'';
+    const condEl=card.querySelector('[id^="cond_"]');
+    items.push({type:v('eq-type'),mfg:v('eq-mfg'),model:v('eq-model'),serial:v('eq-serial'),age:v('eq-age'),capacity:v('eq-cap'),location:v('eq-loc'),condition:condEl?condEl.dataset.value||'':'',notes:v('eq-notes')});
+  });
+  return items.filter(e=>e.type);
+}
+
+function generatePDF(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  const radioVal=n=>{const r=document.querySelector(`input[name="${n}"]:checked`);return r?r.value:''};
+  const condVal=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':''};
+  const checkedVals=gid=>{const vals=[];document.querySelectorAll('#'+gid+' input:checked').forEach(i=>vals.push(i.value));return vals.join(', ')};
+  const{jsPDF}=window.jspdf;const doc=new jsPDF('p','mm','letter');
+  const pw=215.9,mx=15,mxr=pw-15;let y=12;
+  const dk=[26,35,50],acc=[245,158,11],txt=[30,41,59];
+
+  // Header
+  doc.setFillColor(...dk);doc.rect(0,0,pw,28,'F');doc.setFillColor(...acc);doc.rect(0,28,pw,2,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(255,255,255);doc.text('NORTHERN WOLVES',mx,12);
+  doc.setFontSize(10);doc.setTextColor(...acc);doc.text('AIR CONDITIONING',mx,18);
+  doc.setFontSize(13);doc.setTextColor(255,255,255);doc.text('SITE SURVEY REPORT',mxr,12,{align:'right'});
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(200,200,200);doc.text(reportId,mxr,18,{align:'right'});
+  y=36;
+
+  function sH(t){if(y>255){doc.addPage();y=15}doc.setFillColor(...dk);doc.rect(mx,y,mxr-mx,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text(t.toUpperCase(),mx+3,y+5);y+=10}
+  function fR(fields){const cw=(mxr-mx)/fields.length;fields.forEach((f,i)=>{const x=mx+i*cw;doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);doc.text(f.label,x+2,y);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...txt);doc.text(String(f.value||'—'),x+2,y+4.5)});y+=9}
+  function textBlock(label,text){if(!text)return;doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,116,139);doc.text(label+':',mx+3,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...txt);const lines=doc.splitTextToSize(text,mxr-mx-6);doc.text(lines,mx+3,y);y+=lines.length*4.5+4}
+
+  sH('Site Information');
+  fR([{label:'Date',value:v('surveyDate')},{label:'Surveyed By',value:v('techName')}]);
+  fR([{label:'Customer/Property',value:v('custName')}]);
+  fR([{label:'Address',value:v('address')}]);
+  fR([{label:'Contact',value:v('contact')},{label:'Phone',value:v('phone')}]);
+  fR([{label:'Building Type',value:v('buildingType')},{label:'Sq Ft',value:v('sqft')},{label:'Floors/Zones',value:v('floors')}]);
+  fR([{label:'Purpose',value:checkedVals('purposeGroup')}]);
+
+  // Equipment table
+  const equip=collectEquipment();
+  if(equip.length>0){
+    sH('Equipment Inventory');
+    doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['#','Type','Mfg','Model','Age','Capacity','Condition']],
+      body:equip.map((e,i)=>[(i+1).toString(),e.type,e.mfg||'—',e.model||'—',e.age||'—',e.capacity||'—',e.condition||'—']),
+      theme:'grid',headStyles:{fillColor:dk,fontSize:7,fontStyle:'bold'},bodyStyles:{fontSize:7,cellPadding:1.5},
+      columnStyles:{0:{cellWidth:8,halign:'center'},6:{fontStyle:'bold'}}});
+    y=doc.lastAutoTable.finalY+2;
+    equip.forEach((e,i)=>{if(e.notes){doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(100,116,139);
+      doc.text(`#${i+1} Notes: ${e.notes}`,mx+3,y);y+=4}});
+    y+=2;
+  }
+
+  if(y>230){doc.addPage();y=15}
+  sH('Ductwork & Piping');
+  fR([{label:'Duct Type',value:v('ductType')},{label:'Duct Condition',value:condVal('ductCondition')},{label:'Insulation',value:condVal('insCondition')},{label:'Piping',value:condVal('pipeCondition')}]);
+  textBlock('Distribution Notes',v('distNotes'));
+
+  sH('Electrical & Controls');
+  fR([{label:'Main Service',value:v('mainService')},{label:'Available Circuits',value:v('availCircuits')},{label:'Controls',value:v('controlsType')}]);
+  textBlock('Electrical Notes',v('elecNotes'));
+
+  if(y>230){doc.addPage();y=15}
+  sH('Comfort & Known Issues');
+  textBlock('Customer Issues',v('custIssues'));
+  textBlock('Observed Issues',v('observedIssues'));
+  textBlock('Temperature Readings',v('tempReadings'));
+
+  if(y>230){doc.addPage();y=15}
+  sH('Access & Logistics');
+  textBlock('Equipment Access',v('accessNotes'));
+  fR([{label:'Crane/Rigging',value:radioVal('crane')}]);
+  textBlock('Parking/Staging',v('parkingNotes'));
+
+  if(y>230){doc.addPage();y=15}
+  sH('Recommendations');
+  textBlock('Recommended Actions',v('recommendations'));
+  fR([{label:'Priority',value:radioVal('priority')}]);
+  textBlock('Estimated Scope',v('scope'));
+
+  // Signature
+  if(y>220){doc.addPage();y=15}
+  sH('Signature');
+  const sigW=80,sigH=25;doc.setDrawColor(200,200,200);doc.rect(mx+3,y,sigW,sigH);
+  if(techSigPad.toDataURL())try{doc.addImage(techSigPad.toDataURL(),'PNG',mx+3,y,sigW,sigH)}catch(e){}
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);doc.text('Surveyed By: '+(v('techName')||''),mx+3,y+sigH+4);
+
+  // Footer
+  const fY=279.4-10;doc.setDrawColor(...acc);doc.setLineWidth(.5);doc.line(mx,fY-3,mxr,fY-3);
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);
+  doc.text('Northern Wolves Air Conditioning — New York & New Jersey',pw/2,fY,{align:'center'});
+  doc.text('Generated: '+new Date().toLocaleString(),pw/2,fY+4,{align:'center'});
+  return doc;
+}
+
+function downloadPDF(){const d=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';d.save(`SiteSurvey_${v('custName').replace(/\s+/g,'_')||'Report'}_${v('surveyDate')}.pdf`);showToast('PDF downloaded!')}
+function sharePDF(){
+  const d=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';
+  const fn=`SiteSurvey_${v('custName').replace(/\s+/g,'_')||'Report'}_${v('surveyDate')}.pdf`;
+  if(navigator.share&&navigator.canShare){const f=new File([d.output('blob')],fn,{type:'application/pdf'});if(navigator.canShare({files:[f]})){navigator.share({title:'Site Survey Report',files:[f]}).then(()=>showToast('Shared!')).catch(()=>{d.save(fn)});return}}
+  d.save(fn);window.location.href=`mailto:ruslan@northernwolvesac.com?subject=${encodeURIComponent('Site Survey - '+v('custName'))}&body=${encodeURIComponent('Please see attached Site Survey Report.')}`;
+  showToast('PDF downloaded — attach to email');
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

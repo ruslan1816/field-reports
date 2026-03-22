@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1a2332">
+<title>PM Checklist — Northern Wolves AC</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{--nw-dark:#1a2332;--nw-blue:#2563eb;--nw-accent:#f59e0b;--nw-bg:#f1f5f9;--nw-card:#fff;--nw-border:#e2e8f0;--nw-text:#1e293b;--nw-muted:#64748b;--nw-success:#10b981;--nw-danger:#ef4444;--nw-section:#f8fafc}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--nw-bg);color:var(--nw-text);padding-bottom:100px}
+.header{background:linear-gradient(135deg,var(--nw-dark) 0%,#2d3a4a 100%);color:#fff;padding:16px 20px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}.header h1{font-size:18px;font-weight:700}.header .subtitle{font-size:12px;color:var(--nw-accent);font-weight:600;margin-top:2px}.header .report-id{font-size:11px;color:#94a3b8;margin-top:4px}
+.section{background:var(--nw-card);margin:12px;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}.section-header{background:var(--nw-dark);color:#fff;padding:12px 16px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:8px;cursor:pointer}.section-header .collapse-arrow{margin-left:auto;font-size:12px}.section-header.collapsed .collapse-arrow{transform:rotate(-90deg)}.section-body{padding:16px}.section-body.collapsed{display:none}
+.field{margin-bottom:14px}.field label{display:block;font-size:12px;font-weight:600;color:var(--nw-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;padding:12px 14px;border:2px solid var(--nw-border);border-radius:8px;font-size:16px;color:var(--nw-text);background:var(--nw-section);-webkit-appearance:none}.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--nw-blue);background:#fff}.field textarea{min-height:80px;resize:vertical}.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.row{display:flex;gap:10px}.row .field{flex:1}
+.checklist{list-style:none;padding:0}.checklist li{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--nw-border);font-size:14px;cursor:pointer}.checklist li:last-child{border-bottom:none}
+.chk{width:30px;height:30px;border-radius:6px;border:2px solid var(--nw-border);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;transition:all .15s;font-weight:700}.chk.pass{background:var(--nw-success);border-color:var(--nw-success);color:#fff}.chk.fail{background:var(--nw-danger);border-color:var(--nw-danger);color:#fff}.chk.na{background:var(--nw-muted);border-color:var(--nw-muted);color:#fff;font-size:9px}
+.chk-label{flex:1;font-size:13px}
+.progress-bar{background:var(--nw-border);border-radius:10px;height:8px;margin:12px 0;overflow:hidden}.progress-fill{height:100%;background:var(--nw-success);border-radius:10px;transition:width .3s}.progress-text{font-size:12px;color:var(--nw-muted);text-align:center;margin-bottom:4px}
+.photo-area{border:2px dashed var(--nw-border);border-radius:10px;padding:20px;text-align:center;background:var(--nw-section);cursor:pointer}.photo-area .icon{font-size:32px;margin-bottom:8px}.photo-area p{font-size:13px;color:var(--nw-muted)}.photo-preview{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.photo-thumb{position:relative;display:inline-block}.photo-thumb img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid var(--nw-border)}.photo-thumb .remove-photo{position:absolute;top:-6px;right:-6px;background:var(--nw-danger);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;border:2px solid #fff}
+.sig-canvas{width:100%;height:150px;border:2px solid var(--nw-border);border-radius:10px;background:#fff;touch-action:none;cursor:crosshair}.sig-label{font-size:11px;color:var(--nw-muted);text-align:center;margin-top:4px}
+.btn{padding:14px 24px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}.btn-primary{background:var(--nw-blue);color:#fff}.btn-secondary{background:var(--nw-section);color:var(--nw-text);border:2px solid var(--nw-border)}.btn-success{background:var(--nw-success);color:#fff}.btn-small{padding:8px 14px;font-size:13px;width:auto}.btn-outline{background:transparent;border:2px solid var(--nw-border);color:var(--nw-muted)}
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:12px 16px;box-shadow:0 -4px 12px rgba(0,0,0,.1);display:flex;gap:10px;z-index:100}.bottom-bar .btn{flex:1}
+.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--nw-dark);color:#fff;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}.toast.show{opacity:1}
+.equip-chip{display:inline-block;padding:8px 16px;margin:4px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid var(--nw-border);background:var(--nw-section);transition:all .2s}.equip-chip.active{background:var(--nw-blue);color:#fff;border-color:var(--nw-blue)}
+@media(max-width:400px){.row{flex-direction:column;gap:0}.section{margin:8px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>NORTHERN WOLVES AC</h1>
+  <div class="subtitle">PREVENTIVE MAINTENANCE CHECKLIST</div>
+  <div class="report-id" id="reportId"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- INFO -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📋</span> Visit Information<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="row"><div class="field"><label>Date</label><input type="date" id="pmDate" data-save></div><div class="field"><label>Technician</label><input type="text" id="techName" data-save></div></div>
+    <div class="field"><label>Customer / Property</label><input type="text" id="custName" data-save></div>
+    <div class="field"><label>Address</label><input type="text" id="address" data-save></div>
+    <div class="row"><div class="field"><label>WO #</label><input type="text" id="workOrder" data-save></div><div class="field"><label>PM Visit #</label><select id="visitNum" data-save><option>1 of 2</option><option>2 of 2</option><option>1 of 4</option><option>2 of 4</option><option>3 of 4</option><option>4 of 4</option><option>Annual</option></select></div></div>
+    <div class="row"><div class="field"><label>Manufacturer</label><input type="text" id="equipMfg" data-save></div><div class="field"><label>Model #</label><input type="text" id="equipModel" data-save></div></div>
+    <div class="row"><div class="field"><label>Serial #</label><input type="text" id="equipSerial" data-save></div><div class="field"><label>Location / Tag</label><input type="text" id="equipLoc" data-save></div></div>
+  </div>
+</div>
+
+<!-- EQUIPMENT TYPE SELECTOR -->
+<div class="section">
+  <div class="section-header"><span class="icon">⚙️</span> Select Equipment Type</div>
+  <div class="section-body" style="text-align:center">
+    <div class="equip-chip active" onclick="loadChecklist('split')">Split System</div>
+    <div class="equip-chip" onclick="loadChecklist('rtu')">RTU</div>
+    <div class="equip-chip" onclick="loadChecklist('ahu')">AHU</div>
+    <div class="equip-chip" onclick="loadChecklist('boiler')">Boiler</div>
+    <div class="equip-chip" onclick="loadChecklist('vrf')">VRF</div>
+    <div class="equip-chip" onclick="loadChecklist('exhaust')">Exhaust Fan</div>
+    <div class="equip-chip" onclick="loadChecklist('minisplit')">Mini-Split</div>
+    <div class="equip-chip" onclick="loadChecklist('chiller')">Chiller</div>
+  </div>
+</div>
+
+<!-- DYNAMIC CHECKLIST -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">✅</span> PM Checklist<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="progress-text" id="progressText">0 of 0 items completed</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <ul class="checklist" id="checklistItems"></ul>
+  </div>
+</div>
+
+<!-- NOTES & DEFICIENCIES -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📝</span> Notes & Deficiencies<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Deficiencies Found</label><textarea id="deficiencies" placeholder="List any issues found during PM..." data-save></textarea></div>
+    <div class="field"><label>Recommendations</label><textarea id="pmRecommendations" placeholder="Recommended repairs, replacements, follow-ups..." data-save></textarea></div>
+    <div class="field"><label>General Notes</label><textarea id="pmNotes" placeholder="Filter sizes, belt sizes, refrigerant type, etc." data-save></textarea></div>
+  </div>
+</div>
+
+<!-- PHOTOS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="photo-area" onclick="document.getElementById('photoInput').click()">
+      <div class="icon">📸</div><p>Tap to take photo</p>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this)">
+    </div>
+    <div class="photo-preview" id="photoPreview"></div>
+  </div>
+</div>
+
+<!-- SIGNATURES -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">✍️</span> Signatures<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div class="field"><label>Technician Signature</label><canvas class="sig-canvas" id="techSig"></canvas><div class="sig-label">Sign above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="techSigPad.clear()">Clear</button></div></div>
+    <div class="field" style="margin-top:16px"><label>Customer Signature</label><canvas class="sig-canvas" id="custSig"></canvas><div class="sig-label">Customer signs above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="custSigPad.clear()">Clear</button></div></div>
+    <div class="field" style="margin-top:12px"><label>Printed Name</label><input type="text" id="custPrintName" data-save></div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <button class="btn btn-secondary" onclick="showToast('Draft saved!')">💾 Save</button>
+  <button class="btn btn-primary" onclick="downloadPDF()">📄 PDF</button>
+  <button class="btn btn-success" onclick="sharePDF()">📧 Send</button>
+</div>
+
+<script>
+const reportId='PMC-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
+document.getElementById('reportId').textContent=reportId;
+document.getElementById('pmDate').value=new Date().toISOString().slice(0,10);
+
+function toggleSection(h){h.classList.toggle('collapsed');h.nextElementSibling.classList.toggle('collapsed')}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+// Equipment-specific checklists
+const checklists={
+  split:['Check/replace air filter','Inspect evaporator coil — clean if needed','Inspect condenser coil — clean if needed','Check condensate drain and trap','Check refrigerant charge (SH/SC)','Measure supply/return temperatures','Check compressor amp draw vs RLA','Check condenser fan motor amps','Check blower motor amps','Inspect electrical connections — tighten','Check contactor points','Check capacitor(s) with meter','Inspect disconnect and breaker','Check thermostat operation','Inspect ductwork connections (visible)','Check vibration and noise levels','Lubricate motors (if applicable)','Inspect insulation on suction line','Check crankcase heater (if equipped)','Inspect outdoor unit clearances'],
+  rtu:['Check/replace air filters','Inspect evaporator coil — clean if needed','Inspect condenser coil — clean if needed','Check condensate drain and pan','Check refrigerant charge (SH/SC)','Measure supply/return temperatures','Check compressor amp draw vs RLA','Check condenser fan motor amps','Check supply fan/blower amps','Inspect belts — adjust or replace','Check belt tension and alignment','Inspect bearings — lubricate','Inspect electrical connections — tighten','Check contactor points','Check capacitor(s)','Check economizer operation','Check damper actuator(s)','Inspect gas valve and burner (if equipped)','Check ignition sequence','Test safeties (high pressure, low pressure)','Inspect roof curb and gaskets','Check unit for water intrusion','Inspect exhaust section','Test BMS/DDC points (if connected)'],
+  ahu:['Check/replace air filters (all banks)','Inspect coils — clean if needed','Check condensate drain and pan','Check chilled water valve operation','Check hot water/steam valve operation','Measure supply/return air temps','Check supply fan amps','Inspect belts — adjust or replace','Check belt tension and alignment','Inspect bearings — lubricate','Check VFD operation (if equipped)','Inspect damper actuators','Check outside air damper operation','Check return air damper','Check mixed air temperature','Inspect electrical connections','Test safeties and interlocks','Check economizer sequence','Inspect insulation condition','Check unit for air leaks','Verify BMS points and setpoints','Check differential pressure across filters'],
+  boiler:['Check/clean burner assembly','Inspect flame pattern and color','Check ignition sequence','Test flame safety (UV/flame rod)','Check gas pressure (in/out)','Combustion analysis (O2, CO, stack temp)','Check water temperature and pressure','Test low water cut-off (LWCO)','Test high limit safety','Check expansion tank pressure','Inspect relief valve','Check circulator pump operation','Inspect flue/vent connections','Check combustion air supply','Inspect heat exchanger (visible)','Check water treatment/chemistry','Blowdown boiler (if applicable)','Inspect piping and insulation','Check electrical connections','Test operating and safety controls','Check aquastat settings','Inspect for water leaks'],
+  vrf:['Check/clean indoor unit filters','Inspect indoor unit coils','Check condensate drains','Check outdoor unit coil — clean if needed','Check refrigerant charge','Check compressor operation','Inspect communication wiring','Check error codes / fault history','Test each indoor unit operation','Check EEV operation','Check branch selector box (if heat recovery)','Inspect electrical connections','Check outdoor unit fan motors','Test defrost operation','Verify remote controller operation','Check oil return','Inspect refrigerant piping insulation','Test BMS integration (if connected)','Check system pressures','Verify operating temperatures'],
+  exhaust:['Check fan operation and rotation','Check amp draw vs nameplate','Inspect belt (if belt-drive)','Check belt tension and alignment','Lubricate bearings','Inspect wheel/blades for buildup','Check vibration levels','Inspect electrical connections','Check VFD operation (if equipped)','Inspect ductwork connections','Check backdraft damper','Check fire/smoke damper (if equipped)','Inspect roof curb and flashing','Check interlock operation','Test on/off from BMS/switch'],
+  minisplit:['Check/clean air filters','Clean indoor unit coil','Clean outdoor unit coil','Check condensate drain','Check refrigerant charge','Measure supply air temperature','Check compressor operation','Check outdoor fan operation','Inspect electrical connections','Check communication wiring','Check remote controller batteries','Check error codes / fault history','Test heating mode','Test cooling mode','Check airflow direction louvers','Inspect refrigerant piping insulation','Check line set connections','Inspect mounting hardware','Check for unusual noise/vibration','Clean indoor unit housing'],
+  chiller:['Check compressor operation','Check oil level and pressure','Check refrigerant charge','Measure evaporator approach temperature','Measure condenser approach temperature','Check chilled water supply/return temps','Check condenser water supply/return temps','Check compressor amp draw','Inspect electrical connections','Check starter/VFD operation','Test safeties (HP, LP, oil, flow)','Check oil heater operation','Inspect tube sheets (if accessible)','Check condenser water treatment','Inspect cooling tower operation','Check tower fill and basin','Test tower fan operation','Check tower water level and makeup','Inspect for refrigerant leaks','Check BMS/DDC points and alarms','Review fault/alarm history','Check chiller log readings']
+};
+
+let currentEquip='split';
+function loadChecklist(type){
+  currentEquip=type;
+  document.querySelectorAll('.equip-chip').forEach(c=>c.classList.remove('active'));
+  event.target.classList.add('active');
+  const list=document.getElementById('checklistItems');
+  list.innerHTML='';
+  (checklists[type]||[]).forEach(item=>{
+    const li=document.createElement('li');
+    li.onclick=()=>cycleCheck(li);
+    li.innerHTML=`<div class="chk"></div><span class="chk-label">${item}</span>`;
+    list.appendChild(li);
+  });
+  updateProgress();
+}
+loadChecklist('split');
+
+function cycleCheck(li){
+  const box=li.querySelector('.chk');
+  if(!box.classList.contains('pass')&&!box.classList.contains('fail')&&!box.classList.contains('na')){
+    box.className='chk pass';box.textContent='✓';
+  }else if(box.classList.contains('pass')){
+    box.className='chk fail';box.textContent='✕';
+  }else if(box.classList.contains('fail')){
+    box.className='chk na';box.textContent='N/A';
+  }else{
+    box.className='chk';box.textContent='';
+  }
+  updateProgress();
+}
+
+function updateProgress(){
+  const items=document.querySelectorAll('#checklistItems li');
+  const done=document.querySelectorAll('#checklistItems .chk.pass, #checklistItems .chk.na').length;
+  const total=items.length;
+  document.getElementById('progressText').textContent=`${done} of ${total} items completed`;
+  document.getElementById('progressFill').style.width=(total>0?(done/total*100):0)+'%';
+}
+
+function getChecklistResults(){
+  const results=[];
+  document.querySelectorAll('#checklistItems li').forEach(li=>{
+    const box=li.querySelector('.chk');
+    const label=li.querySelector('.chk-label').textContent;
+    let status='—';
+    if(box.classList.contains('pass'))status='✓';
+    else if(box.classList.contains('fail'))status='✕';
+    else if(box.classList.contains('na'))status='N/A';
+    results.push({label,status});
+  });
+  return results;
+}
+
+// Photos
+let photos=[];
+function handlePhotos(input){Array.from(input.files).forEach(f=>{const r=new FileReader();r.onload=e=>{photos.push({data:e.target.result});renderPhotos()};r.readAsDataURL(f)});input.value=''}
+function renderPhotos(){const p=document.getElementById('photoPreview');p.innerHTML='';photos.forEach((ph,i)=>{const d=document.createElement('div');d.className='photo-thumb';d.innerHTML=`<img src="${ph.data}"><div class="remove-photo" onclick="photos.splice(${i},1);renderPhotos();">✕</div>`;p.appendChild(d)})}
+
+// Signatures
+class SigPad{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');this.drawing=false;this.has=false;this.resize();window.addEventListener('resize',()=>this.resize());this.canvas.addEventListener('pointerdown',e=>this.start(e));this.canvas.addEventListener('pointermove',e=>this.draw(e));this.canvas.addEventListener('pointerup',()=>this.stop());this.canvas.addEventListener('pointerleave',()=>this.stop())}resize(){const r=this.canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.scale(d,d);this.ctx.strokeStyle='#1e293b';this.ctx.lineWidth=2;this.ctx.lineCap='round'}getPos(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}start(e){e.preventDefault();this.drawing=true;this.has=true;const p=this.getPos(e);this.ctx.beginPath();this.ctx.moveTo(p.x,p.y)}draw(e){if(!this.drawing)return;e.preventDefault();const p=this.getPos(e);this.ctx.lineTo(p.x,p.y);this.ctx.stroke()}stop(){this.drawing=false}clear(){this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);this.has=false}toDataURL(){return this.has?this.canvas.toDataURL():null}}
+const techSigPad=new SigPad('techSig'),custSigPad=new SigPad('custSig');
+
+function generatePDF(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  const{jsPDF}=window.jspdf;const doc=new jsPDF('p','mm','letter');
+  const pw=215.9,mx=15,mxr=pw-15;let y=12;
+  const dk=[26,35,50],acc=[245,158,11],txt=[30,41,59];
+
+  doc.setFillColor(...dk);doc.rect(0,0,pw,28,'F');doc.setFillColor(...acc);doc.rect(0,28,pw,2,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(255,255,255);doc.text('NORTHERN WOLVES',mx,12);
+  doc.setFontSize(10);doc.setTextColor(...acc);doc.text('AIR CONDITIONING',mx,18);
+  doc.setFontSize(13);doc.setTextColor(255,255,255);doc.text('PM CHECKLIST & REPORT',mxr,12,{align:'right'});
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(200,200,200);doc.text(reportId,mxr,18,{align:'right'});
+  y=36;
+
+  function sH(t){if(y>255){doc.addPage();y=15}doc.setFillColor(...dk);doc.rect(mx,y,mxr-mx,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text(t.toUpperCase(),mx+3,y+5);y+=10}
+  function fR(fields){const cw=(mxr-mx)/fields.length;fields.forEach((f,i)=>{const x=mx+i*cw;doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);doc.text(f.label,x+2,y);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...txt);doc.text(String(f.value||'—'),x+2,y+4.5)});y+=9}
+
+  const equipNames={split:'Split System',rtu:'RTU',ahu:'AHU',boiler:'Boiler',vrf:'VRF System',exhaust:'Exhaust Fan',minisplit:'Mini-Split',chiller:'Chiller'};
+
+  sH('Visit Information');
+  fR([{label:'Date',value:v('pmDate')},{label:'Technician',value:v('techName')},{label:'WO #',value:v('workOrder')}]);
+  fR([{label:'Customer/Property',value:v('custName')}]);
+  fR([{label:'Address',value:v('address')}]);
+  fR([{label:'Equipment Type',value:equipNames[currentEquip]||currentEquip},{label:'PM Visit',value:v('visitNum')}]);
+  fR([{label:'Manufacturer',value:v('equipMfg')},{label:'Model',value:v('equipModel')},{label:'Serial',value:v('equipSerial')}]);
+  fR([{label:'Location/Tag',value:v('equipLoc')}]);
+
+  const results=getChecklistResults();
+  sH('PM Checklist — '+equipNames[currentEquip]);
+  doc.autoTable({startY:y,margin:{left:mx,right:15},
+    head:[['Item','Status']],
+    body:results.map(r=>[r.label,r.status]),
+    theme:'grid',headStyles:{fillColor:dk,fontSize:8,fontStyle:'bold'},
+    bodyStyles:{fontSize:8,cellPadding:2},
+    columnStyles:{1:{halign:'center',cellWidth:18,fontStyle:'bold'}},
+    didParseCell:function(data){
+      if(data.section==='body'&&data.column.index===1){
+        if(data.cell.raw==='✓')data.cell.styles.textColor=[16,185,129];
+        else if(data.cell.raw==='✕')data.cell.styles.textColor=[239,68,68];
+        else if(data.cell.raw==='N/A')data.cell.styles.textColor=[100,116,139];
+      }
+    }
+  });
+  y=doc.lastAutoTable.finalY+4;
+
+  // Summary
+  const passed=results.filter(r=>r.status==='✓').length;
+  const failed=results.filter(r=>r.status==='✕').length;
+  const na=results.filter(r=>r.status==='N/A').length;
+  const unchecked=results.filter(r=>r.status==='—').length;
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...txt);
+  doc.text(`Summary: ${passed} Pass | ${failed} Fail | ${na} N/A | ${unchecked} Not Checked`,mx+3,y);y+=8;
+
+  if(v('deficiencies')||v('pmRecommendations')||v('pmNotes')){
+    if(y>230){doc.addPage();y=15}
+    sH('Notes & Deficiencies');
+    if(v('deficiencies')){doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,116,139);doc.text('DEFICIENCIES:',mx+3,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...txt);const l=doc.splitTextToSize(v('deficiencies'),mxr-mx-6);doc.text(l,mx+3,y);y+=l.length*4.5+4}
+    if(v('pmRecommendations')){doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,116,139);doc.text('RECOMMENDATIONS:',mx+3,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...txt);const l=doc.splitTextToSize(v('pmRecommendations'),mxr-mx-6);doc.text(l,mx+3,y);y+=l.length*4.5+4}
+    if(v('pmNotes')){doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,116,139);doc.text('NOTES:',mx+3,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...txt);const l=doc.splitTextToSize(v('pmNotes'),mxr-mx-6);doc.text(l,mx+3,y);y+=l.length*4.5+4}
+  }
+
+  // Signatures
+  if(y>220){doc.addPage();y=15}
+  sH('Signatures');
+  const sigW=75,sigH=25;doc.setDrawColor(200,200,200);
+  doc.rect(mx+3,y,sigW,sigH);
+  if(techSigPad.toDataURL())try{doc.addImage(techSigPad.toDataURL(),'PNG',mx+3,y,sigW,sigH)}catch(e){}
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);doc.text('Technician: '+(v('techName')||''),mx+3,y+sigH+4);
+  const cx=mx+sigW+15;doc.rect(cx,y,sigW,sigH);
+  if(custSigPad.toDataURL())try{doc.addImage(custSigPad.toDataURL(),'PNG',cx,y,sigW,sigH)}catch(e){}
+  doc.text('Customer: '+(v('custPrintName')||''),cx,y+sigH+4);
+
+  const fY=279.4-10;doc.setDrawColor(...acc);doc.setLineWidth(.5);doc.line(mx,fY-3,mxr,fY-3);
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);
+  doc.text('Northern Wolves Air Conditioning — New York & New Jersey',pw/2,fY,{align:'center'});
+  return doc;
+}
+
+function downloadPDF(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`);showToast('PDF downloaded!')}
+function sharePDF(){
+  const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
+  const fn=`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`;
+  if(navigator.share&&navigator.canShare){const f=new File([doc.output('blob')],fn,{type:'application/pdf'});if(navigator.canShare({files:[f]})){navigator.share({title:'PM Checklist',files:[f]}).then(()=>showToast('Shared!')).catch(()=>{doc.save(fn)});return}}
+  doc.save(fn);window.location.href=`mailto:ruslan@northernwolvesac.com?subject=${encodeURIComponent('PM Report - '+v('custName'))}&body=${encodeURIComponent('Please see attached PM Checklist.')}`;
+  showToast('PDF downloaded — attach to email');
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
