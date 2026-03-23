@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#1a2332">
 <title>PM Checklist — Northern Wolves AC</title>
+<script src="draft-utils.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -32,9 +33,12 @@
 </head>
 <body>
 <div class="header">
-  <h1>NORTHERN WOLVES AC</h1>
-  <div class="subtitle">PREVENTIVE MAINTENANCE CHECKLIST</div>
-  <div class="report-id" id="reportId"></div>
+  <a href="index.html" class="back-btn">←</a>
+  <img src="data:image/jpeg;base64,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" alt="Northern Wolves">
+  <div class="header-content">
+    <div class="subtitle">PM CHECKLIST</div>
+    <div class="report-id" id="reportId"></div>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -109,12 +113,16 @@
 </div>
 
 <div class="bottom-bar">
-  <button class="btn btn-secondary" onclick="showToast('Draft saved!')">💾 Save</button>
-  <button class="btn btn-primary" onclick="downloadPDF()">📄 PDF</button>
-  <button class="btn btn-success" onclick="sharePDF()">📧 Send</button>
+  <button class="btn btn-secondary" onclick="saveDraftAndClose()">💾 Draft</button>
+  <button class="btn btn-primary" onclick="generateAndDownload()">📄 PDF</button>
+  <button class="btn btn-success" onclick="generateAndEmailWithHistory()">📧 Send</button>
 </div>
 
 <script>
+// ========== DRAFT INITIALIZATION ==========
+const draftId = initializeDraftForm('pm-checklist', 'pm-checklist.html');
+const SAVE_KEY_DRAFT = 'nw_draft_' + draftId;
+
 const reportId='PMC-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
 document.getElementById('reportId').textContent=reportId;
 document.getElementById('pmDate').value=new Date().toISOString().slice(0,10);
@@ -273,7 +281,17 @@ function generatePDF(){
   return doc;
 }
 
-function downloadPDF(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`);showToast('PDF downloaded!')}
+function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`);showToast('PDF downloaded!')}
+function generateAndEmailWithHistory(){
+  const d=collectData?collectData():{};
+  if(typeof saveToHistory==='function') saveToHistory('pm-checklist', d);
+  generateAndEmail();
+}
+function generateAndEmail(){
+  const temp = sharePDF;
+  sharePDF = function(){temp.apply(this, arguments)};
+  temp.apply(this, arguments);
+}
 function sharePDF(){
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn=`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`;

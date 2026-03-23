@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v2';
+const CACHE_NAME = 'nw-field-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   './work-order.html',
   './icon-192.png',
   './icon-512.png',
+  './draft-utils.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'
 ];
