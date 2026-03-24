@@ -295,7 +295,7 @@ function generatePDF(){
   const checkedVals=gid=>{const vals=[];document.querySelectorAll('#'+gid+' input:checked').forEach(i=>vals.push(i.value));return vals.join(', ')};
   const{jsPDF}=window.jspdf;const doc=new jsPDF('p','mm','letter');
   const pw=215.9,mx=15,mxr=pw-15;let y=12;
-  const dk=[26,35,50],acc=[245,158,11],txt=[30,41,59];
+  const dk=[6,150,215],acc=[245,158,11],txt=[30,41,59];
 
   // Header
   doc.setFillColor(...dk);doc.rect(0,0,pw,28,'F');doc.setFillColor(...acc);doc.rect(0,28,pw,2,'F');

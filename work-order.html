@@ -209,7 +209,7 @@ function generatePDF(){
   const radioVal=n=>{const r=document.querySelector(`input[name="${n}"]:checked`);return r?r.value:''};
   const{jsPDF}=window.jspdf;const doc=new jsPDF('p','mm','letter');
   const pw=215.9,mx=15,mxr=pw-15;let y=12;
-  const dk=[26,35,50],acc=[245,158,11],txt=[30,41,59];
+  const dk=[6,150,215],acc=[245,158,11],txt=[30,41,59];
 
   doc.setFillColor(...dk);doc.rect(0,0,pw,28,'F');doc.setFillColor(...acc);doc.rect(0,28,pw,2,'F');
   doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(255,255,255);doc.text('NORTHERN WOLVES',mx,12);
@@ -267,7 +267,7 @@ function generatePDF(){
   const rTotal=document.getElementById('costRef').textContent;
   const lTotal=document.getElementById('costLabor').textContent;
   const gTotal=document.getElementById('costTotal').textContent;
-  doc.autoTable({startY:y,margin:{left:mx,right:15},body:[['Parts & Materials',pTotal],['Refrigerant',rTotal],['Labor',lTotal],['TOTAL',gTotal]],theme:'plain',bodyStyles:{fontSize:10,cellPadding:3},columnStyles:{0:{fontStyle:'bold'},1:{halign:'right',fontStyle:'bold'}},didParseCell:function(data){if(data.row.index===3){data.cell.styles.fillColor=[26,35,50];data.cell.styles.textColor=[245,158,11];data.cell.styles.fontSize=12}}});
+  doc.autoTable({startY:y,margin:{left:mx,right:15},body:[['Parts & Materials',pTotal],['Refrigerant',rTotal],['Labor',lTotal],['TOTAL',gTotal]],theme:'plain',bodyStyles:{fontSize:10,cellPadding:3},columnStyles:{0:{fontStyle:'bold'},1:{halign:'right',fontStyle:'bold'}},didParseCell:function(data){if(data.row.index===3){data.cell.styles.fillColor=[6,150,215];data.cell.styles.textColor=[245,158,11];data.cell.styles.fontSize=12}}});
   y=doc.lastAutoTable.finalY+4;
 
   // Status
