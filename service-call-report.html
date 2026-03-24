@@ -667,7 +667,7 @@ function generatePDF() {
   doc.setFillColor(191, 191, 192);
   doc.rect(0, 35, pw, 0.5, 'F');
   // Logo (left side - high res, spans full logo width)
-  doc.addImage(logoBase64, 'JPEG', mx, 3, 55, 30);
+  doc.addImage(logoBase64,'JPEG',mx,5,41,22.5);
   // Report info (right side)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
