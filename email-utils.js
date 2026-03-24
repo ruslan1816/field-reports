@@ -63,8 +63,9 @@ async function sendReportToManagement({ reportType, subject, bodyText, customerN
     // Initialize EmailJS (safe to call multiple times)
     emailjs.init(EMAIL_CONFIG.EMAILJS_PUBLIC_KEY);
 
-    // Convert PDF to data URI (EmailJS needs full URI for attachments)
+    // Convert PDF to base64 for attachment
     const dataUri = pdfDoc.output('datauristring');
+    const base64Pdf = dataUri.split(',')[1];
 
     // Build template parameters
     const templateParams = {
@@ -75,7 +76,7 @@ async function sendReportToManagement({ reportType, subject, bodyText, customerN
       customer_name:  customerName || '',
       tech_name:      techName || '',
       pdf_filename:   filename,
-      pdf_attachment: dataUri
+      pdf_attachment: base64Pdf
     };
 
     // Send via EmailJS
@@ -90,6 +91,7 @@ async function sendReportToManagement({ reportType, subject, bodyText, customerN
 
   } catch (error) {
     console.error('EmailJS send failed:', error);
+    alert('EmailJS error: ' + (error.text || error.message || JSON.stringify(error)));
     fallbackMailto({ subject, bodyText, pdfDoc, filename });
     return false;
   }
