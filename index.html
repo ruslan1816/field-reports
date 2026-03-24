@@ -1,94 +1,859 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="NW Field">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#1a2332">
-<title>Northern Wolves AC — Field Reports</title>
-<style>
-:root{--nw-dark:#1a2332;--nw-blue:#2563eb;--nw-accent:#f59e0b;--nw-bg:#f1f5f9;--nw-card:#fff;--nw-border:#e2e8f0;--nw-text:#1e293b;--nw-muted:#64748b;--nw-success:#10b981}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--nw-bg);color:var(--nw-text);min-height:100vh}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="NW Field">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#0696D7">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="styles.css">
+  <title>Northern Wolves AC — Field Reports</title>
+  <style>
+    /* ===== PAGE-SPECIFIC STYLES ===== */
 
-.header{background:linear-gradient(135deg,var(--nw-dark) 0%,#2d3a4a 100%);color:#fff;padding:30px 24px 24px;text-align:center}
-.header-logo{height:56px;width:auto;margin-bottom:8px}
-.logo{font-size:28px;font-weight:900;letter-spacing:1px;margin-bottom:2px}
-.tagline{font-size:12px;color:var(--nw-accent);font-weight:700;letter-spacing:2px;text-transform:uppercase}
-.welcome{font-size:14px;color:#94a3b8;margin-top:12px}
+    .dash-header {
+      background: #fff;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #e2e8f0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .dash-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .dash-header-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+    .dash-brand {
+      font-size: 15px;
+      font-weight: 800;
+      color: #1a2332;
+      letter-spacing: 0.5px;
+      line-height: 1.2;
+    }
+    .dash-brand-sub {
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .profile-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #0696D7;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .profile-circle.empty {
+      background: #cbd5e1;
+    }
+    .profile-circle.empty svg {
+      width: 18px;
+      height: 18px;
+      fill: #fff;
+    }
 
-.grid{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:500px;margin:0 auto}
+    /* Install Banner */
+    .install-banner {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border-top: 1px solid #e2e8f0;
+      padding: 12px 16px;
+      z-index: 200;
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
+      align-items: center;
+      gap: 12px;
+    }
+    .install-banner.visible {
+      display: flex;
+    }
+    .install-banner-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .install-banner-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .install-banner-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a2332;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .install-banner-desc {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .install-banner .btn-install {
+      background: #0696D7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .install-banner .btn-install:active {
+      opacity: 0.85;
+    }
+    .install-banner .btn-dismiss {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
 
-.card{background:var(--nw-card);border-radius:16px;padding:24px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);border:2px solid var(--nw-border);transition:all .2s;cursor:pointer;text-decoration:none;color:var(--nw-text);display:flex;flex-direction:column;align-items:center;gap:10px}
-.card:hover,.card:active{border-color:var(--nw-blue);transform:translateY(-2px);box-shadow:0 4px 16px rgba(37,99,235,.15)}
-.card .icon{font-size:40px;line-height:1}
-.card .title{font-size:14px;font-weight:700;color:var(--nw-dark)}
-.card .desc{font-size:11px;color:var(--nw-muted);line-height:1.4}
+    /* Stats Bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      padding: 16px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .stat-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px 12px;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a2332;
+      line-height: 1;
+    }
+    .stat-value.drafts { color: #f59e0b; }
+    .stat-value.completed { color: #10b981; }
+    .stat-value.weekly { color: #0696D7; }
+    .stat-label {
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 600;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
 
-.footer{text-align:center;padding:24px 16px;color:var(--nw-muted);font-size:11px}
-.footer a{color:var(--nw-blue);text-decoration:none}
+    /* Section headers */
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      margin: 20px auto 10px;
+      max-width: 600px;
+    }
+    .section-title h2 {
+      font-size: 16px;
+      font-weight: 800;
+      color: #1a2332;
+    }
+    .section-title a {
+      font-size: 13px;
+      color: #0696D7;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .section-title a:hover {
+      text-decoration: underline;
+    }
 
-/* Pulse animation for "new" badge */
-.badge{display:inline-block;background:var(--nw-accent);color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+    /* Activity Feed */
+    .activity-feed {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      border: 1px solid #e2e8f0;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s;
+    }
+    .activity-item:hover {
+      border-color: #0696D7;
+    }
+    .activity-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .activity-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .activity-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a2332;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .activity-customer {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .activity-meta {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .activity-time {
+      font-size: 11px;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+    .activity-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .activity-badge.draft {
+      background: #fef3c7;
+      color: #b45309;
+    }
+    .activity-badge.completed {
+      background: #d1fae5;
+      color: #047857;
+    }
+    .activity-empty {
+      text-align: center;
+      padding: 32px 16px;
+      color: #94a3b8;
+      font-size: 14px;
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+    .activity-empty-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
 
-@media(max-width:360px){.grid{grid-template-columns:1fr}.card{flex-direction:row;text-align:left;padding:16px}.card .icon{font-size:32px}}
-</style>
+    /* New Report Grid */
+    .report-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 0 16px 16px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    @media (max-width: 380px) {
+      .report-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .report-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px 14px;
+      border: 1px solid #e2e8f0;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+    }
+    .report-card:hover {
+      border-color: #0696D7;
+      box-shadow: 0 2px 8px rgba(6,150,215,0.1);
+    }
+    .report-card-icon {
+      font-size: 28px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .report-card-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .report-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a2332;
+    }
+    .report-card-desc {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+      line-height: 1.3;
+    }
+    .report-card-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #f59e0b;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    /* Footer */
+    .dash-footer {
+      text-align: center;
+      padding: 24px 16px 40px;
+      color: #94a3b8;
+      font-size: 11px;
+    }
+
+    /* Profile Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-overlay.visible {
+      display: flex;
+    }
+    .modal {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px 24px;
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+    }
+    .modal h2 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #1a2332;
+      margin-bottom: 6px;
+    }
+    .modal p {
+      font-size: 14px;
+      color: #64748b;
+      margin-bottom: 20px;
+    }
+    .modal input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 16px;
+      outline: none;
+      margin-bottom: 16px;
+      transition: border-color 0.15s;
+    }
+    .modal input:focus {
+      border-color: #0696D7;
+    }
+    .modal .btn-save {
+      width: 100%;
+      padding: 12px;
+      background: #0696D7;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .modal .btn-save:active {
+      opacity: 0.85;
+    }
+    .modal .btn-save:disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
+    }
+  </style>
 </head>
-<body>
+<body style="background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;margin:0;min-height:100vh">
 
-<div class="header">
-  <img class="header-logo" src="icon-192.png" alt="Northern Wolves AC">
-  <div class="logo">NORTHERN WOLVES</div>
-  <div class="tagline">Air Conditioning</div>
-  <div class="welcome">Field Reporting System</div>
-</div>
+  <!-- Header -->
+  <header class="dash-header">
+    <div class="dash-header-left">
+      <img class="dash-header-logo" src="icon-192.png" alt="NW">
+      <div>
+        <div class="dash-brand">NORTHERN WOLVES</div>
+        <div class="dash-brand-sub">Air Conditioning</div>
+      </div>
+    </div>
+    <div class="profile-circle empty" id="profileCircle" title="Profile">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+    </div>
+  </header>
 
-<div class="grid">
-  <a class="card" href="service-call-report.html">
-    <div class="icon">🔧</div>
-    <div class="title">Service Call</div>
-    <div class="desc">Diagnosis, readings, parts, labor</div>
-  </a>
+  <!-- Install Banner -->
+  <div class="install-banner" id="installBanner">
+    <img class="install-banner-icon" src="icon-192.png" alt="NW">
+    <div class="install-banner-text">
+      <div class="install-banner-title">Install Northern Wolves Field Reports</div>
+      <div class="install-banner-desc">Quick access from your home screen</div>
+    </div>
+    <button class="btn-install" id="installBtn">Install</button>
+    <button class="btn-dismiss" id="dismissInstall" aria-label="Dismiss">&times;</button>
+  </div>
 
-  <a class="card" href="startup-report.html">
-    <div class="icon">🚀</div>
-    <div class="title">Start-Up Report</div>
-    <div class="desc">Cooling & heating commissioning</div>
-  </a>
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-value drafts" id="statDrafts">0</div>
+      <div class="stat-label">Drafts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value completed" id="statCompleted">0</div>
+      <div class="stat-label">Completed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value weekly" id="statWeekly">0</div>
+      <div class="stat-label">This Week</div>
+    </div>
+  </div>
 
-  <a class="card" href="site-survey-report.html">
-    <div class="icon">📋</div>
-    <div class="title">Site Survey</div>
-    <div class="desc">Equipment inventory & conditions</div>
-  </a>
+  <!-- Recent Activity -->
+  <div class="section-title">
+    <h2>Recent Activity</h2>
+    <a href="history.html">View All &rarr;</a>
+  </div>
+  <div class="activity-feed" id="activityFeed"></div>
 
-  <a class="card" href="pm-checklist.html">
-    <div class="icon">✅</div>
-    <div class="title">PM Checklist</div>
-    <div class="desc">Maintenance by equipment type</div>
-  </a>
+  <!-- New Report -->
+  <div class="section-title" style="margin-top:24px">
+    <h2>New Report</h2>
+  </div>
+  <div class="report-grid" id="reportGrid"></div>
 
-  <a class="card" href="work-order.html">
-    <div class="icon">📝</div>
-    <div class="title">Work Order</div>
-    <div class="desc">Parts, labor, cost tracking</div>
-  </a>
-</div>
+  <!-- Footer -->
+  <div class="dash-footer">Northern Wolves Air Conditioning &mdash; NY &amp; NJ</div>
 
-<div class="footer">
-  <p>Northern Wolves Air Conditioning — NY & NJ</p>
-  <p style="margin-top:4px">Tap any form to start a new report</p>
-  <p style="margin-top:8px;font-size:10px">Add to Home Screen for quick access</p>
-</div>
+  <!-- Tech Profile Modal -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal">
+      <h2>Welcome to NW Field Reports</h2>
+      <p>Enter your name to get started</p>
+      <input type="text" id="profileNameInput" placeholder="Your full name" autocomplete="name">
+      <button class="btn-save" id="profileSaveBtn" disabled>Save</button>
+    </div>
+  </div>
 
 <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
-}
+(function() {
+  // ===== CONSTANTS =====
+  var DRAFTS_KEY = 'nw_drafts';
+  var HISTORY_KEY = 'nw_history';
+  var PROFILE_KEY = 'nw_tech_profile';
+
+  // ===== HELPER FUNCTIONS =====
+
+  function getDrafts() {
+    try { return JSON.parse(localStorage.getItem(DRAFTS_KEY) || '[]'); }
+    catch(e) { return []; }
+  }
+
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+    catch(e) { return []; }
+  }
+
+  function getProfile() {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); }
+    catch(e) { return null; }
+  }
+
+  function relativeTime(isoString) {
+    if (!isoString) return '';
+    var now = Date.now();
+    var then = new Date(isoString).getTime();
+    var diffMs = now - then;
+    if (isNaN(diffMs) || diffMs < 0) return '';
+
+    var seconds = Math.floor(diffMs / 1000);
+    var minutes = Math.floor(seconds / 60);
+    var hours = Math.floor(minutes / 60);
+    var days = Math.floor(hours / 24);
+
+    if (seconds < 60) return 'Just now';
+    if (minutes < 60) return minutes + 'm ago';
+    if (hours < 24) return hours + 'h ago';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return days + 'd ago';
+
+    var d = new Date(isoString);
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function getReportTypeIcon(type) {
+    var icons = {
+      'service-call': '\uD83D\uDD27',
+      'startup': '\uD83D\uDE80',
+      'site-survey': '\uD83D\uDCCB',
+      'pm-checklist': '\u2705',
+      'work-order': '\uD83D\uDCDD'
+    };
+    return icons[type] || '\uD83D\uDCCB';
+  }
+
+  function getReportTypeLabel(type) {
+    var labels = {
+      'service-call': 'Service Call',
+      'startup': 'Start-Up Report',
+      'site-survey': 'Site Survey',
+      'pm-checklist': 'PM Checklist',
+      'work-order': 'Work Order'
+    };
+    return labels[type] || type || 'Report';
+  }
+
+  function getFormPage(type) {
+    var pages = {
+      'service-call': 'service-call-report.html',
+      'startup': 'startup-report.html',
+      'site-survey': 'site-survey-report.html',
+      'pm-checklist': 'pm-checklist.html',
+      'work-order': 'work-order.html'
+    };
+    return pages[type] || '#';
+  }
+
+  function isThisWeek(isoString) {
+    if (!isoString) return false;
+    var d = new Date(isoString);
+    var now = new Date();
+    var startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    var endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+    return d >= startOfWeek && d < endOfWeek;
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  // ===== STATS =====
+  function renderStats() {
+    var drafts = getDrafts();
+    var history = getHistory();
+
+    document.getElementById('statDrafts').textContent = drafts.length;
+    document.getElementById('statCompleted').textContent = history.length;
+
+    var weeklyCount = 0;
+    drafts.forEach(function(d) {
+      if (isThisWeek(d.lastModified)) weeklyCount++;
+    });
+    history.forEach(function(h) {
+      if (isThisWeek(h.completedAt)) weeklyCount++;
+    });
+    document.getElementById('statWeekly').textContent = weeklyCount;
+  }
+
+  // ===== ACTIVITY FEED =====
+  function renderActivity() {
+    var drafts = getDrafts();
+    var history = getHistory();
+    var container = document.getElementById('activityFeed');
+
+    var items = [];
+    drafts.forEach(function(d) {
+      items.push({
+        id: d.id,
+        type: d.type,
+        title: d.title || getReportTypeLabel(d.type),
+        customer: d.customer || '',
+        time: d.lastModified,
+        status: 'draft',
+        formPage: d.formPage || getFormPage(d.type)
+      });
+    });
+    history.forEach(function(h) {
+      items.push({
+        id: h.id,
+        type: h.type,
+        title: h.title || getReportTypeLabel(h.type),
+        customer: h.customer || '',
+        time: h.completedAt,
+        status: 'completed',
+        formPage: null
+      });
+    });
+
+    items.sort(function(a, b) {
+      var tA = a.time ? new Date(a.time).getTime() : 0;
+      var tB = b.time ? new Date(b.time).getTime() : 0;
+      return tB - tA;
+    });
+
+    var recent = items.slice(0, 5);
+
+    if (recent.length === 0) {
+      container.innerHTML =
+        '<div class="activity-empty">' +
+          '<div class="activity-empty-icon">\uD83D\uDCCB</div>' +
+          'No reports yet \u2014 tap a form below to get started' +
+        '</div>';
+      return;
+    }
+
+    var html = '';
+    recent.forEach(function(item) {
+      var href = '';
+      if (item.status === 'draft' && item.formPage) {
+        href = item.formPage + '?draft=' + encodeURIComponent(item.id);
+      } else if (item.status === 'draft') {
+        href = getFormPage(item.type) + '?draft=' + encodeURIComponent(item.id);
+      } else {
+        href = 'history.html';
+      }
+
+      html +=
+        '<a class="activity-item" href="' + escapeHtml(href) + '">' +
+          '<div class="activity-icon">' + getReportTypeIcon(item.type) + '</div>' +
+          '<div class="activity-info">' +
+            '<div class="activity-title">' + escapeHtml(item.title) + '</div>' +
+            '<div class="activity-customer">' + escapeHtml(item.customer || getReportTypeLabel(item.type)) + '</div>' +
+          '</div>' +
+          '<div class="activity-meta">' +
+            '<div class="activity-time">' + relativeTime(item.time) + '</div>' +
+            '<div class="activity-badge ' + item.status + '">' + item.status + '</div>' +
+          '</div>' +
+        '</a>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  // ===== REPORT GRID =====
+  function renderReportGrid() {
+    var drafts = getDrafts();
+    var container = document.getElementById('reportGrid');
+
+    var reportTypes = [
+      { type: 'service-call', icon: '\uD83D\uDD27', title: 'Service Call', desc: 'Diagnosis, readings, parts, labor', page: 'service-call-report.html' },
+      { type: 'startup', icon: '\uD83D\uDE80', title: 'Start-Up Report', desc: 'Cooling & heating commissioning', page: 'startup-report.html' },
+      { type: 'site-survey', icon: '\uD83D\uDCCB', title: 'Site Survey', desc: 'Equipment inventory & conditions', page: 'site-survey-report.html' },
+      { type: 'pm-checklist', icon: '\u2705', title: 'PM Checklist', desc: 'Maintenance by equipment type', page: 'pm-checklist.html' },
+      { type: 'work-order', icon: '\uD83D\uDCDD', title: 'Work Order', desc: 'Parts, labor, cost tracking', page: 'work-order.html' }
+    ];
+
+    var draftCounts = {};
+    drafts.forEach(function(d) {
+      if (d.type) {
+        draftCounts[d.type] = (draftCounts[d.type] || 0) + 1;
+      }
+    });
+
+    var html = '';
+    reportTypes.forEach(function(r) {
+      var count = draftCounts[r.type] || 0;
+      var badgeHtml = count > 0
+        ? '<div class="report-card-badge">' + count + '</div>'
+        : '';
+
+      html +=
+        '<a class="report-card" href="' + r.page + '">' +
+          badgeHtml +
+          '<div class="report-card-icon">' + r.icon + '</div>' +
+          '<div class="report-card-info">' +
+            '<div class="report-card-title">' + r.title + '</div>' +
+            '<div class="report-card-desc">' + r.desc + '</div>' +
+          '</div>' +
+        '</a>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  // ===== PROFILE =====
+  function updateProfileCircle() {
+    var profile = getProfile();
+    var el = document.getElementById('profileCircle');
+    if (profile && profile.initials) {
+      el.className = 'profile-circle';
+      el.innerHTML = escapeHtml(profile.initials);
+      el.title = profile.name || 'Profile';
+    } else {
+      el.className = 'profile-circle empty';
+      el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>';
+    }
+  }
+
+  function checkProfile() {
+    var profile = getProfile();
+    if (!profile) {
+      document.getElementById('profileModal').classList.add('visible');
+      var input = document.getElementById('profileNameInput');
+      setTimeout(function() { input.focus(); }, 300);
+    }
+  }
+
+  function parseInitials(name) {
+    var parts = name.trim().split(/\s+/);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
+  var profileInput = document.getElementById('profileNameInput');
+  var profileSaveBtn = document.getElementById('profileSaveBtn');
+
+  profileInput.addEventListener('input', function() {
+    profileSaveBtn.disabled = profileInput.value.trim().length === 0;
+  });
+
+  profileInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && profileInput.value.trim().length > 0) {
+      saveProfile();
+    }
+  });
+
+  profileSaveBtn.addEventListener('click', saveProfile);
+
+  function saveProfile() {
+    var name = profileInput.value.trim();
+    if (!name) return;
+    var initials = parseInitials(name);
+    var profile = {
+      name: name,
+      initials: initials,
+      createdAt: new Date().toISOString()
+    };
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    document.getElementById('profileModal').classList.remove('visible');
+    updateProfileCircle();
+  }
+
+  // ===== INSTALL PROMPT =====
+  var deferredPrompt = null;
+  var installBanner = document.getElementById('installBanner');
+  var installBtn = document.getElementById('installBtn');
+  var dismissBtn = document.getElementById('dismissInstall');
+
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (!localStorage.getItem('nw_install_dismissed')) {
+      installBanner.classList.add('visible');
+    }
+  });
+
+  installBtn.addEventListener('click', function() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(result) {
+        deferredPrompt = null;
+        installBanner.classList.remove('visible');
+      });
+    }
+  });
+
+  dismissBtn.addEventListener('click', function() {
+    installBanner.classList.remove('visible');
+    localStorage.setItem('nw_install_dismissed', '1');
+  });
+
+  // iOS install detection
+  function checkiOSInstall() {
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    var isStandalone = window.navigator.standalone === true;
+    if (isIOS && !isStandalone && !deferredPrompt && !localStorage.getItem('nw_install_dismissed')) {
+      var banner = document.getElementById('installBanner');
+      var btn = document.getElementById('installBtn');
+      btn.textContent = 'How to Install';
+      btn.addEventListener('click', function iosHandler() {
+        btn.removeEventListener('click', iosHandler);
+        alert('To install: tap the Share button in Safari, then tap "Add to Home Screen".');
+        banner.classList.remove('visible');
+        localStorage.setItem('nw_install_dismissed', '1');
+      }, { once: true });
+      banner.classList.add('visible');
+    }
+  }
+
+  // ===== SERVICE WORKER =====
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(function() {});
+  }
+
+  // ===== INIT =====
+  updateProfileCircle();
+  renderStats();
+  renderActivity();
+  renderReportGrid();
+  checkProfile();
+
+  // Delayed iOS check (wait for beforeinstallprompt to potentially fire)
+  setTimeout(checkiOSInstall, 1000);
+})();
 </script>
 </body>
 </html>

@@ -6,42 +6,34 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#1a2332">
+<meta name="theme-color" content="#0696D7">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>PM Checklist — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="styles.css">
 <style>
-:root{--nw-dark:#1a2332;--nw-blue:#2563eb;--nw-accent:#f59e0b;--nw-bg:#f1f5f9;--nw-card:#fff;--nw-border:#e2e8f0;--nw-text:#1e293b;--nw-muted:#64748b;--nw-success:#10b981;--nw-danger:#ef4444;--nw-section:#f8fafc}
-*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--nw-bg);color:var(--nw-text);padding-bottom:100px}
-.header{background:linear-gradient(135deg,var(--nw-dark) 0%,#2d3a4a 100%);color:#fff;padding:12px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2);display:flex;align-items:center;gap:12px}.header img{height:40px;width:auto;flex-shrink:0}.header h1{font-size:18px;font-weight:700}.header .subtitle{font-size:12px;color:var(--nw-accent);font-weight:600;margin-top:2px}.header .report-id{font-size:11px;color:#94a3b8;margin-top:4px}
-.section{background:var(--nw-card);margin:12px;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}.section-header{background:var(--nw-dark);color:#fff;padding:12px 16px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:8px;cursor:pointer}.section-header .collapse-arrow{margin-left:auto;font-size:12px}.section-header.collapsed .collapse-arrow{transform:rotate(-90deg)}.section-body{padding:16px}.section-body.collapsed{display:none}
-.field{margin-bottom:14px}.field label{display:block;font-size:12px;font-weight:600;color:var(--nw-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;padding:12px 14px;border:2px solid var(--nw-border);border-radius:8px;font-size:16px;color:var(--nw-text);background:var(--nw-section);-webkit-appearance:none}.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--nw-blue);background:#fff}.field textarea{min-height:80px;resize:vertical}.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
-.row{display:flex;gap:10px}.row .field{flex:1}
+body{padding-bottom:100px}
 .checklist{list-style:none;padding:0}.checklist li{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--nw-border);font-size:14px;cursor:pointer}.checklist li:last-child{border-bottom:none}
 .chk{width:30px;height:30px;border-radius:6px;border:2px solid var(--nw-border);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;transition:all .15s;font-weight:700}.chk.pass{background:var(--nw-success);border-color:var(--nw-success);color:#fff}.chk.fail{background:var(--nw-danger);border-color:var(--nw-danger);color:#fff}.chk.na{background:var(--nw-muted);border-color:var(--nw-muted);color:#fff;font-size:9px}
 .chk-label{flex:1;font-size:13px}
 .progress-bar{background:var(--nw-border);border-radius:10px;height:8px;margin:12px 0;overflow:hidden}.progress-fill{height:100%;background:var(--nw-success);border-radius:10px;transition:width .3s}.progress-text{font-size:12px;color:var(--nw-muted);text-align:center;margin-bottom:4px}
-.photo-area{border:2px dashed var(--nw-border);border-radius:10px;padding:20px;text-align:center;background:var(--nw-section);cursor:pointer}.photo-area .icon{font-size:32px;margin-bottom:8px}.photo-area p{font-size:13px;color:var(--nw-muted)}.photo-preview{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.photo-thumb{position:relative;display:inline-block}.photo-thumb img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid var(--nw-border)}.photo-thumb .remove-photo{position:absolute;top:-6px;right:-6px;background:var(--nw-danger);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;border:2px solid #fff}
-.sig-canvas{width:100%;height:150px;border:2px solid var(--nw-border);border-radius:10px;background:#fff;touch-action:none;cursor:crosshair}.sig-label{font-size:11px;color:var(--nw-muted);text-align:center;margin-top:4px}
-.btn{padding:14px 24px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}.btn-primary{background:var(--nw-blue);color:#fff}.btn-secondary{background:var(--nw-section);color:var(--nw-text);border:2px solid var(--nw-border)}.btn-success{background:var(--nw-success);color:#fff}.btn-small{padding:8px 14px;font-size:13px;width:auto}.btn-outline{background:transparent;border:2px solid var(--nw-border);color:var(--nw-muted)}
-.bottom-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:12px 16px;box-shadow:0 -4px 12px rgba(0,0,0,.1);display:flex;gap:10px;z-index:100}.bottom-bar .btn{flex:1}
-.toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--nw-dark);color:#fff;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}.toast.show{opacity:1}
-.equip-chip{display:inline-block;padding:8px 16px;margin:4px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid var(--nw-border);background:var(--nw-section);transition:all .2s}.equip-chip.active{background:var(--nw-blue);color:#fff;border-color:var(--nw-blue)}
-@media(max-width:400px){.row{flex-direction:column;gap:0}.section{margin:8px}}
+.equip-chip{display:inline-block;padding:8px 16px;margin:4px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid var(--nw-border);background:var(--nw-section);transition:all .2s}.equip-chip.active{background:var(--nw-primary);color:#fff;border-color:var(--nw-primary)}
 </style>
 </head>
 <body>
-<div class="header">
+<header class="header">
   <a href="index.html" class="back-btn">←</a>
-  <img src="icon-192.png" alt="Northern Wolves">
+  <img src="icon-192.png" alt="NW">
   <div class="header-content">
     <div class="subtitle">PM CHECKLIST</div>
-    <div class="report-id" id="reportId"></div>
+    <div class="report-id" id="reportId">PMC-...</div>
   </div>
-</div>
+</header>
 <div class="toast" id="toast"></div>
 
 <!-- INFO -->
@@ -128,6 +120,12 @@ const SAVE_KEY_DRAFT = 'nw_draft_' + draftId;
 const reportId='PMC-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
 document.getElementById('reportId').textContent=reportId;
 document.getElementById('pmDate').value=new Date().toISOString().slice(0,10);
+
+const profile = JSON.parse(localStorage.getItem('nw_tech_profile') || 'null');
+if (profile && profile.name) {
+  const techField = document.getElementById('techName');
+  if (techField && !techField.value) techField.value = profile.name;
+}
 
 function toggleSection(h){h.classList.toggle('collapsed');h.nextElementSibling.classList.toggle('collapsed')}
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}

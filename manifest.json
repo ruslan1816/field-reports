@@ -4,8 +4,8 @@
   "description": "Mobile field reporting for Northern Wolves Air Conditioning technicians",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#1a2332",
-  "theme_color": "#1a2332",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0696D7",
   "orientation": "portrait",
   "icons": [
     {

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Report History — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="draft-utils.js"></script>
+<style>
+  body { padding-bottom: 0; }
+
+  .header .profile-circle { margin-left: auto; }
+
+  .history-wrap {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  /* Table desktop view */
+  .history-table { margin: 0 16px 24px; }
+  .history-table .table-clean { border: var(--nw-border-width) solid var(--nw-border); border-radius: var(--nw-radius-card); overflow: hidden; background: var(--nw-card); }
+  .history-table .table-clean th:last-child,
+  .history-table .table-clean td:last-child { text-align: center; }
+  .history-table .table-clean tr[data-link] { cursor: pointer; }
+  .history-table .table-clean tr[data-link]:hover { background: #e8f4fd; }
+
+  /* Mobile card view */
+  .history-cards { display: none; padding: 0 12px 24px; }
+  .history-card {
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    text-decoration: none;
+    color: var(--nw-text);
+    display: block;
+    transition: border-color 0.15s ease;
+  }
+  .history-card:hover { border-color: var(--nw-primary); }
+  .history-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .history-card-type { font-weight: 700; font-size: 14px; }
+  .history-card-date { font-size: 12px; color: var(--nw-muted); }
+  .history-card-row { font-size: 13px; color: var(--nw-muted); margin-top: 2px; }
+  .history-card-row span { color: var(--nw-text); }
+
+  .summary-text {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--nw-muted);
+  }
+
+  @media (max-width: 600px) {
+    .history-table { display: none; }
+    .history-cards { display: block; }
+  }
+</style>
+</head>
+<body>
+
+<div class="history-wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Report History</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <!-- Status Tabs -->
+  <div class="status-tabs" id="statusTabs">
+    <div class="tab active" data-filter="all">All <span class="count" id="countAll">0</span></div>
+    <div class="tab" data-filter="draft">Drafts <span class="count" id="countDrafts">0</span></div>
+    <div class="tab" data-filter="completed">Completed <span class="count" id="countCompleted">0</span></div>
+  </div>
+
+  <!-- Search -->
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Search by customer, tech, or type...">
+  </div>
+
+  <!-- Desktop Table View -->
+  <div class="history-table">
+    <table class="table-clean">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Customer</th>
+          <th>Technician</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Mobile Card View -->
+  <div class="history-cards" id="cardContainer"></div>
+
+  <!-- Empty State -->
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="icon">📄</div>
+    <p>No reports found.<br>Start a new report from the dashboard.</p>
+  </div>
+
+  <div class="summary-text" id="summaryText"></div>
+
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- Type label mapping ---
+  var TYPE_MAP = {
+    'service-call': 'Service Call',
+    'startup': 'Start-Up',
+    'site-survey': 'Site Survey',
+    'pm-checklist': 'PM Checklist',
+    'work-order': 'Work Order'
+  };
+
+  // --- Form page mapping ---
+  var FORM_MAP = {
+    'service-call': 'service-call-report.html',
+    'startup': 'startup-report.html',
+    'site-survey': 'site-survey-report.html',
+    'pm-checklist': 'pm-checklist.html',
+    'work-order': 'work-order.html'
+  };
+
+  var allReports = [];
+  var activeFilter = 'all';
+  var searchTerm = '';
+  var debounceTimer = null;
+
+  // --- Load and normalize data ---
+  function loadReports() {
+    var drafts = [];
+    var history = [];
+
+    try { drafts = JSON.parse(localStorage.getItem('nw_drafts') || '[]'); } catch(e) {}
+    try { history = JSON.parse(localStorage.getItem('nw_history') || '[]'); } catch(e) {}
+
+    allReports = [];
+
+    drafts.forEach(function(d) {
+      allReports.push({
+        date: d.lastModified || d.date || '',
+        type: d.type || '',
+        customer: d.customer || d.title || '',
+        techName: d.techName || '',
+        status: 'draft',
+        link: (d.formPage || FORM_MAP[d.type] || '') + '?draft=' + d.id,
+        sortDate: new Date(d.lastModified || d.date || 0)
+      });
+    });
+
+    history.forEach(function(h) {
+      allReports.push({
+        date: h.completedAt || h.date || '',
+        type: h.type || '',
+        customer: h.customer || h.title || '',
+        techName: h.techName || '',
+        status: 'completed',
+        link: '',
+        sortDate: new Date(h.completedAt || h.date || 0)
+      });
+    });
+
+    // Sort newest first
+    allReports.sort(function(a, b) { return b.sortDate - a.sortDate; });
+  }
+
+  // --- Filter reports ---
+  function getFiltered() {
+    var filtered = allReports;
+
+    if (activeFilter === 'draft') {
+      filtered = filtered.filter(function(r) { return r.status === 'draft'; });
+    } else if (activeFilter === 'completed') {
+      filtered = filtered.filter(function(r) { return r.status === 'completed'; });
+    }
+
+    if (searchTerm) {
+      var q = searchTerm.toLowerCase();
+      filtered = filtered.filter(function(r) {
+        var typeLabel = (TYPE_MAP[r.type] || r.type || '').toLowerCase();
+        return (r.customer || '').toLowerCase().indexOf(q) !== -1 ||
+               (r.techName || '').toLowerCase().indexOf(q) !== -1 ||
+               typeLabel.indexOf(q) !== -1;
+      });
+    }
+
+    return filtered;
+  }
+
+  // --- Format date ---
+  function fmtDate(dateStr) {
+    if (!dateStr) return '—';
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // --- Render ---
+  function render() {
+    var filtered = getFiltered();
+    var tableBody = document.getElementById('tableBody');
+    var cardContainer = document.getElementById('cardContainer');
+    var emptyState = document.getElementById('emptyState');
+    var summaryText = document.getElementById('summaryText');
+
+    // Counts
+    var draftCount = allReports.filter(function(r) { return r.status === 'draft'; }).length;
+    var completedCount = allReports.filter(function(r) { return r.status === 'completed'; }).length;
+    document.getElementById('countAll').textContent = allReports.length;
+    document.getElementById('countDrafts').textContent = draftCount;
+    document.getElementById('countCompleted').textContent = completedCount;
+
+    // Empty state
+    if (filtered.length === 0) {
+      tableBody.innerHTML = '';
+      cardContainer.innerHTML = '';
+      emptyState.style.display = '';
+      summaryText.textContent = '';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    summaryText.textContent = 'Showing ' + filtered.length + ' of ' + allReports.length + ' reports';
+
+    // Desktop table
+    var rowsHtml = '';
+    filtered.forEach(function(r) {
+      var typeLabel = TYPE_MAP[r.type] || r.type || '—';
+      var badgeClass = r.status === 'draft' ? 'badge-draft' : 'badge-completed';
+      var badgeText = r.status === 'draft' ? 'Draft' : 'Completed';
+      var linkAttr = r.status === 'draft' && r.link ? ' data-link="' + r.link + '"' : '';
+      rowsHtml += '<tr' + linkAttr + '>' +
+        '<td>' + fmtDate(r.date) + '</td>' +
+        '<td>' + typeLabel + '</td>' +
+        '<td>' + (r.customer || '—') + '</td>' +
+        '<td>' + (r.techName || '—') + '</td>' +
+        '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+        '</tr>';
+    });
+    tableBody.innerHTML = rowsHtml;
+
+    // Mobile cards
+    var cardsHtml = '';
+    filtered.forEach(function(r) {
+      var typeLabel = TYPE_MAP[r.type] || r.type || '—';
+      var badgeClass = r.status === 'draft' ? 'badge-draft' : 'badge-completed';
+      var badgeText = r.status === 'draft' ? 'Draft' : 'Completed';
+      var tag = r.status === 'draft' && r.link ? 'a' : 'div';
+      var hrefAttr = r.status === 'draft' && r.link ? ' href="' + r.link + '"' : '';
+      cardsHtml += '<' + tag + ' class="history-card"' + hrefAttr + '>' +
+        '<div class="history-card-top">' +
+          '<span class="history-card-type">' + typeLabel + '</span>' +
+          '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
+        '</div>' +
+        '<div class="history-card-date">' + fmtDate(r.date) + '</div>' +
+        '<div class="history-card-row">Customer: <span>' + (r.customer || '—') + '</span></div>' +
+        '<div class="history-card-row">Tech: <span>' + (r.techName || '—') + '</span></div>' +
+        '</' + tag + '>';
+    });
+    cardContainer.innerHTML = cardsHtml;
+  }
+
+  // --- Row click handler (desktop) ---
+  document.getElementById('tableBody').addEventListener('click', function(e) {
+    var row = e.target.closest('tr[data-link]');
+    if (row) {
+      window.location.href = row.getAttribute('data-link');
+    }
+  });
+
+  // --- Tab click ---
+  document.getElementById('statusTabs').addEventListener('click', function(e) {
+    var tab = e.target.closest('.tab');
+    if (!tab) return;
+    var tabs = document.querySelectorAll('#statusTabs .tab');
+    tabs.forEach(function(t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+    activeFilter = tab.getAttribute('data-filter');
+    render();
+  });
+
+  // --- Search (debounced 300ms) ---
+  document.getElementById('searchInput').addEventListener('input', function(e) {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() {
+      searchTerm = e.target.value.trim();
+      render();
+    }, 300);
+  });
+
+  // --- Profile circle ---
+  function loadProfile() {
+    try {
+      var profile = JSON.parse(localStorage.getItem('nw_tech_profile') || '{}');
+      var name = profile.name || profile.techName || '';
+      if (name) {
+        var parts = name.trim().split(/\s+/);
+        var initials = parts.length >= 2
+          ? parts[0][0] + parts[parts.length - 1][0]
+          : name.substring(0, 2);
+        document.getElementById('profileCircle').textContent = initials.toUpperCase();
+      }
+    } catch(e) {}
+  }
+
+  // --- Init ---
+  loadProfile();
+  loadReports();
+  render();
+})();
+
+// Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(function() {});
+}
+</script>
+</body>
+</html>
