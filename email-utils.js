@@ -63,10 +63,11 @@ async function sendReportToManagement({ reportType, subject, bodyText, customerN
     // Initialize EmailJS (safe to call multiple times)
     emailjs.init(EMAIL_CONFIG.EMAILJS_PUBLIC_KEY);
 
-    // Convert PDF to data URL (EmailJS Variable Attachment expects toDataURL format)
-    const pdfBase64 = pdfDoc.output('datauristring');
-    const pdfSize = Math.round(pdfBase64.length / 1024);
-    console.log('PDF attachment size: ' + pdfSize + ' KB');
+    // Convert PDF to clean base64 data URL
+    // jsPDF datauristring adds "filename=generated.pdf;" which breaks EmailJS
+    const rawUri = pdfDoc.output('datauristring');
+    const base64Data = rawUri.split('base64,')[1];
+    const cleanDataUrl = 'data:application/pdf;base64,' + base64Data;
 
     // Build template parameters
     const templateParams = {
@@ -77,11 +78,8 @@ async function sendReportToManagement({ reportType, subject, bodyText, customerN
       customer_name:  customerName || '',
       tech_name:      techName || '',
       pdf_filename:   filename,
-      pdf_attachment: pdfBase64
+      pdf_attachment: cleanDataUrl
     };
-
-    console.log('Sending with params:', Object.keys(templateParams).join(', '));
-    console.log('pdf_attachment starts with:', pdfBase64.substring(0, 50));
 
     // Send via EmailJS
     await emailjs.send(
