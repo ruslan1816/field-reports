@@ -18,9 +18,9 @@
 
 const EMAIL_CONFIG = {
   // ⚠️ Replace these with your actual EmailJS credentials:
-  EMAILJS_PUBLIC_KEY:  'YOUR_PUBLIC_KEY',       // Account → API Keys
-  EMAILJS_SERVICE_ID:  'YOUR_SERVICE_ID',       // Email Services → your service
-  EMAILJS_TEMPLATE_ID: 'YOUR_TEMPLATE_ID',      // Email Templates → your template
+  EMAILJS_PUBLIC_KEY:  '2D_ekI2psvgG5W9Bi',     // Account → API Keys
+  EMAILJS_SERVICE_ID:  'service_48i790s',        // Email Services → your service
+  EMAILJS_TEMPLATE_ID: 'template_97sktpv',       // Email Templates → your template
 
   // Management team — all reports go to these addresses
   MANAGEMENT_EMAILS: [
