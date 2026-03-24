@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v18';
+const CACHE_NAME = 'nw-field-v19';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const ASSETS = [
   './styles.css',
   './icon-192.png',
   './icon-512.png',
+  './logo-header.png',
   './draft-utils.js',
   './email-utils.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
