@@ -60,36 +60,32 @@ async function sendReportToManagement({ reportType, subject, bodyText, customerN
   }
 
   try {
-    // Initialize EmailJS (safe to call multiple times)
-    emailjs.init(EMAIL_CONFIG.EMAILJS_PUBLIC_KEY);
-
-    // Convert PDF to data URL for EmailJS Variable Attachment
+    // Build FormData and send directly to EmailJS REST API
+    // This bypasses the SDK to ensure file attachments work reliably
     const pdfBlob = pdfDoc.output('blob');
-    const content = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(pdfBlob);
+    const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
+
+    const formData = new FormData();
+    formData.append('service_id',  EMAIL_CONFIG.EMAILJS_SERVICE_ID);
+    formData.append('template_id', EMAIL_CONFIG.EMAILJS_TEMPLATE_ID);
+    formData.append('user_id',     EMAIL_CONFIG.EMAILJS_PUBLIC_KEY);
+    formData.append('to_emails',      EMAIL_CONFIG.MANAGEMENT_EMAILS.join(', '));
+    formData.append('subject',        subject);
+    formData.append('body_text',      bodyText);
+    formData.append('report_type',    reportType);
+    formData.append('customer_name',  customerName || '');
+    formData.append('tech_name',      techName || '');
+    formData.append('pdf_filename',   filename);
+    formData.append('pdf_file',       pdfFile, filename);
+
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send-form', {
+      method: 'POST',
+      body: formData
     });
 
-    // Build template parameters
-    // "content" matches EmailJS docs example parameter name
-    const templateParams = {
-      to_emails:      EMAIL_CONFIG.MANAGEMENT_EMAILS.join(', '),
-      subject:        subject,
-      body_text:      bodyText,
-      report_type:    reportType,
-      customer_name:  customerName || '',
-      tech_name:      techName || '',
-      pdf_filename:   filename,
-      content:        content
-    };
-
-    // Send via EmailJS
-    await emailjs.send(
-      EMAIL_CONFIG.EMAILJS_SERVICE_ID,
-      EMAIL_CONFIG.EMAILJS_TEMPLATE_ID,
-      templateParams
-    );
+    if (!response.ok) {
+      throw new Error('EmailJS returned ' + response.status + ': ' + (await response.text()));
+    }
 
     showToast('✅ Report sent to management!');
     return true;
