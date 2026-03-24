@@ -9,6 +9,8 @@
 <meta name="theme-color" content="#1a2332">
 <title>Work Order — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="email-utils.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -298,17 +300,18 @@ function generateAndEmailWithHistory(){
   if(typeof saveToHistory==='function') saveToHistory('work-order', d);
   generateAndEmail();
 }
-function generateAndEmail(){
-  const temp = sharePDF;
-  sharePDF = function(){temp.apply(this, arguments)};
-  temp.apply(this, arguments);
-}
-function sharePDF(){
+async function generateAndEmail(){
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn=`WorkOrder_${v('custName').replace(/\s+/g,'_')||'WO'}_${v('woDate')}.pdf`;
-  if(navigator.share&&navigator.canShare){const f=new File([doc.output('blob')],fn,{type:'application/pdf'});if(navigator.canShare({files:[f]})){navigator.share({title:'Work Order',files:[f]}).then(()=>showToast('Shared!')).catch(()=>{doc.save(fn)});return}}
-  doc.save(fn);window.location.href=`mailto:ruslan@northernwolvesac.com?subject=${encodeURIComponent('Work Order - '+v('custName'))}&body=${encodeURIComponent('Please see attached Work Order.')}`;
-  showToast('PDF downloaded — attach to email');
+  await sendReportToManagement({
+    reportType: 'Work Order',
+    subject: `Work Order - ${v('custName')} - ${v('woDate')}`,
+    bodyText: `Work Order\n\nCustomer: ${v('custName')}\nDate: ${v('woDate')}\nTechnician: ${v('techName')}`,
+    customerName: v('custName'),
+    techName: v('techName'),
+    pdfDoc: doc,
+    filename: fn
+  });
 }
 </script>
 <script>

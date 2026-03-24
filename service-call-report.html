@@ -10,6 +10,8 @@
 <meta name="theme-color" content="#1a2332">
 <title>Service Call Report — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="email-utils.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -1174,37 +1176,19 @@ function generateAndEmailWithHistory() {
   generateAndEmail();
 }
 
-function generateAndEmail() {
+async function generateAndEmail() {
   const d = collectData();
   const doc = generatePDF();
-  const pdfBlob = doc.output('blob');
   const filename = `ServiceCall_${d.custName.replace(/\s+/g,'_') || 'Report'}_${d.callDate}.pdf`;
-
-  // Try sharing via Web Share API (works great on mobile)
-  if (navigator.share && navigator.canShare) {
-    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
-    if (navigator.canShare({ files: [file] })) {
-      navigator.share({
-        title: 'Service Call Report - ' + d.custName,
-        text: `Service Call Report for ${d.custName}\n${d.callDate} | ${d.equipType}\nTech: ${d.techName}`,
-        files: [file]
-      }).then(() => showToast('Shared!')).catch(() => fallbackEmail(doc, d, filename));
-      return;
-    }
-  }
-  fallbackEmail(doc, d, filename);
-}
-
-function fallbackEmail(doc, d, filename) {
-  // Download PDF then open email
-  doc.save(filename);
-  const subject = encodeURIComponent(`Service Call Report - ${d.custName} - ${d.callDate}`);
-  const body = encodeURIComponent(
-    `Service Call Report\n\nCustomer: ${d.custName}\nDate: ${d.callDate}\nEquipment: ${d.equipType}\nTechnician: ${d.techName}\nStatus: ${d.systemStatus}\n\nPlease see attached PDF report.\n\n—\nNorthern Wolves Air Conditioning`
-  );
-  const emailTo = 'ruslan@northernwolvesac.com';
-  window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
-  showToast('PDF downloaded — attach to email');
+  await sendReportToManagement({
+    reportType: 'Service Call Report',
+    subject: `Service Call Report - ${d.custName} - ${d.callDate}`,
+    bodyText: `Service Call Report\n\nCustomer: ${d.custName}\nDate: ${d.callDate}\nEquipment: ${d.equipType}\nTechnician: ${d.techName}\nStatus: ${d.systemStatus}`,
+    customerName: d.custName,
+    techName: d.techName,
+    pdfDoc: doc,
+    filename: filename
+  });
 }
 </script>
 

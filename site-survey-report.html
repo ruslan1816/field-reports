@@ -9,6 +9,8 @@
 <meta name="theme-color" content="#1a2332">
 <title>Site Survey Report — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="email-utils.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -380,17 +382,18 @@ function generateAndEmailWithHistory(){
   if(typeof saveToHistory==='function') saveToHistory('site-survey', d);
   generateAndEmail();
 }
-function generateAndEmail(){
-  const temp = sharePDF;
-  sharePDF = function(){temp.apply(this, arguments)};
-  temp.apply(this, arguments);
-}
-function sharePDF(){
-  const d=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';
+async function generateAndEmail(){
+  const doc=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';
   const fn=`SiteSurvey_${v('custName').replace(/\s+/g,'_')||'Report'}_${v('surveyDate')}.pdf`;
-  if(navigator.share&&navigator.canShare){const f=new File([d.output('blob')],fn,{type:'application/pdf'});if(navigator.canShare({files:[f]})){navigator.share({title:'Site Survey Report',files:[f]}).then(()=>showToast('Shared!')).catch(()=>{d.save(fn)});return}}
-  d.save(fn);window.location.href=`mailto:ruslan@northernwolvesac.com?subject=${encodeURIComponent('Site Survey - '+v('custName'))}&body=${encodeURIComponent('Please see attached Site Survey Report.')}`;
-  showToast('PDF downloaded — attach to email');
+  await sendReportToManagement({
+    reportType: 'Site Survey Report',
+    subject: `Site Survey - ${v('custName')} - ${v('surveyDate')}`,
+    bodyText: `Site Survey Report\n\nCustomer: ${v('custName')}\nDate: ${v('surveyDate')}\nAddress: ${v('address')}`,
+    customerName: v('custName'),
+    techName: v('techName'),
+    pdfDoc: doc,
+    filename: fn
+  });
 }
 </script>
 <script>

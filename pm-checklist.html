@@ -9,6 +9,8 @@
 <meta name="theme-color" content="#1a2332">
 <title>PM Checklist — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="email-utils.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -287,17 +289,18 @@ function generateAndEmailWithHistory(){
   if(typeof saveToHistory==='function') saveToHistory('pm-checklist', d);
   generateAndEmail();
 }
-function generateAndEmail(){
-  const temp = sharePDF;
-  sharePDF = function(){temp.apply(this, arguments)};
-  temp.apply(this, arguments);
-}
-function sharePDF(){
+async function generateAndEmail(){
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn=`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`;
-  if(navigator.share&&navigator.canShare){const f=new File([doc.output('blob')],fn,{type:'application/pdf'});if(navigator.canShare({files:[f]})){navigator.share({title:'PM Checklist',files:[f]}).then(()=>showToast('Shared!')).catch(()=>{doc.save(fn)});return}}
-  doc.save(fn);window.location.href=`mailto:ruslan@northernwolvesac.com?subject=${encodeURIComponent('PM Report - '+v('custName'))}&body=${encodeURIComponent('Please see attached PM Checklist.')}`;
-  showToast('PDF downloaded — attach to email');
+  await sendReportToManagement({
+    reportType: 'PM Checklist',
+    subject: `PM Report - ${v('custName')} - ${v('pmDate')}`,
+    bodyText: `PM Checklist Report\n\nCustomer: ${v('custName')}\nDate: ${v('pmDate')}\nTechnician: ${v('techName')}`,
+    customerName: v('custName'),
+    techName: v('techName'),
+    pdfDoc: doc,
+    filename: fn
+  });
 }
 </script>
 <script>
