@@ -16,6 +16,28 @@
  * 4. Copy your Public Key (Account → API Keys), Service ID, and Template ID below
  */
 
+/**
+ * Compress an image data URL to fit within size limits.
+ * Resizes to max 800px wide and uses JPEG quality 0.5.
+ * Returns a promise resolving to the compressed data URL.
+ */
+function compressImage(dataUrl, maxWidth = 800, quality = 0.5) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 const EMAIL_CONFIG = {
   // ⚠️ Replace these with your actual EmailJS credentials:
   EMAILJS_PUBLIC_KEY:  '2D_ekI2psvgG5W9Bi',     // Account → API Keys
