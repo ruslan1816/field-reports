@@ -2,47 +2,20 @@
  * Northern Wolves AC — Email Utilities
  * Shared email sending logic for all field report forms.
  *
- * Primary:  EmailJS (auto-sends PDF to management, no manual steps)
- * Fallback: mailto: with all management emails (tech attaches PDF manually)
- *
- * ─── SETUP INSTRUCTIONS ───
- * 1. Go to https://www.emailjs.com/ and create a free account
- * 2. Email Services → Add New Service → connect your Gmail/Outlook
- * 3. Email Templates → Create New Template:
- *      To:      jonathan@northernwolvesac.com, andrei@northernwolvesac.com, ruslan@northernwolvesac.com
- *      Subject: {{subject}}
- *      Body:    {{body_text}}
- *      Attachments → Add: filename={{pdf_filename}}, content={{pdf_attachment}}, type=application/pdf
- * 4. Copy your Public Key (Account → API Keys), Service ID, and Template ID below
+ * Flow: Tech hits Send →
+ *   1. PDF uploads to Google Drive (via Apps Script)
+ *   2. EmailJS sends email with Drive download link to management
+ *   3. Fallback: mailto with all 3 emails if anything fails
  */
-
-/**
- * Compress an image data URL to fit within size limits.
- * Resizes to max 800px wide and uses JPEG quality 0.5.
- * Returns a promise resolving to the compressed data URL.
- */
-function compressImage(dataUrl, maxWidth = 800, quality = 0.5) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let w = img.width, h = img.height;
-      if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
 
 const EMAIL_CONFIG = {
-  // ⚠️ Replace these with your actual EmailJS credentials:
-  EMAILJS_PUBLIC_KEY:  '2D_ekI2psvgG5W9Bi',     // Account → API Keys
-  EMAILJS_SERVICE_ID:  'service_48i790s',        // Email Services → your service
-  EMAILJS_TEMPLATE_ID: 'template_97sktpv',       // Email Templates → your template
+  // EmailJS credentials
+  EMAILJS_PUBLIC_KEY:  '2D_ekI2psvgG5W9Bi',
+  EMAILJS_SERVICE_ID:  'service_48i790s',
+  EMAILJS_TEMPLATE_ID: 'template_97sktpv',
+
+  // Google Apps Script web app URL (uploads PDF to Drive, returns link)
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzvkMp9DdSa4JUC8CNxLPnGuiYnkMoidltHbQvvUYQPh7ZfLICPWRcRG7iKcbKH-A3c/exec',
 
   // Management team — all reports go to these addresses
   MANAGEMENT_EMAILS: [
@@ -51,6 +24,40 @@ const EMAIL_CONFIG = {
     'ruslan@northernwolvesac.com'
   ]
 };
+
+/**
+ * Upload PDF to Google Drive via Apps Script.
+ * Returns { downloadUrl, viewUrl, fileId } on success.
+ */
+async function uploadToGoogleDrive(pdfDoc, filename) {
+  // Get raw base64 from jsPDF (strip the data URI prefix)
+  const dataUri = pdfDoc.output('datauristring');
+  const base64 = dataUri.split('base64,')[1];
+
+  console.log('Uploading PDF to Google Drive...', filename);
+
+  const response = await fetch(EMAIL_CONFIG.APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ filename: filename, base64: base64 }),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+
+  // Apps Script redirects, so we follow it and parse the JSON
+  const text = await response.text();
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch (e) {
+    throw new Error('Drive upload failed: ' + text.substring(0, 200));
+  }
+
+  if (!result.success) {
+    throw new Error('Drive upload error: ' + (result.error || 'Unknown'));
+  }
+
+  console.log('PDF uploaded to Drive:', result.downloadUrl);
+  return result;
+}
 
 /**
  * Send a completed report PDF to the management team.
@@ -63,58 +70,49 @@ const EMAIL_CONFIG = {
  * @param {string} params.techName     - technician name
  * @param {Object} params.pdfDoc       - jsPDF document instance
  * @param {string} params.filename     - e.g. "ServiceCall_AcmeCorp_2026-03-24.pdf"
- * @returns {Promise<boolean>} true if EmailJS succeeded, false if fell back to mailto
+ * @returns {Promise<boolean>} true if succeeded, false if fell back to mailto
  */
 async function sendReportToManagement({ reportType, subject, bodyText, customerName, techName, pdfDoc, filename }) {
 
-  // If offline, skip EmailJS entirely — go straight to fallback
+  // If offline, skip entirely — go straight to fallback
   if (!navigator.onLine) {
     console.warn('Offline — falling back to mailto');
     fallbackMailto({ subject, bodyText, pdfDoc, filename });
     return false;
   }
 
-  // If EmailJS credentials are not configured, go to fallback
-  if (EMAIL_CONFIG.EMAILJS_PUBLIC_KEY === 'YOUR_PUBLIC_KEY') {
-    console.warn('EmailJS not configured — falling back to mailto');
-    fallbackMailto({ subject, bodyText, pdfDoc, filename });
-    return false;
-  }
-
   try {
-    // Build FormData and send directly to EmailJS REST API
-    // This bypasses the SDK to ensure file attachments work reliably
-    const pdfBlob = pdfDoc.output('blob');
-    const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
+    showToast('Uploading report...');
 
-    const formData = new FormData();
-    formData.append('service_id',  EMAIL_CONFIG.EMAILJS_SERVICE_ID);
-    formData.append('template_id', EMAIL_CONFIG.EMAILJS_TEMPLATE_ID);
-    formData.append('user_id',     EMAIL_CONFIG.EMAILJS_PUBLIC_KEY);
-    formData.append('to_emails',      EMAIL_CONFIG.MANAGEMENT_EMAILS.join(', '));
-    formData.append('subject',        subject);
-    formData.append('body_text',      bodyText);
-    formData.append('report_type',    reportType);
-    formData.append('customer_name',  customerName || '');
-    formData.append('tech_name',      techName || '');
-    formData.append('pdf_filename',   filename);
-    formData.append('pdf_file',       pdfFile, filename);
+    // Step 1: Upload PDF to Google Drive
+    const driveResult = await uploadToGoogleDrive(pdfDoc, filename);
 
-    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send-form', {
-      method: 'POST',
-      body: formData
+    showToast('Sending email...');
+
+    // Step 2: Send email via EmailJS with the Drive link (no attachment needed)
+    emailjs.init(EMAIL_CONFIG.EMAILJS_PUBLIC_KEY);
+
+    const bodyWithLink = bodyText
+      + '\n\n--- PDF Report ---'
+      + '\nDownload: ' + driveResult.downloadUrl
+      + '\nView: ' + driveResult.viewUrl
+      + '\n\n-- Northern Wolves Air Conditioning';
+
+    await emailjs.send(EMAIL_CONFIG.EMAILJS_SERVICE_ID, EMAIL_CONFIG.EMAILJS_TEMPLATE_ID, {
+      to_emails:     EMAIL_CONFIG.MANAGEMENT_EMAILS.join(', '),
+      subject:       subject,
+      body_text:     bodyWithLink,
+      report_type:   reportType,
+      customer_name: customerName || '',
+      tech_name:     techName || ''
     });
 
-    if (!response.ok) {
-      throw new Error('EmailJS returned ' + response.status + ': ' + (await response.text()));
-    }
-
-    showToast('✅ Report sent to management!');
+    showToast('Report sent to management!');
     return true;
 
   } catch (error) {
-    console.error('EmailJS send failed:', error);
-    alert('EmailJS error: ' + (error.text || error.message || JSON.stringify(error)));
+    console.error('Send failed:', error);
+    alert('Send error: ' + (error.text || error.message || JSON.stringify(error)) + '\n\nFalling back to email app.');
     fallbackMailto({ subject, bodyText, pdfDoc, filename });
     return false;
   }
@@ -139,5 +137,5 @@ function fallbackMailto({ subject, bodyText, pdfDoc, filename }) {
     + '&body='    + encodeURIComponent(fullBody);
 
   window.location.href = mailtoUrl;
-  showToast('📎 PDF downloaded — please attach to email');
+  showToast('PDF downloaded — please attach to email');
 }
