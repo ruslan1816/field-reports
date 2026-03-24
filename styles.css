@@ -277,7 +277,7 @@ body {
 }
 
 .readings-table th {
-  background: var(--nw-dark);
+  background: var(--nw-primary);
   color: #ffffff;
   padding: 8px 10px;
   font-size: 11px;
