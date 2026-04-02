@@ -43,6 +43,12 @@ body {
 
 /* BTN SMALL (page-specific) */
 .btn-small { padding: 8px 14px; font-size: 13px; width: auto; }
+/* READINGS CARDS */
+.readings-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; margin-bottom:12px; }
+.readings-card-header { font-size:13px; font-weight:700; color:#0696D7; margin-bottom:10px; }
+/* PHOTO GROUPS */
+.photo-group { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:10px; }
+.photo-group-header { font-size:13px; font-weight:700; color:#0696D7; margin-bottom:8px; }
 </style>
 </head>
 <body>
@@ -182,24 +188,7 @@ body {
   </div>
   <div class="section-body">
     <p style="font-size:12px;color:var(--nw-muted);margin-bottom:12px;">Fill in applicable readings. Leave blank if N/A.</p>
-    <table class="readings-table">
-      <thead>
-        <tr><th>Parameter</th><th>Before</th><th>After</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Supply Air (°F)</td><td><input type="number" id="r_supplyBefore" data-save></td><td><input type="number" id="r_supplyAfter" data-save></td></tr>
-        <tr><td>Return Air (°F)</td><td><input type="number" id="r_returnBefore" data-save></td><td><input type="number" id="r_returnAfter" data-save></td></tr>
-        <tr><td>Outdoor Temp (°F)</td><td><input type="number" id="r_outdoorBefore" data-save></td><td><input type="number" id="r_outdoorAfter" data-save></td></tr>
-        <tr><td>Suction PSI</td><td><input type="number" id="r_suctionBefore" data-save></td><td><input type="number" id="r_suctionAfter" data-save></td></tr>
-        <tr><td>Head PSI</td><td><input type="number" id="r_headBefore" data-save></td><td><input type="number" id="r_headAfter" data-save></td></tr>
-        <tr><td>Superheat (°F)</td><td><input type="number" id="r_shBefore" data-save></td><td><input type="number" id="r_shAfter" data-save></td></tr>
-        <tr><td>Subcooling (°F)</td><td><input type="number" id="r_scBefore" data-save></td><td><input type="number" id="r_scAfter" data-save></td></tr>
-        <tr><td>Compressor Amps</td><td><input type="number" step="0.1" id="r_compAmpsBefore" data-save></td><td><input type="number" step="0.1" id="r_compAmpsAfter" data-save></td></tr>
-        <tr><td>Condenser Fan Amps</td><td><input type="number" step="0.1" id="r_condFanBefore" data-save></td><td><input type="number" step="0.1" id="r_condFanAfter" data-save></td></tr>
-        <tr><td>Blower Fan Amps</td><td><input type="number" step="0.1" id="r_blowerBefore" data-save></td><td><input type="number" step="0.1" id="r_blowerAfter" data-save></td></tr>
-        <tr><td>Voltage (L-L)</td><td><input type="number" id="r_voltageBefore" data-save></td><td><input type="number" id="r_voltageAfter" data-save></td></tr>
-      </tbody>
-    </table>
+    <div id="readingsContainer"></div>
   </div>
 </div>
 
@@ -253,12 +242,7 @@ body {
     <span class="collapse-arrow">▼</span>
   </div>
   <div class="section-body">
-    <div class="photo-area" onclick="document.getElementById('photoInput').click()">
-      <div class="icon">📸</div>
-      <p>Tap to take a photo or choose from gallery</p>
-      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this)">
-    </div>
-    <div class="photo-preview" id="photoPreview"></div>
+    <div id="photosContainer"></div>
   </div>
 </div>
 
@@ -407,30 +391,158 @@ function addPartRow() {
   document.getElementById('partsList').appendChild(row);
 }
 
-// ========== PHOTO HANDLING ==========
-let photos = [];
-function handlePhotos(input) {
-  Array.from(input.files).forEach(file => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const compressed = await compressImage(e.target.result);
-      photos.push({ name: file.name, data: compressed });
-      renderPhotos();
+// ========== DYNAMIC READINGS PER EQUIPMENT ==========
+const READING_PARAMS = [
+  { label: 'Supply Air (\u00B0F)', key: 'supply', type: 'number' },
+  { label: 'Return Air (\u00B0F)', key: 'return', type: 'number' },
+  { label: 'Outdoor Temp (\u00B0F)', key: 'outdoor', type: 'number' },
+  { label: 'Suction PSI', key: 'suction', type: 'number' },
+  { label: 'Head PSI', key: 'head', type: 'number' },
+  { label: 'Superheat (\u00B0F)', key: 'sh', type: 'number' },
+  { label: 'Subcooling (\u00B0F)', key: 'sc', type: 'number' },
+  { label: 'Compressor Amps', key: 'compAmps', type: 'number', step: '0.1' },
+  { label: 'Condenser Fan Amps', key: 'condFan', type: 'number', step: '0.1' },
+  { label: 'Blower Fan Amps', key: 'blower', type: 'number', step: '0.1' },
+  { label: 'Voltage (L-L)', key: 'voltage', type: 'number' }
+];
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function buildReadingsTables() {
+  const container = document.getElementById('readingsContainer');
+  if (!container) return;
+  const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 1);
+  const savedReadings = collectAllReadings();
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+    const card = document.createElement('div');
+    card.className = 'readings-card';
+    card.innerHTML = `
+      <div class="readings-card-header">\u2699\uFE0F ${escapeHtml(equipLabel)} \u2014 Readings</div>
+      <table class="readings-table">
+        <thead><tr><th>Parameter</th><th>Before</th><th>After</th></tr></thead>
+        <tbody>
+          ${READING_PARAMS.map(p => `
+            <tr>
+              <td>${p.label}</td>
+              <td><input type="${p.type}" ${p.step ? 'step="'+p.step+'"' : ''} class="reading-input" data-equip="${i}" data-key="${p.key}" data-when="before"></td>
+              <td><input type="${p.type}" ${p.step ? 'step="'+p.step+'"' : ''} class="reading-input" data-equip="${i}" data-key="${p.key}" data-when="after"></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    container.appendChild(card);
+    if (savedReadings[i]) {
+      Object.keys(savedReadings[i]).forEach(key => {
+        const parts = key.split('_');
+        const when = parts.pop();
+        const paramKey = parts.join('_');
+        const input = card.querySelector(`[data-equip="${i}"][data-key="${paramKey}"][data-when="${when}"]`);
+        if (input && savedReadings[i][key]) input.value = savedReadings[i][key];
+      });
+    }
+  }
+}
+
+function collectAllReadings() {
+  const readings = {};
+  document.querySelectorAll('.reading-input').forEach(input => {
+    const idx = input.dataset.equip;
+    const key = input.dataset.key + '_' + input.dataset.when;
+    if (!readings[idx]) readings[idx] = {};
+    if (input.value) readings[idx][key] = input.value;
+  });
+  return readings;
+}
+
+// ========== PER-EQUIPMENT PHOTOS ==========
+let photosByEquip = { general: [] };
+
+function buildPhotoSections() {
+  const container = document.getElementById('photosContainer');
+  if (!container) return;
+  const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
+  container.innerHTML = '';
+  container.appendChild(createPhotoGroup('general', '\uD83D\uDCF7 General Photos'));
+  for (let i = 0; i < count; i++) {
+    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+    container.appendChild(createPhotoGroup(String(i), '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+  }
+  Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
+}
+
+function createPhotoGroup(key, label) {
+  if (!photosByEquip[key]) photosByEquip[key] = [];
+  const group = document.createElement('div');
+  group.className = 'photo-group';
+  group.dataset.key = key;
+  group.innerHTML = `
+    <div class="photo-group-header">${label}</div>
+    <div class="photo-area" onclick="this.querySelector('input').click()">
+      <div class="icon">\uD83D\uDCF8</div><p>Tap to add photos</p>
+      <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="handleEquipPhotos(this, '${key}')">
+    </div>
+    <div class="photo-preview" id="photoPreview_${key}"></div>
+  `;
+  return group;
+}
+
+function handleEquipPhotos(input, key) {
+  if (!photosByEquip[key]) photosByEquip[key] = [];
+  Array.from(input.files).forEach(f => {
+    const r = new FileReader();
+    r.onload = e => {
+      if (typeof compressImage === 'function') {
+        compressImage(e.target.result).then(compressed => {
+          photosByEquip[key].push({ name: f.name, data: compressed });
+          renderEquipPhotos(key);
+        });
+      } else {
+        photosByEquip[key].push({ name: f.name, data: e.target.result });
+        renderEquipPhotos(key);
+      }
     };
-    reader.readAsDataURL(file);
+    r.readAsDataURL(f);
   });
   input.value = '';
 }
-function renderPhotos() {
-  const preview = document.getElementById('photoPreview');
+
+function renderEquipPhotos(key) {
+  const preview = document.getElementById('photoPreview_' + key);
+  if (!preview) return;
+  const arr = photosByEquip[key] || [];
   preview.innerHTML = '';
-  photos.forEach((photo, i) => {
-    const thumb = document.createElement('div');
-    thumb.className = 'photo-thumb';
-    thumb.innerHTML = `<img src="${photo.data}"><div class="remove-photo" onclick="photos.splice(${i},1);renderPhotos();">✕</div>`;
-    preview.appendChild(thumb);
+  arr.forEach((ph, i) => {
+    const d = document.createElement('div');
+    d.className = 'photo-thumb';
+    d.innerHTML = `<img src="${ph.data}"><div class="remove-photo" onclick="photosByEquip['${key}'].splice(${i},1);renderEquipPhotos('${key}');">\u2715</div>`;
+    preview.appendChild(d);
   });
 }
+
+function getAllPhotos() {
+  const all = [];
+  Object.keys(photosByEquip).forEach(key => {
+    (photosByEquip[key] || []).forEach(p => all.push({ ...p, equipKey: key }));
+  });
+  return all;
+}
+// Backward compat: expose photos as getter
+Object.defineProperty(window, 'photos', { get: function() { return getAllPhotos(); }, configurable: true });
+
+// Watch for equipment changes to rebuild readings + photos
+const equipObserver = new MutationObserver(() => { setTimeout(() => { buildReadingsTables(); buildPhotoSections(); }, 100); });
+const equipListEl = document.getElementById('equipmentContainer');
+if (equipListEl) equipObserver.observe(equipListEl, { childList: true, subtree: true });
+setTimeout(() => { buildReadingsTables(); buildPhotoSections(); }, 200);
 
 // ========== SIGNATURE PAD ==========
 class SignaturePad {
@@ -512,6 +624,8 @@ function autoSave() {
   });
   data._parts = parts;
   data._equipment = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  data._readings = collectAllReadings();
+  data._photosByEquip = photosByEquip;
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e) {}
   const indicator = document.getElementById('autosaveIndicator');
   indicator.classList.add('show');
@@ -558,19 +672,7 @@ function collectData() {
     refrigerant: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].refrigerant : '',
     equipLocation: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].location : '',
     complaint: v('complaint'),
-    readings: {
-      supplyBefore: v('r_supplyBefore'), supplyAfter: v('r_supplyAfter'),
-      returnBefore: v('r_returnBefore'), returnAfter: v('r_returnAfter'),
-      outdoorBefore: v('r_outdoorBefore'), outdoorAfter: v('r_outdoorAfter'),
-      suctionBefore: v('r_suctionBefore'), suctionAfter: v('r_suctionAfter'),
-      headBefore: v('r_headBefore'), headAfter: v('r_headAfter'),
-      shBefore: v('r_shBefore'), shAfter: v('r_shAfter'),
-      scBefore: v('r_scBefore'), scAfter: v('r_scAfter'),
-      compAmpsBefore: v('r_compAmpsBefore'), compAmpsAfter: v('r_compAmpsAfter'),
-      condFanBefore: v('r_condFanBefore'), condFanAfter: v('r_condFanAfter'),
-      blowerBefore: v('r_blowerBefore'), blowerAfter: v('r_blowerAfter'),
-      voltageBefore: v('r_voltageBefore'), voltageAfter: v('r_voltageAfter'),
-    },
+    readings: collectAllReadings(),
     diagnosis: v('diagnosis'), workPerformed: v('workPerformed'), recommendations: v('recommendations'),
     parts,
     refAdded: v('refAdded'),
@@ -578,7 +680,8 @@ function collectData() {
     regHours: v('regHours'), otHours: v('otHours'), travelTime: v('travelTime'),
     custPrintName: v('custPrintName'),
     techSig: techSigPad.toDataURL(), custSig: custSigPad.toDataURL(),
-    photos
+    photos: getAllPhotos(),
+    photosByEquip: photosByEquip
   };
 }
 
@@ -713,35 +816,32 @@ function generatePDF() {
   doc.text(complaintLines, mx + 3, y);
   y += complaintLines.length * 4.5 + 4;
 
-  // READINGS TABLE
-  sectionHeader('System Readings');
-  const readingsData = [
-    ['Supply Air (°F)', d.readings.supplyBefore, d.readings.supplyAfter],
-    ['Return Air (°F)', d.readings.returnBefore, d.readings.returnAfter],
-    ['Outdoor Temp (°F)', d.readings.outdoorBefore, d.readings.outdoorAfter],
-    ['Suction PSI', d.readings.suctionBefore, d.readings.suctionAfter],
-    ['Head PSI', d.readings.headBefore, d.readings.headAfter],
-    ['Superheat (°F)', d.readings.shBefore, d.readings.shAfter],
-    ['Subcooling (°F)', d.readings.scBefore, d.readings.scAfter],
-    ['Compressor Amps', d.readings.compAmpsBefore, d.readings.compAmpsAfter],
-    ['Condenser Fan Amps', d.readings.condFanBefore, d.readings.condFanAfter],
-    ['Blower Fan Amps', d.readings.blowerBefore, d.readings.blowerAfter],
-    ['Voltage (L-L)', d.readings.voltageBefore, d.readings.voltageAfter],
-  ].filter(r => r[1] || r[2]);
-
-  if (readingsData.length > 0) {
-    doc.autoTable({
-      startY: y,
-      margin: { left: mx, right: 15 },
-      head: [['Parameter', 'Before', 'After']],
-      body: readingsData.map(r => [r[0], r[1] || '—', r[2] || '—']),
-      theme: 'grid',
-      headStyles: { fillColor: darkBlue, fontSize: 8, fontStyle: 'bold', halign: 'center' },
-      bodyStyles: { fontSize: 8, cellPadding: 2 },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55 }, 1: { halign: 'center' }, 2: { halign: 'center' } },
-    });
-    y = doc.lastAutoTable.finalY + 4;
-  }
+  // READINGS TABLE — per equipment
+  const allReadings = d.readings;
+  const equipArr = d.equipment || [];
+  Object.keys(allReadings).forEach((idx) => {
+    const eqLabel = equipArr[idx] ? (equipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
+    const readingsData = READING_PARAMS.map(p => [
+      p.label,
+      allReadings[idx][p.key + '_before'] || '',
+      allReadings[idx][p.key + '_after'] || ''
+    ]).filter(r => r[1] || r[2]);
+    if (readingsData.length > 0) {
+      if (y > 200) { doc.addPage(); y = 15; }
+      sectionHeader('Readings \u2014 ' + eqLabel);
+      doc.autoTable({
+        startY: y,
+        margin: { left: mx, right: 15 },
+        head: [['Parameter', 'Before', 'After']],
+        body: readingsData.map(r => [r[0], r[1] || '\u2014', r[2] || '\u2014']),
+        theme: 'grid',
+        headStyles: { fillColor: darkBlue, fontSize: 8, fontStyle: 'bold', halign: 'center' },
+        bodyStyles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55 }, 1: { halign: 'center' }, 2: { halign: 'center' } },
+      });
+      y = doc.lastAutoTable.finalY + 4;
+    }
+  });
 
   // Check if need new page
   if (y > 200) { doc.addPage(); y = 15; }
@@ -868,8 +968,10 @@ function generatePDF() {
   doc.text('Northern Wolves Air Conditioning — New York & New Jersey — www.northernwolvesac.com', pw / 2, footY, { align: 'center' });
   doc.text('Generated: ' + new Date().toLocaleString(), pw / 2, footY + 4, { align: 'center' });
 
-  // PHOTO PAGES
-  if (d.photos.length > 0) {
+  // PHOTO PAGES — per equipment
+  const allPhotos = d.photosByEquip || { general: d.photos || [] };
+  const hasAnyPhotos = Object.keys(allPhotos).some(k => (allPhotos[k] || []).length > 0);
+  if (hasAnyPhotos) {
     doc.addPage();
     let py = 12;
     doc.setFillColor(...darkBlue);
@@ -879,12 +981,20 @@ function generatePDF() {
     doc.setTextColor(255, 255, 255);
     doc.text('PHOTO DOCUMENTATION', pw / 2, 9, { align: 'center' });
     py = 20;
-    d.photos.forEach((photo, i) => {
-      if (py > 220) { doc.addPage(); py = 15; }
-      try {
-        doc.addImage(photo.data, 'JPEG', mx, py, 90, 68);
-        py += 72;
-      } catch(e) {}
+    const pEquipArr = d.equipment || [];
+    Object.keys(allPhotos).forEach(key => {
+      const arr = allPhotos[key] || [];
+      if (arr.length === 0) return;
+      let label;
+      if (key === 'general') { label = 'General Photos'; }
+      else { const eq = pEquipArr[parseInt(key)]; label = (eq ? eq.type : 'Equipment #' + (parseInt(key)+1)) + ' \u2014 Photos'; }
+      if (py > 210) { doc.addPage(); py = 15; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...darkBlue);
+      doc.text(label, mx, py); py += 5;
+      arr.forEach(photo => {
+        if (py > 220) { doc.addPage(); py = 15; }
+        try { doc.addImage(photo.data, 'JPEG', mx, py, 90, 68); py += 72; } catch(e) {}
+      });
     });
   }
 

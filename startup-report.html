@@ -27,6 +27,8 @@ body{padding-bottom:100px}
 /* Mode tabs */
 .mode-tabs{display:flex;margin:12px;gap:0;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}.mode-tab{flex:1;padding:14px;text-align:center;font-size:14px;font-weight:700;cursor:pointer;background:var(--nw-card);color:var(--nw-muted);border:none;transition:all .2s}.mode-tab.active{background:var(--nw-primary);color:#fff}
 .mode-content{display:none}.mode-content.active{display:block}
+.readings-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:12px}.readings-card-header{font-size:13px;font-weight:700;color:#0696D7;margin-bottom:10px}
+.photo-group{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}.photo-group-header{font-size:13px;font-weight:700;color:#0696D7;margin-bottom:8px}
 /* Result badge */
 .result-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}.result-pass{background:#d1fae5;color:#065f46}.result-conditional{background:#fef3c7;color:#92400e}.result-fail{background:#fee2e2;color:#991b1b}
 </style>
@@ -95,23 +97,7 @@ body{padding-bottom:100px}
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)"><span class="icon">📊</span> Operational Readings<span class="collapse-arrow">▼</span></div>
     <div class="section-body">
-      <table class="readings-table">
-        <thead><tr><th>Parameter</th><th>Reading</th><th>Spec</th></tr></thead>
-        <tbody>
-          <tr><td>Supply Air (°F)</td><td><input type="number" id="c_supply" data-save></td><td><input type="text" id="c_supplySpec" placeholder="Spec" data-save></td></tr>
-          <tr><td>Return Air (°F)</td><td><input type="number" id="c_return" data-save></td><td><input type="text" id="c_returnSpec" data-save></td></tr>
-          <tr><td>Delta T (°F)</td><td><input type="number" id="c_deltaT" data-save></td><td><input type="text" id="c_deltaTSpec" placeholder="15-22" data-save></td></tr>
-          <tr><td>Outdoor Temp (°F)</td><td><input type="number" id="c_outdoor" data-save></td><td><input type="text" id="c_outdoorSpec" data-save></td></tr>
-          <tr><td>Suction PSI</td><td><input type="number" id="c_suction" data-save></td><td><input type="text" id="c_suctionSpec" data-save></td></tr>
-          <tr><td>Head PSI</td><td><input type="number" id="c_head" data-save></td><td><input type="text" id="c_headSpec" data-save></td></tr>
-          <tr><td>Superheat (°F)</td><td><input type="number" id="c_sh" data-save></td><td><input type="text" id="c_shSpec" placeholder="5-15" data-save></td></tr>
-          <tr><td>Subcooling (°F)</td><td><input type="number" id="c_sc" data-save></td><td><input type="text" id="c_scSpec" placeholder="8-14" data-save></td></tr>
-          <tr><td>Comp Amps (RLA)</td><td><input type="number" step="0.1" id="c_compAmps" data-save></td><td><input type="text" id="c_compSpec" placeholder="RLA" data-save></td></tr>
-          <tr><td>Cond Fan Amps</td><td><input type="number" step="0.1" id="c_condFan" data-save></td><td><input type="text" id="c_condSpec" data-save></td></tr>
-          <tr><td>Blower Amps</td><td><input type="number" step="0.1" id="c_blower" data-save></td><td><input type="text" id="c_blowerSpec" data-save></td></tr>
-          <tr><td>Voltage (L-L)</td><td><input type="number" id="c_voltage" data-save></td><td><input type="text" id="c_voltageSpec" data-save></td></tr>
-        </tbody>
-      </table>
+      <div id="coolReadingsContainer"></div>
     </div>
   </div>
 </div>
@@ -139,22 +125,7 @@ body{padding-bottom:100px}
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)"><span class="icon">📊</span> Operational Readings<span class="collapse-arrow">▼</span></div>
     <div class="section-body">
-      <table class="readings-table">
-        <thead><tr><th>Parameter</th><th>Reading</th><th>Spec</th></tr></thead>
-        <tbody>
-          <tr><td>Supply Air (°F)</td><td><input type="number" id="h_supply" data-save></td><td><input type="text" id="h_supplySpec" data-save></td></tr>
-          <tr><td>Return Air (°F)</td><td><input type="number" id="h_return" data-save></td><td><input type="text" id="h_returnSpec" data-save></td></tr>
-          <tr><td>Temp Rise (°F)</td><td><input type="number" id="h_rise" data-save></td><td><input type="text" id="h_riseSpec" placeholder="Per nameplate" data-save></td></tr>
-          <tr><td>Gas Pressure In (WC)</td><td><input type="number" step="0.1" id="h_gasIn" data-save></td><td><input type="text" id="h_gasInSpec" data-save></td></tr>
-          <tr><td>Gas Pressure Out (WC)</td><td><input type="number" step="0.1" id="h_gasOut" data-save></td><td><input type="text" id="h_gasOutSpec" data-save></td></tr>
-          <tr><td>Stack Temp (°F)</td><td><input type="number" id="h_stack" data-save></td><td><input type="text" id="h_stackSpec" data-save></td></tr>
-          <tr><td>CO (ppm)</td><td><input type="number" id="h_co" data-save></td><td><input type="text" id="h_coSpec" placeholder="<100" data-save></td></tr>
-          <tr><td>O₂ (%)</td><td><input type="number" step="0.1" id="h_o2" data-save></td><td><input type="text" id="h_o2Spec" data-save></td></tr>
-          <tr><td>Efficiency (%)</td><td><input type="number" step="0.1" id="h_eff" data-save></td><td><input type="text" id="h_effSpec" data-save></td></tr>
-          <tr><td>Voltage (L-L)</td><td><input type="number" id="h_voltage" data-save></td><td><input type="text" id="h_voltageSpec" data-save></td></tr>
-          <tr><td>Amps (total)</td><td><input type="number" step="0.1" id="h_amps" data-save></td><td><input type="text" id="h_ampsSpec" data-save></td></tr>
-        </tbody>
-      </table>
+      <div id="heatReadingsContainer"></div>
     </div>
   </div>
 </div>
@@ -178,11 +149,7 @@ body{padding-bottom:100px}
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
-    <div class="photo-area" onclick="document.getElementById('photoInput').click()">
-      <div class="icon">📸</div><p>Tap to take photo or choose from gallery</p>
-      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this)">
-    </div>
-    <div class="photo-preview" id="photoPreview"></div>
+    <div id="photosContainer"></div>
   </div>
 </div>
 
@@ -266,9 +233,172 @@ function cycleCheck(li){
 }
 
 // Photos
-let photos=[];
-function handlePhotos(input){Array.from(input.files).forEach(f=>{const r=new FileReader();r.onload=e=>{photos.push({name:f.name,data:e.target.result});renderPhotos()};r.readAsDataURL(f)});input.value=''}
-function renderPhotos(){const p=document.getElementById('photoPreview');p.innerHTML='';photos.forEach((ph,i)=>{const d=document.createElement('div');d.className='photo-thumb';d.innerHTML=`<img src="${ph.data}"><div class="remove-photo" onclick="photos.splice(${i},1);renderPhotos();">✕</div>`;p.appendChild(d)})}
+// ========== DYNAMIC READINGS PER EQUIPMENT ==========
+const COOL_PARAMS = [
+  { label: 'Supply Air (\u00B0F)', key: 'supply' },
+  { label: 'Return Air (\u00B0F)', key: 'return' },
+  { label: 'Delta T (\u00B0F)', key: 'deltaT' },
+  { label: 'Outdoor Temp (\u00B0F)', key: 'outdoor' },
+  { label: 'Suction PSI', key: 'suction' },
+  { label: 'Head PSI', key: 'head' },
+  { label: 'Superheat (\u00B0F)', key: 'sh' },
+  { label: 'Subcooling (\u00B0F)', key: 'sc' },
+  { label: 'Comp Amps (RLA)', key: 'compAmps', step: '0.1' },
+  { label: 'Cond Fan Amps', key: 'condFan', step: '0.1' },
+  { label: 'Blower Amps', key: 'blower', step: '0.1' },
+  { label: 'Voltage (L-L)', key: 'voltage' }
+];
+const HEAT_PARAMS = [
+  { label: 'Supply Air (\u00B0F)', key: 'supply' },
+  { label: 'Return Air (\u00B0F)', key: 'return' },
+  { label: 'Temp Rise (\u00B0F)', key: 'rise' },
+  { label: 'Gas Pressure In (WC)', key: 'gasIn', step: '0.1' },
+  { label: 'Gas Pressure Out (WC)', key: 'gasOut', step: '0.1' },
+  { label: 'Stack Temp (\u00B0F)', key: 'stack' },
+  { label: 'CO (ppm)', key: 'co' },
+  { label: 'O\u2082 (%)', key: 'o2', step: '0.1' },
+  { label: 'Efficiency (%)', key: 'eff', step: '0.1' },
+  { label: 'Voltage (L-L)', key: 'voltage' },
+  { label: 'Amps (total)', key: 'amps', step: '0.1' }
+];
+
+function escapeHtml(str){const d=document.createElement('div');d.textContent=str||'';return d.innerHTML}
+
+function buildStartupReadings(containerId, params, prefix) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 1);
+  const saved = collectStartupReadings(containerId);
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+    const card = document.createElement('div');
+    card.className = 'readings-card';
+    card.innerHTML = `
+      <div class="readings-card-header">\u2699\uFE0F ${escapeHtml(equipLabel)} \u2014 ${prefix} Readings</div>
+      <table class="readings-table">
+        <thead><tr><th>Parameter</th><th>Reading</th><th>Spec</th></tr></thead>
+        <tbody>
+          ${params.map(p => `
+            <tr>
+              <td>${p.label}</td>
+              <td><input type="number" ${p.step ? 'step="'+p.step+'"' : ''} class="startup-reading" data-container="${containerId}" data-equip="${i}" data-key="${p.key}" data-col="reading"></td>
+              <td><input type="text" class="startup-reading" data-container="${containerId}" data-equip="${i}" data-key="${p.key}" data-col="spec" placeholder="Spec"></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    container.appendChild(card);
+    if (saved[i]) {
+      Object.keys(saved[i]).forEach(key => {
+        const parts = key.split('_');
+        const col = parts.pop();
+        const paramKey = parts.join('_');
+        const input = card.querySelector(`[data-container="${containerId}"][data-equip="${i}"][data-key="${paramKey}"][data-col="${col}"]`);
+        if (input && saved[i][key]) input.value = saved[i][key];
+      });
+    }
+  }
+}
+
+function collectStartupReadings(containerId) {
+  const readings = {};
+  document.querySelectorAll(`.startup-reading[data-container="${containerId}"]`).forEach(input => {
+    const idx = input.dataset.equip;
+    const key = input.dataset.key + '_' + input.dataset.col;
+    if (!readings[idx]) readings[idx] = {};
+    if (input.value) readings[idx][key] = input.value;
+  });
+  return readings;
+}
+
+function collectAllStartupReadings() {
+  return {
+    cooling: collectStartupReadings('coolReadingsContainer'),
+    heating: collectStartupReadings('heatReadingsContainer')
+  };
+}
+
+function rebuildAllStartupReadings() {
+  buildStartupReadings('coolReadingsContainer', COOL_PARAMS, 'Cooling');
+  buildStartupReadings('heatReadingsContainer', HEAT_PARAMS, 'Heating');
+}
+
+// ========== PER-EQUIPMENT PHOTOS ==========
+let photosByEquip = { general: [] };
+
+function buildPhotoSections() {
+  const container = document.getElementById('photosContainer');
+  if (!container) return;
+  const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
+  container.innerHTML = '';
+  container.appendChild(createPhotoGroup('general', '\uD83D\uDCF7 General Photos'));
+  for (let i = 0; i < count; i++) {
+    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+    container.appendChild(createPhotoGroup(String(i), '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+  }
+  Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
+}
+
+function createPhotoGroup(key, label) {
+  if (!photosByEquip[key]) photosByEquip[key] = [];
+  const group = document.createElement('div');
+  group.className = 'photo-group';
+  group.dataset.key = key;
+  group.innerHTML = `
+    <div class="photo-group-header">${label}</div>
+    <div class="photo-area" onclick="this.querySelector('input').click()">
+      <div class="icon">\uD83D\uDCF8</div><p>Tap to add photos</p>
+      <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="handleEquipPhotos(this, '${key}')">
+    </div>
+    <div class="photo-preview" id="photoPreview_${key}"></div>
+  `;
+  return group;
+}
+
+function handleEquipPhotos(input, key) {
+  if (!photosByEquip[key]) photosByEquip[key] = [];
+  Array.from(input.files).forEach(f => {
+    const r = new FileReader();
+    r.onload = e => {
+      photosByEquip[key].push({ name: f.name, data: e.target.result });
+      renderEquipPhotos(key);
+    };
+    r.readAsDataURL(f);
+  });
+  input.value = '';
+}
+
+function renderEquipPhotos(key) {
+  const preview = document.getElementById('photoPreview_' + key);
+  if (!preview) return;
+  const arr = photosByEquip[key] || [];
+  preview.innerHTML = '';
+  arr.forEach((ph, i) => {
+    const d = document.createElement('div');
+    d.className = 'photo-thumb';
+    d.innerHTML = `<img src="${ph.data}"><div class="remove-photo" onclick="photosByEquip['${key}'].splice(${i},1);renderEquipPhotos('${key}');">\u2715</div>`;
+    preview.appendChild(d);
+  });
+}
+
+function getAllPhotos() {
+  const all = [];
+  Object.keys(photosByEquip).forEach(key => {
+    (photosByEquip[key] || []).forEach(p => all.push({ ...p, equipKey: key }));
+  });
+  return all;
+}
+Object.defineProperty(window, 'photos', { get: function() { return getAllPhotos(); }, configurable: true });
+
+// Watch for equipment changes
+const equipObserver = new MutationObserver(() => { setTimeout(() => { rebuildAllStartupReadings(); buildPhotoSections(); }, 100); });
+const equipListEl = document.getElementById('equipmentContainer');
+if (equipListEl) equipObserver.observe(equipListEl, { childList: true, subtree: true });
+setTimeout(() => { rebuildAllStartupReadings(); buildPhotoSections(); }, 200);
 
 // Signatures
 class SigPad{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');this.drawing=false;this.has=false;this.resize();window.addEventListener('resize',()=>this.resize());this.canvas.addEventListener('pointerdown',e=>this.start(e));this.canvas.addEventListener('pointermove',e=>this.draw(e));this.canvas.addEventListener('pointerup',()=>this.stop());this.canvas.addEventListener('pointerleave',()=>this.stop())}resize(){const r=this.canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.scale(d,d);this.ctx.strokeStyle='#1e293b';this.ctx.lineWidth=2;this.ctx.lineCap='round';this.ctx.lineJoin='round'}getPos(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}start(e){e.preventDefault();this.drawing=true;this.has=true;const p=this.getPos(e);this.ctx.beginPath();this.ctx.moveTo(p.x,p.y)}draw(e){if(!this.drawing)return;e.preventDefault();const p=this.getPos(e);this.ctx.lineTo(p.x,p.y);this.ctx.stroke()}stop(){this.drawing=false}clear(){this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);this.has=false}toDataURL(){return this.has?this.canvas.toDataURL():null}}
@@ -276,7 +406,7 @@ const techSigPad=new SigPad('techSig'),custSigPad=new SigPad('custSig');
 function clearSig(id){id==='techSig'?techSigPad.clear():custSigPad.clear()}
 
 // Autosave
-function autoSave(){const d={};document.querySelectorAll('[data-save]').forEach(el=>{if(el.type==='radio'){if(el.checked)d[el.name+'_radio']=el.value}else d[el.id||el.className]=el.value});d._equipment=typeof collectEquipmentData==='function'?collectEquipmentData():[];try{localStorage.setItem(SAVE_KEY_DRAFT,JSON.stringify(d))}catch(e){}document.getElementById('autosaveIndicator').classList.add('show');setTimeout(()=>document.getElementById('autosaveIndicator').classList.remove('show'),1500)}
+function autoSave(){const d={};document.querySelectorAll('[data-save]').forEach(el=>{if(el.type==='radio'){if(el.checked)d[el.name+'_radio']=el.value}else d[el.id||el.className]=el.value});d._equipment=typeof collectEquipmentData==='function'?collectEquipmentData():[];d._startupReadings=collectAllStartupReadings();d._photosByEquip=photosByEquip;try{localStorage.setItem(SAVE_KEY_DRAFT,JSON.stringify(d))}catch(e){}document.getElementById('autosaveIndicator').classList.add('show');setTimeout(()=>document.getElementById('autosaveIndicator').classList.remove('show'),1500)}
 document.addEventListener('input',()=>{clearTimeout(window._st);window._st=setTimeout(autoSave,1000)});
 function saveDraftAndClose(){
   autoSave();
@@ -285,6 +415,22 @@ function saveDraftAndClose(){
   setTimeout(() => window.location.href = 'index.html', 1500);
 }
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+function collectData(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  const radioVal=n=>{const r=document.querySelector(`input[name="${n}"]:checked`);return r?r.value:''};
+  return {
+    reportId, suDate:v('suDate'), projectName:v('projectName'), projAddress:v('projAddress'),
+    techName:v('techName'), workOrder:v('workOrder'),
+    equipment: typeof collectEquipmentData==='function' ? collectEquipmentData() : [],
+    coolReadings: collectStartupReadings('coolReadingsContainer'),
+    heatReadings: collectStartupReadings('heatReadingsContainer'),
+    result: radioVal('result'), resultNotes: v('resultNotes'),
+    custPrintName: v('custPrintName'),
+    photos: getAllPhotos(),
+    photosByEquip: photosByEquip
+  };
+}
 
 function getChecklistData(id){const items=[];document.querySelectorAll('#'+id+' li').forEach(li=>{const box=li.querySelector('.check-box'),label=li.querySelector('.check-label').textContent;let status='';if(box.classList.contains('checked'))status='PASS';else if(box.classList.contains('fail'))status='FAIL';else if(box.classList.contains('na'))status='N/A';items.push({label,status})});return items}
 
@@ -329,22 +475,23 @@ function generatePDF(){
     y=doc.lastAutoTable.finalY+4;
   }
 
-  // Cooling readings
-  const coolReadings=[
-    ['Supply Air (°F)',v('c_supply'),v('c_supplySpec')],['Return Air (°F)',v('c_return'),v('c_returnSpec')],
-    ['Delta T (°F)',v('c_deltaT'),v('c_deltaTSpec')],['Outdoor Temp (°F)',v('c_outdoor'),v('c_outdoorSpec')],
-    ['Suction PSI',v('c_suction'),v('c_suctionSpec')],['Head PSI',v('c_head'),v('c_headSpec')],
-    ['Superheat (°F)',v('c_sh'),v('c_shSpec')],['Subcooling (°F)',v('c_sc'),v('c_scSpec')],
-    ['Comp Amps',v('c_compAmps'),v('c_compSpec')],['Cond Fan Amps',v('c_condFan'),v('c_condSpec')],
-    ['Blower Amps',v('c_blower'),v('c_blowerSpec')],['Voltage',v('c_voltage'),v('c_voltageSpec')]
-  ].filter(r=>r[1]);
-
-  if(coolReadings.length>0){
-    if(y>220){doc.addPage();y=15}
-    sH('Cooling Operational Readings');
-    doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Parameter','Reading','Spec']],body:coolReadings.map(r=>[r[0],r[1]||'—',r[2]||'—']),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center'},2:{halign:'center'}}});
-    y=doc.lastAutoTable.finalY+4;
-  }
+  // Cooling readings — per equipment
+  const coolAllReadings = collectStartupReadings('coolReadingsContainer');
+  const equipArr = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  Object.keys(coolAllReadings).forEach(idx => {
+    const eqLabel = equipArr[idx] ? (equipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
+    const coolReadings = COOL_PARAMS.map(p => [
+      p.label,
+      coolAllReadings[idx][p.key + '_reading'] || '',
+      coolAllReadings[idx][p.key + '_spec'] || ''
+    ]).filter(r => r[1]);
+    if(coolReadings.length>0){
+      if(y>220){doc.addPage();y=15}
+      sH('Cooling Readings \u2014 ' + eqLabel);
+      doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Parameter','Reading','Spec']],body:coolReadings.map(r=>[r[0],r[1]||'\u2014',r[2]||'\u2014']),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center'},2:{halign:'center'}}});
+      y=doc.lastAutoTable.finalY+4;
+    }
+  });
 
   if(heatItems.length>0){
     if(y>200){doc.addPage();y=15}
@@ -353,21 +500,22 @@ function generatePDF(){
     y=doc.lastAutoTable.finalY+4;
   }
 
-  const heatReadings=[
-    ['Supply Air (°F)',v('h_supply'),v('h_supplySpec')],['Return Air (°F)',v('h_return'),v('h_returnSpec')],
-    ['Temp Rise (°F)',v('h_rise'),v('h_riseSpec')],['Gas In (WC)',v('h_gasIn'),v('h_gasInSpec')],
-    ['Gas Out (WC)',v('h_gasOut'),v('h_gasOutSpec')],['Stack Temp (°F)',v('h_stack'),v('h_stackSpec')],
-    ['CO (ppm)',v('h_co'),v('h_coSpec')],['O₂ (%)',v('h_o2'),v('h_o2Spec')],
-    ['Efficiency (%)',v('h_eff'),v('h_effSpec')],['Voltage',v('h_voltage'),v('h_voltageSpec')],
-    ['Amps',v('h_amps'),v('h_ampsSpec')]
-  ].filter(r=>r[1]);
-
-  if(heatReadings.length>0){
-    if(y>220){doc.addPage();y=15}
-    sH('Heating Operational Readings');
-    doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Parameter','Reading','Spec']],body:heatReadings.map(r=>[r[0],r[1]||'—',r[2]||'—']),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center'},2:{halign:'center'}}});
-    y=doc.lastAutoTable.finalY+4;
-  }
+  // Heating readings — per equipment
+  const heatAllReadings = collectStartupReadings('heatReadingsContainer');
+  Object.keys(heatAllReadings).forEach(idx => {
+    const eqLabel = equipArr[idx] ? (equipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
+    const heatReadings = HEAT_PARAMS.map(p => [
+      p.label,
+      heatAllReadings[idx][p.key + '_reading'] || '',
+      heatAllReadings[idx][p.key + '_spec'] || ''
+    ]).filter(r => r[1]);
+    if(heatReadings.length>0){
+      if(y>220){doc.addPage();y=15}
+      sH('Heating Readings \u2014 ' + eqLabel);
+      doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Parameter','Reading','Spec']],body:heatReadings.map(r=>[r[0],r[1]||'\u2014',r[2]||'\u2014']),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center'},2:{halign:'center'}}});
+      y=doc.lastAutoTable.finalY+4;
+    }
+  });
 
   if(ctrlItems.length>0){
     if(y>220){doc.addPage();y=15}

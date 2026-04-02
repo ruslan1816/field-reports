@@ -24,6 +24,7 @@ body{padding-bottom:100px}
 .parts-row{display:flex;gap:6px;margin-bottom:8px;align-items:center}.parts-row input{flex:1;padding:10px;border:1px solid var(--nw-border);border-radius:6px;font-size:14px;background:var(--nw-section)}.parts-row input:focus{border-color:var(--nw-primary);background:#fff;outline:none}.parts-row .qty{width:50px;text-align:center}.parts-row .cost{width:70px;text-align:right}
 .labor-row{display:flex;gap:6px;margin-bottom:8px;align-items:center}.labor-row input{flex:1;padding:10px;border:1px solid var(--nw-border);border-radius:6px;font-size:14px;background:var(--nw-section)}.labor-row input:focus{border-color:var(--nw-primary);outline:none;background:#fff}
 .cost-summary{background:var(--nw-dark);color:#fff;border-radius:10px;padding:16px;margin-top:12px}.cost-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}.cost-row.total{border-top:2px solid #475569;padding-top:10px;margin-top:6px;font-weight:700;font-size:16px;color:var(--nw-accent)}
+.photo-group{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}.photo-group-header{font-size:13px;font-weight:700;color:#0696D7;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -134,11 +135,7 @@ body{padding-bottom:100px}
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
-    <div class="photo-area" onclick="document.getElementById('photoInput').click()">
-      <div class="icon">📸</div><p>Tap to take photo</p>
-      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this)">
-    </div>
-    <div class="photo-preview" id="photoPreview"></div>
+    <div id="photosContainer"></div>
   </div>
 </div>
 
@@ -210,9 +207,79 @@ function calcCosts(){
   document.getElementById('costTotal').textContent='$'+(parts+refCost+labor).toFixed(2);
 }
 
-let photos=[];
-function handlePhotos(input){Array.from(input.files).forEach(f=>{const r=new FileReader();r.onload=e=>{photos.push({data:e.target.result});renderPhotos()};r.readAsDataURL(f)});input.value=''}
-function renderPhotos(){const p=document.getElementById('photoPreview');p.innerHTML='';photos.forEach((ph,i)=>{const d=document.createElement('div');d.className='photo-thumb';d.innerHTML=`<img src="${ph.data}"><div class="remove-photo" onclick="photos.splice(${i},1);renderPhotos();">✕</div>`;p.appendChild(d)})}
+// ========== PER-EQUIPMENT PHOTOS ==========
+let photosByEquip = { general: [] };
+
+function buildPhotoSections() {
+  const container = document.getElementById('photosContainer');
+  if (!container) return;
+  const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
+  container.innerHTML = '';
+  container.appendChild(createPhotoGroup('general', '\uD83D\uDCF7 General Photos'));
+  for (let i = 0; i < count; i++) {
+    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+    container.appendChild(createPhotoGroup(String(i), '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+  }
+  Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
+}
+
+function createPhotoGroup(key, label) {
+  if (!photosByEquip[key]) photosByEquip[key] = [];
+  const group = document.createElement('div');
+  group.className = 'photo-group';
+  group.dataset.key = key;
+  group.innerHTML = `
+    <div class="photo-group-header">${label}</div>
+    <div class="photo-area" onclick="this.querySelector('input').click()">
+      <div class="icon">\uD83D\uDCF8</div><p>Tap to add photos</p>
+      <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="handleEquipPhotos(this, '${key}')">
+    </div>
+    <div class="photo-preview" id="photoPreview_${key}"></div>
+  `;
+  return group;
+}
+
+function handleEquipPhotos(input, key) {
+  if (!photosByEquip[key]) photosByEquip[key] = [];
+  Array.from(input.files).forEach(f => {
+    const r = new FileReader();
+    r.onload = e => {
+      photosByEquip[key].push({ name: f.name, data: e.target.result });
+      renderEquipPhotos(key);
+    };
+    r.readAsDataURL(f);
+  });
+  input.value = '';
+}
+
+function renderEquipPhotos(key) {
+  const preview = document.getElementById('photoPreview_' + key);
+  if (!preview) return;
+  const arr = photosByEquip[key] || [];
+  preview.innerHTML = '';
+  arr.forEach((ph, i) => {
+    const d = document.createElement('div');
+    d.className = 'photo-thumb';
+    d.innerHTML = `<img src="${ph.data}"><div class="remove-photo" onclick="photosByEquip['${key}'].splice(${i},1);renderEquipPhotos('${key}');">\u2715</div>`;
+    preview.appendChild(d);
+  });
+}
+
+function getAllPhotos() {
+  const all = [];
+  Object.keys(photosByEquip).forEach(key => {
+    (photosByEquip[key] || []).forEach(p => all.push({ ...p, equipKey: key }));
+  });
+  return all;
+}
+Object.defineProperty(window, 'photos', { get: function() { return getAllPhotos(); }, configurable: true });
+
+// Watch for equipment changes to rebuild photo sections
+const equipObserver = new MutationObserver(() => { setTimeout(buildPhotoSections, 100); });
+const equipListEl = document.getElementById('equipmentContainer');
+if (equipListEl) equipObserver.observe(equipListEl, { childList: true, subtree: true });
+setTimeout(buildPhotoSections, 200);
 
 class SigPad{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');this.drawing=false;this.has=false;this.resize();window.addEventListener('resize',()=>this.resize());this.canvas.addEventListener('pointerdown',e=>this.start(e));this.canvas.addEventListener('pointermove',e=>this.draw(e));this.canvas.addEventListener('pointerup',()=>this.stop());this.canvas.addEventListener('pointerleave',()=>this.stop())}resize(){const r=this.canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.scale(d,d);this.ctx.strokeStyle='#1e293b';this.ctx.lineWidth=2;this.ctx.lineCap='round'}getPos(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}start(e){e.preventDefault();this.drawing=true;this.has=true;const p=this.getPos(e);this.ctx.beginPath();this.ctx.moveTo(p.x,p.y)}draw(e){if(!this.drawing)return;e.preventDefault();const p=this.getPos(e);this.ctx.lineTo(p.x,p.y);this.ctx.stroke()}stop(){this.drawing=false}clear(){this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);this.has=false}toDataURL(){return this.has?this.canvas.toDataURL():null}}
 const techSigPad=new SigPad('techSig'),custSigPad=new SigPad('custSig');
