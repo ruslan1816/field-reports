@@ -537,7 +537,8 @@
       'startup': '\uD83D\uDE80',
       'site-survey': '\uD83D\uDCCB',
       'pm-checklist': '\u2705',
-      'work-order': '\uD83D\uDCDD'
+      'work-order': '\uD83D\uDCDD',
+      'change-order': '\uD83D\uDCCB'
     };
     return icons[type] || '\uD83D\uDCCB';
   }
@@ -548,7 +549,8 @@
       'startup': 'Start-Up Report',
       'site-survey': 'Site Survey',
       'pm-checklist': 'PM Checklist',
-      'work-order': 'Work Order'
+      'work-order': 'Work Order',
+      'change-order': 'Change Order'
     };
     return labels[type] || type || 'Report';
   }
@@ -559,7 +561,8 @@
       'startup': 'startup-report.html',
       'site-survey': 'site-survey-report.html',
       'pm-checklist': 'pm-checklist.html',
-      'work-order': 'work-order.html'
+      'work-order': 'work-order.html',
+      'change-order': 'change-order.html'
     };
     return pages[type] || '#';
   }
@@ -685,7 +688,8 @@
       { type: 'startup', icon: '\uD83D\uDE80', title: 'Start-Up Report', desc: 'Cooling & heating commissioning', page: 'startup-report.html' },
       { type: 'site-survey', icon: '\uD83D\uDCCB', title: 'Site Survey', desc: 'Equipment inventory & conditions', page: 'site-survey-report.html' },
       { type: 'pm-checklist', icon: '\u2705', title: 'PM Checklist', desc: 'Maintenance by equipment type', page: 'pm-checklist.html' },
-      { type: 'work-order', icon: '\uD83D\uDCDD', title: 'Work Order', desc: 'Parts, labor, cost tracking', page: 'work-order.html' }
+      { type: 'work-order', icon: '\uD83D\uDCDD', title: 'Work Order', desc: 'Parts, labor, cost tracking', page: 'work-order.html' },
+      { type: 'change-order', icon: '\uD83D\uDCCB', title: 'Change Order', desc: 'Field change requests & costs', page: 'change-order.html' }
     ];
 
     var draftCounts = {};
