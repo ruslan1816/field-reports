@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v28';
+const CACHE_NAME = 'nw-field-v29';
 const ASSETS = [
   './',
   './index.html',
@@ -19,6 +19,7 @@ const ASSETS = [
   './email-utils.js',
   './supabase-config.js',
   './project-utils.js',
+  './equipment-utils.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',

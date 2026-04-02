@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="styles.css">
 <script src="draft-utils.js"></script>
 <script src="project-utils.js"></script>
+<script src="equipment-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -153,92 +154,9 @@ body {
 
 <!-- EQUIPMENT INFO -->
 <div class="section">
-  <div class="section-header" onclick="toggleSection(this)">
-    <span class="icon">⚙️</span> Equipment Information
-    <span class="collapse-arrow">▼</span>
-  </div>
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">⚙️</span> Equipment<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
-    <div class="field">
-      <label>Equipment Type</label>
-      <select id="equipType" data-save>
-        <option value="">Select equipment...</option>
-        <optgroup label="Residential">
-          <option>Split System (AC)</option>
-          <option>Split System (Heat Pump)</option>
-          <option>Mini-Split / Ductless</option>
-          <option>Furnace (Gas)</option>
-          <option>Furnace (Oil)</option>
-          <option>Boiler (Residential)</option>
-        </optgroup>
-        <optgroup label="Commercial - Cooling">
-          <option>RTU (Rooftop Unit)</option>
-          <option>AHU (Air Handling Unit)</option>
-          <option>Chiller (Air-Cooled)</option>
-          <option>Chiller (Water-Cooled)</option>
-          <option>Cooling Tower</option>
-          <option>VRF System</option>
-          <option>WSHP (Water Source Heat Pump)</option>
-        </optgroup>
-        <optgroup label="Commercial - Heating">
-          <option>Boiler (Fire-Tube)</option>
-          <option>Boiler (Water-Tube)</option>
-          <option>Boiler (Condensing)</option>
-          <option>Unit Heater</option>
-          <option>Hydronic System</option>
-        </optgroup>
-        <optgroup label="Ventilation & Exhaust">
-          <option>DOAS Unit</option>
-          <option>ERV / HRV</option>
-          <option>Exhaust Fan</option>
-          <option>MAU (Make-Up Air)</option>
-          <option>Kitchen Hood System</option>
-          <option>Garage Ventilation</option>
-        </optgroup>
-        <optgroup label="Controls & Terminal">
-          <option>VAV Box</option>
-          <option>Fan Powered Box (FPB)</option>
-          <option>VFD</option>
-          <option>BMS / BAS Controls</option>
-          <option>Thermostat / Controller</option>
-        </optgroup>
-        <optgroup label="Other">
-          <option>Other (specify below)</option>
-        </optgroup>
-      </select>
-    </div>
-    <div class="row">
-      <div class="field">
-        <label>Manufacturer</label>
-        <input type="text" id="equipMfg" placeholder="Brand" data-save>
-      </div>
-      <div class="field">
-        <label>Model #</label>
-        <input type="text" id="equipModel" data-save>
-      </div>
-    </div>
-    <div class="row">
-      <div class="field">
-        <label>Serial #</label>
-        <input type="text" id="equipSerial" data-save>
-      </div>
-      <div class="field">
-        <label>Refrigerant</label>
-        <select id="refrigerant" data-save>
-          <option value="">N/A</option>
-          <option>R-410A</option>
-          <option>R-22</option>
-          <option>R-407C</option>
-          <option>R-134a</option>
-          <option>R-404A</option>
-          <option>R-32</option>
-          <option>Other</option>
-        </select>
-      </div>
-    </div>
-    <div class="field">
-      <label>Location / Tag #</label>
-      <input type="text" id="equipLocation" placeholder="Roof, basement, mech room, etc." data-save>
-    </div>
+    <div id="equipmentContainer"></div>
   </div>
 </div>
 
@@ -453,6 +371,9 @@ if (profile && profile.name) {
 if (typeof injectProjectPicker === 'function') {
   injectProjectPicker('projectPickerContainer', { autoFillCustomer: true, customerFieldId: 'custName', addressFieldId: 'custAddress' });
 }
+if (typeof injectEquipmentList === 'function') {
+  injectEquipmentList('equipmentContainer', { showRefrigerant: true, showLocation: true });
+}
 
 // ========== REPORT ID ==========
 const reportId = 'SCR-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).substr(2,4).toUpperCase();
@@ -590,6 +511,7 @@ function autoSave() {
     if (desc && qty) parts.push({ desc: desc.value, qty: qty.value });
   });
   data._parts = parts;
+  data._equipment = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e) {}
   const indicator = document.getElementById('autosaveIndicator');
   indicator.classList.add('show');
@@ -628,8 +550,13 @@ function collectData() {
     workOrder: v('workOrder'), techName: v('techName'), callType: radioVal('callType'),
     custName: v('custName'), custAddress: v('custAddress'), custContact: v('custContact'),
     custPhone: v('custPhone'), custEmail: v('custEmail'),
-    equipType: v('equipType'), equipMfg: v('equipMfg'), equipModel: v('equipModel'),
-    equipSerial: v('equipSerial'), refrigerant: v('refrigerant'), equipLocation: v('equipLocation'),
+    equipment: typeof collectEquipmentData === 'function' ? collectEquipmentData() : [],
+    equipType: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].type : '',
+    equipMfg: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].mfg : '',
+    equipModel: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].model : '',
+    equipSerial: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].serial : '',
+    refrigerant: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].refrigerant : '',
+    equipLocation: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].location : '',
     complaint: v('complaint'),
     readings: {
       supplyBefore: v('r_supplyBefore'), supplyAfter: v('r_supplyAfter'),
@@ -753,18 +680,29 @@ function generatePDF() {
 
   // EQUIPMENT
   sectionHeader('Equipment Information');
-  fieldRow([
-    { label: 'Type', value: d.equipType },
-    { label: 'Manufacturer', value: d.equipMfg }
-  ]);
-  fieldRow([
-    { label: 'Model #', value: d.equipModel },
-    { label: 'Serial #', value: d.equipSerial }
-  ]);
-  fieldRow([
-    { label: 'Refrigerant', value: d.refrigerant },
-    { label: 'Location', value: d.equipLocation }
-  ]);
+  var equipArr = d.equipment && d.equipment.length > 0 ? d.equipment : [{ type: d.equipType, mfg: d.equipMfg, model: d.equipModel, serial: d.equipSerial, refrigerant: d.refrigerant, location: d.equipLocation }];
+  equipArr.forEach(function(eq, idx) {
+    if (!eq.type && !eq.mfg) return;
+    if (equipArr.length > 1) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(49, 149, 202);
+      doc.text('Equipment #' + (idx + 1), mx + 3, y);
+      y += 4;
+    }
+    fieldRow([
+      { label: 'Type', value: eq.type },
+      { label: 'Manufacturer', value: eq.mfg }
+    ]);
+    fieldRow([
+      { label: 'Model #', value: eq.model },
+      { label: 'Serial #', value: eq.serial }
+    ]);
+    fieldRow([
+      { label: 'Refrigerant', value: eq.refrigerant },
+      { label: 'Location', value: eq.location }
+    ]);
+  });
 
   // COMPLAINT
   sectionHeader('Customer Complaint');

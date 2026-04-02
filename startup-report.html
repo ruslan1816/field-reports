@@ -11,6 +11,7 @@
 <title>Start-Up Report — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
 <script src="project-utils.js"></script>
+<script src="equipment-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -60,26 +61,7 @@ body{padding-bottom:100px}
       <div class="field"><label>Technician</label><input type="text" id="techName" placeholder="Your name" data-save></div>
       <div class="field"><label>WO #</label><input type="text" id="workOrder" placeholder="WO-" data-save></div>
     </div>
-    <div class="field"><label>Equipment Type</label>
-      <select id="equipType" data-save>
-        <option value="">Select...</option>
-        <optgroup label="Cooling"><option>Split System (AC)</option><option>Split System (Heat Pump)</option><option>Mini-Split</option><option>RTU</option><option>AHU</option><option>Chiller (Air-Cooled)</option><option>Chiller (Water-Cooled)</option><option>VRF System</option><option>WSHP</option></optgroup>
-        <optgroup label="Heating"><option>Furnace (Gas)</option><option>Furnace (Oil)</option><option>Boiler</option><option>Unit Heater</option></optgroup>
-        <optgroup label="Ventilation"><option>DOAS</option><option>ERV / HRV</option><option>MAU</option><option>Exhaust Fan</option></optgroup>
-        <optgroup label="Other"><option>Other</option></optgroup>
-      </select>
-    </div>
-    <div class="row">
-      <div class="field"><label>Manufacturer</label><input type="text" id="equipMfg" data-save></div>
-      <div class="field"><label>Model #</label><input type="text" id="equipModel" data-save></div>
-    </div>
-    <div class="row">
-      <div class="field"><label>Serial #</label><input type="text" id="equipSerial" data-save></div>
-      <div class="field"><label>Refrigerant</label>
-        <select id="refrigerant" data-save><option value="">N/A</option><option>R-410A</option><option>R-22</option><option>R-407C</option><option>R-134a</option><option>R-32</option></select>
-      </div>
-    </div>
-    <div class="field"><label>Location / Tag</label><input type="text" id="equipLocation" placeholder="Roof, mech room, etc." data-save></div>
+    <div id="equipmentContainer"></div>
   </div>
 </div>
 
@@ -254,6 +236,9 @@ if (profile && profile.name) {
 if (typeof injectProjectPicker === 'function') {
   injectProjectPicker('projectPickerContainer', { autoFillCustomer: true, customerFieldId: 'projectName', addressFieldId: 'projAddress' });
 }
+if (typeof injectEquipmentList === 'function') {
+  injectEquipmentList('equipmentContainer', { showRefrigerant: true, showLocation: true });
+}
 
 function toggleSection(h){h.classList.toggle('collapsed');h.nextElementSibling.classList.toggle('collapsed')}
 function selectRadio(item,gid){document.querySelectorAll('#'+gid+' .check-item').forEach(e=>e.classList.remove('selected'));item.classList.add('selected');item.querySelector('input').checked=true;autoSave()}
@@ -291,7 +276,7 @@ const techSigPad=new SigPad('techSig'),custSigPad=new SigPad('custSig');
 function clearSig(id){id==='techSig'?techSigPad.clear():custSigPad.clear()}
 
 // Autosave
-function autoSave(){const d={};document.querySelectorAll('[data-save]').forEach(el=>{if(el.type==='radio'){if(el.checked)d[el.name+'_radio']=el.value}else d[el.id||el.className]=el.value});try{localStorage.setItem(SAVE_KEY_DRAFT,JSON.stringify(d))}catch(e){}document.getElementById('autosaveIndicator').classList.add('show');setTimeout(()=>document.getElementById('autosaveIndicator').classList.remove('show'),1500)}
+function autoSave(){const d={};document.querySelectorAll('[data-save]').forEach(el=>{if(el.type==='radio'){if(el.checked)d[el.name+'_radio']=el.value}else d[el.id||el.className]=el.value});d._equipment=typeof collectEquipmentData==='function'?collectEquipmentData():[];try{localStorage.setItem(SAVE_KEY_DRAFT,JSON.stringify(d))}catch(e){}document.getElementById('autosaveIndicator').classList.add('show');setTimeout(()=>document.getElementById('autosaveIndicator').classList.remove('show'),1500)}
 document.addEventListener('input',()=>{clearTimeout(window._st);window._st=setTimeout(autoSave,1000)});
 function saveDraftAndClose(){
   autoSave();
@@ -321,8 +306,17 @@ function generatePDF(){
   fR([{label:'Date',value:v('suDate')},{label:'Technician',value:v('techName')},{label:'WO #',value:v('workOrder')}]);
   fR([{label:'Project/Customer',value:v('projectName')}]);
   fR([{label:'Address',value:v('projAddress')}]);
-  fR([{label:'Equipment',value:v('equipType')},{label:'Manufacturer',value:v('equipMfg')}]);
-  fR([{label:'Model',value:v('equipModel')},{label:'Serial',value:v('equipSerial')},{label:'Refrigerant',value:v('refrigerant')}]);
+  var equipArr = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  if (equipArr.length > 0) {
+    equipArr.forEach(function(eq, idx) {
+      if (equipArr.length > 1) { doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(49,149,202);doc.text('Equipment #'+(idx+1),mx+3,y);y+=4; }
+      fR([{label:'Equipment',value:eq.type},{label:'Manufacturer',value:eq.mfg}]);
+      fR([{label:'Model',value:eq.model},{label:'Serial',value:eq.serial},{label:'Refrigerant',value:eq.refrigerant}]);
+      if (eq.location) fR([{label:'Location',value:eq.location}]);
+    });
+  } else {
+    fR([{label:'Equipment',value:''},{label:'Manufacturer',value:''}]);
+  }
 
   // Checklists
   const coolItems=getChecklistData('coolChecklist').filter(i=>i.status);

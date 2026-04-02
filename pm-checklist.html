@@ -11,6 +11,7 @@
 <title>PM Checklist — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
 <script src="project-utils.js"></script>
+<script src="equipment-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -82,6 +83,15 @@ body{padding-bottom:100px}
   </div>
 </div>
 
+<!-- ADDITIONAL EQUIPMENT -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">⚙️</span> Additional Equipment<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <p style="font-size:12px;color:#94a3b8;margin-bottom:8px">Add more equipment if servicing multiple units.</p>
+    <div id="equipmentContainer"></div>
+  </div>
+</div>
+
 <!-- NOTES & DEFICIENCIES -->
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📝</span> Notes & Deficiencies<span class="collapse-arrow">▼</span></div>
@@ -138,6 +148,9 @@ if (profile && profile.name) {
 // Project Picker
 if (typeof injectProjectPicker === 'function') {
   injectProjectPicker('projectPickerContainer', { autoFillCustomer: true, customerFieldId: 'custName', addressFieldId: 'address' });
+}
+if (typeof injectEquipmentList === 'function') {
+  injectEquipmentList('equipmentContainer', { showLocation: true, startWithOne: false });
 }
 
 function toggleSection(h){h.classList.toggle('collapsed');h.nextElementSibling.classList.toggle('collapsed')}
@@ -238,6 +251,15 @@ function generatePDF(){
   fR([{label:'Equipment Type',value:equipNames[currentEquip]||currentEquip},{label:'PM Visit',value:v('visitNum')}]);
   fR([{label:'Manufacturer',value:v('equipMfg')},{label:'Model',value:v('equipModel')},{label:'Serial',value:v('equipSerial')}]);
   fR([{label:'Location/Tag',value:v('equipLoc')}]);
+  var addlEquip = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  if (addlEquip.length > 0) {
+    sH('Additional Equipment');
+    addlEquip.forEach(function(eq, idx) {
+      if (addlEquip.length > 1) { doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(49,149,202);doc.text('Equipment #'+(idx+1),mx+3,y);y+=4; }
+      fR([{label:'Type',value:eq.type},{label:'Manufacturer',value:eq.mfg}]);
+      fR([{label:'Model',value:eq.model},{label:'Serial',value:eq.serial},{label:'Location',value:eq.location}]);
+    });
+  }
 
   const results=getChecklistResults();
   sH('PM Checklist — '+equipNames[currentEquip]);

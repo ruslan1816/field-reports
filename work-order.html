@@ -11,6 +11,7 @@
 <title>Work Order — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
 <script src="project-utils.js"></script>
+<script src="equipment-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -74,11 +75,7 @@ body{padding-bottom:100px}
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">⚙️</span> Equipment<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
-    <div class="field"><label>Equipment Type</label>
-      <select id="equipType" data-save><option value="">Select...</option><optgroup label="Residential"><option>Split System</option><option>Heat Pump</option><option>Mini-Split</option><option>Furnace</option><option>Boiler (Res)</option></optgroup><optgroup label="Commercial"><option>RTU</option><option>AHU</option><option>Chiller</option><option>VRF</option><option>WSHP</option><option>Boiler (Comm)</option><option>Cooling Tower</option></optgroup><optgroup label="Ventilation"><option>DOAS</option><option>ERV/HRV</option><option>MAU</option><option>Exhaust Fan</option><option>Kitchen Hood</option></optgroup><optgroup label="Controls"><option>VAV</option><option>FPB</option><option>VFD</option><option>BMS/BAS</option></optgroup><option>Other</option></select>
-    </div>
-    <div class="row"><div class="field"><label>Manufacturer</label><input type="text" id="equipMfg" data-save></div><div class="field"><label>Model</label><input type="text" id="equipModel" data-save></div></div>
-    <div class="row"><div class="field"><label>Serial</label><input type="text" id="equipSerial" data-save></div><div class="field"><label>Location/Tag</label><input type="text" id="equipLoc" data-save></div></div>
+    <div id="equipmentContainer"></div>
   </div>
 </div>
 
@@ -189,6 +186,9 @@ if (profile && profile.name) {
 if (typeof injectProjectPicker === 'function') {
   injectProjectPicker('projectPickerContainer', { autoFillCustomer: true, customerFieldId: 'custName', addressFieldId: 'address' });
 }
+if (typeof injectEquipmentList === 'function') {
+  injectEquipmentList('equipmentContainer', { showRefrigerant: false, showLocation: true });
+}
 
 function toggleSection(h){h.classList.toggle('collapsed');h.nextElementSibling.classList.toggle('collapsed')}
 function selectRadio(item,gid){document.querySelectorAll('#'+gid+' .check-item').forEach(e=>e.classList.remove('selected'));item.classList.add('selected');item.querySelector('input').checked=true}
@@ -243,8 +243,16 @@ function generatePDF(){
   fR([{label:'Contact',value:v('contact')},{label:'Phone',value:v('phone')}]);
 
   sH('Equipment');
-  fR([{label:'Type',value:v('equipType')},{label:'Manufacturer',value:v('equipMfg')}]);
-  fR([{label:'Model',value:v('equipModel')},{label:'Serial',value:v('equipSerial')},{label:'Location',value:v('equipLoc')}]);
+  var equipArr = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  if (equipArr.length > 0) {
+    equipArr.forEach(function(eq, idx) {
+      if (equipArr.length > 1) { doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(49,149,202);doc.text('Equipment #'+(idx+1),mx+3,y);y+=4; }
+      fR([{label:'Type',value:eq.type},{label:'Manufacturer',value:eq.mfg}]);
+      fR([{label:'Model',value:eq.model},{label:'Serial',value:eq.serial},{label:'Location',value:eq.location}]);
+    });
+  } else {
+    fR([{label:'Type',value:''},{label:'Manufacturer',value:''}]);
+  }
 
   sH('Scope of Work');
   textBlock('Description',v('workDesc'));
