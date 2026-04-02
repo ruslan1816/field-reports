@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="styles.css">
 <script src="draft-utils.js"></script>
+<script src="project-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -56,6 +57,13 @@ body {
 
 <div class="autosave-indicator" id="autosaveIndicator">Saved</div>
 <div class="toast" id="toast"></div>
+
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📁</span> Project<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div id="projectPickerContainer"></div>
+  </div>
+</div>
 
 <!-- CALL INFO -->
 <div class="section">
@@ -439,6 +447,11 @@ const profile = JSON.parse(localStorage.getItem('nw_tech_profile') || 'null');
 if (profile && profile.name) {
   const techField = document.getElementById('techName');
   if (techField && !techField.value) techField.value = profile.name;
+}
+
+// Project Picker
+if (typeof injectProjectPicker === 'function') {
+  injectProjectPicker('projectPickerContainer', { autoFillCustomer: true, customerFieldId: 'custName', addressFieldId: 'custAddress' });
 }
 
 // ========== REPORT ID ==========
@@ -951,6 +964,16 @@ function generateAndDownload() {
 function generateAndEmailWithHistory() {
   const d = collectData();
   saveToHistory('service-call', d);
+  // Link to project
+  const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
+  if (projId) {
+    const v = id => (document.getElementById(id) || {}).value || '';
+    saveProjectRecord(projId, {
+      name: 'Service Call - ' + v('custName') + ' - ' + v('callDate'),
+      reportType: 'service-call',
+      reportId: reportId
+    });
+  }
   generateAndEmail();
 }
 

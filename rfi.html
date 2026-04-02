@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>RFI — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
+<script src="project-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -30,6 +31,13 @@ body{padding-bottom:100px}
   </div>
 </header>
 <div class="toast" id="toast"></div>
+
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📁</span> Project<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div id="projectPickerContainer"></div>
+  </div>
+</div>
 
 <!-- RFI DETAILS -->
 <div class="section">
@@ -127,6 +135,11 @@ document.getElementById('rfiDate').value=new Date().toISOString().slice(0,10);
 document.getElementById('fromCompany').value='Northern Wolves Inc';
 const profile = JSON.parse(localStorage.getItem('nw_tech_profile') || 'null');
 if (profile && profile.name) { const f = document.getElementById('fromName'); if (f && !f.value) f.value = profile.name; }
+
+// Project Picker
+if (typeof injectProjectPicker === 'function') {
+  injectProjectPicker('projectPickerContainer', { autoFillCustomer: false });
+}
 
 function toggleSection(h){h.classList.toggle('collapsed');h.nextElementSibling.classList.toggle('collapsed')}
 function selectRadio(item,gid){document.querySelectorAll('#'+gid+' .check-item').forEach(e=>e.classList.remove('selected'));item.classList.add('selected');item.querySelector('input').checked=true}
@@ -240,6 +253,16 @@ function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).val
 function generateAndEmailWithHistory(){
   const d=collectData?collectData():{};
   if(typeof saveToHistory==='function') saveToHistory('rfi', d);
+  // Link to project
+  const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
+  if (projId) {
+    const v = id => (document.getElementById(id) || {}).value || '';
+    saveProjectRecord(projId, {
+      name: 'RFI - ' + v('toCompany') + ' - ' + v('rfiDate'),
+      reportType: 'rfi',
+      reportId: reportId
+    });
+  }
   generateAndEmail();
 }
 async function generateAndEmail(){
