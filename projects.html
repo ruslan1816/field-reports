@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Projects — Northern Wolves AC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* ===== PAGE-SPECIFIC STYLES ===== */
+  body { padding-bottom: 0; }
+
+  .projects-wrap {
+    max-width: 700px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+
+  /* Title row */
+  .page-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 0;
+  }
+  .page-title-row h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--nw-text);
+  }
+  .btn-new-project {
+    padding: 8px 14px;
+    background: var(--nw-primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--nw-radius-btn);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn-new-project:hover { opacity: 0.85; }
+
+  /* Project cards list */
+  .projects-list {
+    padding: 12px 16px 24px;
+  }
+  .project-card {
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+    text-decoration: none;
+    color: var(--nw-text);
+    display: block;
+  }
+  .project-card:hover { border-color: var(--nw-primary); }
+  .project-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .project-card-name {
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+  .project-card-row {
+    font-size: 13px;
+    color: var(--nw-muted);
+    margin-top: 3px;
+  }
+  .project-card-row span { color: var(--nw-text); }
+  .project-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--nw-muted);
+  }
+  .project-card-docs {
+    font-weight: 600;
+  }
+
+  /* Status badges */
+  .badge-active {
+    background: #e8f5e0;
+    color: #3d6b1a;
+  }
+  .badge-completed {
+    background: #e0f0ff;
+    color: #1a5fa6;
+  }
+  .badge-onhold {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  /* Detail view */
+  .project-detail {
+    display: none;
+  }
+  .project-detail.active {
+    display: block;
+  }
+  .detail-header {
+    background: var(--nw-card);
+    border-bottom: var(--nw-border-width) solid var(--nw-border);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .detail-back {
+    color: var(--nw-primary);
+    text-decoration: none;
+    font-size: 20px;
+    padding: 4px 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    line-height: 1;
+    background: none;
+    border: none;
+    font-family: inherit;
+  }
+  .detail-back:hover { opacity: 0.7; }
+  .detail-title {
+    font-size: 16px;
+    font-weight: 700;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .detail-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .btn-icon {
+    background: none;
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-btn);
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--nw-muted);
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-icon:hover {
+    border-color: var(--nw-primary);
+    color: var(--nw-primary);
+  }
+  .btn-icon.danger:hover {
+    border-color: var(--nw-danger);
+    color: var(--nw-danger);
+  }
+
+  /* Detail info section */
+  .detail-info {
+    background: var(--nw-card);
+    margin: 12px 16px;
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 16px;
+  }
+  .detail-info-row {
+    display: flex;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .detail-info-row:last-child { margin-bottom: 0; }
+  .detail-info-label {
+    width: 90px;
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--nw-muted);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    padding-top: 2px;
+  }
+  .detail-info-value {
+    flex: 1;
+    color: var(--nw-text);
+  }
+  .detail-notes {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: var(--nw-border-width) solid var(--nw-border);
+    font-size: 13px;
+    color: var(--nw-text);
+    white-space: pre-wrap;
+  }
+
+  /* Document tabs */
+  .doc-tabs {
+    display: flex;
+    padding: 0 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--nw-card);
+    border-bottom: var(--nw-border-width) solid var(--nw-border);
+    margin: 0;
+  }
+  .doc-tabs .tab {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nw-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .doc-tabs .tab:hover { color: var(--nw-text); }
+  .doc-tabs .tab.active {
+    color: var(--nw-primary);
+    border-bottom-color: var(--nw-primary);
+  }
+
+  /* Upload row */
+  .doc-upload-row {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn-upload {
+    padding: 8px 14px;
+    background: var(--nw-primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--nw-radius-btn);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn-upload:hover { opacity: 0.85; }
+  .cloud-note {
+    font-size: 11px;
+    color: var(--nw-muted);
+    font-style: italic;
+  }
+
+  /* Document list */
+  .doc-list {
+    padding: 0 16px 24px;
+  }
+  .doc-item {
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 12px 14px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .doc-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--nw-radius-btn);
+    background: var(--nw-section);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .doc-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .doc-name {
+    font-weight: 600;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .doc-meta {
+    font-size: 11px;
+    color: var(--nw-muted);
+    margin-top: 2px;
+  }
+  .doc-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--nw-radius-pill);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--nw-section);
+    color: var(--nw-muted);
+  }
+  .doc-remove {
+    background: none;
+    border: none;
+    color: var(--nw-muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+  }
+  .doc-remove:hover { color: var(--nw-danger); }
+
+  /* Modal additions */
+  .modal h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--nw-text);
+  }
+  .modal-btns {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .modal-btns .btn { flex: 1; }
+
+  /* Category select in upload */
+  .upload-category-select {
+    display: none;
+    padding: 12px 16px 0;
+  }
+  .upload-category-select.active { display: block; }
+  .upload-category-select label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--nw-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .upload-category-select select {
+    width: 100%;
+    padding: 8px 12px;
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-btn);
+    font-size: var(--nw-font-base);
+    font-family: inherit;
+    color: var(--nw-text);
+    background: var(--nw-card);
+  }
+
+  /* Summary text */
+  .summary-text {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--nw-muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="projects-wrap">
+
+  <!-- Header -->
+  <header class="dash-header" style="background:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:100;">
+    <div class="dash-header-left" style="display:flex;align-items:center;gap:10px;">
+      <a href="index.html" style="text-decoration:none;color:#64748b;font-size:20px;padding:4px 8px">&#8592;</a>
+      <img class="dash-header-logo" src="logo-header.png" alt="Northern Wolves AC" style="height:36px;width:auto;">
+    </div>
+  </header>
+
+  <!-- LIST VIEW -->
+  <div id="listView">
+    <!-- Page title -->
+    <div class="page-title-row">
+      <h1>Projects</h1>
+      <button class="btn-new-project" id="btnNewProject">+ New Project</button>
+    </div>
+
+    <!-- Search -->
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search by project or customer...">
+    </div>
+
+    <!-- Status Tabs -->
+    <div class="status-tabs" id="statusTabs">
+      <div class="tab active" data-filter="all">All <span class="count" id="countAll">0</span></div>
+      <div class="tab" data-filter="active">Active <span class="count" id="countActive">0</span></div>
+      <div class="tab" data-filter="completed">Completed <span class="count" id="countCompleted">0</span></div>
+      <div class="tab" data-filter="onhold">On Hold <span class="count" id="countOnHold">0</span></div>
+    </div>
+
+    <!-- Project Cards -->
+    <div class="projects-list" id="projectsList"></div>
+
+    <div class="summary-text" id="summaryText"></div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="icon" style="font-size:40px;margin-bottom:12px;">&#128193;</div>
+      <p>No projects yet.<br>Tap <strong>+ New Project</strong> to get started.</p>
+    </div>
+  </div>
+
+  <!-- DETAIL VIEW -->
+  <div class="project-detail" id="detailView">
+    <div class="detail-header">
+      <button class="detail-back" id="btnDetailBack">&#8592;</button>
+      <div class="detail-title" id="detailTitle"></div>
+      <div class="detail-actions">
+        <button class="btn-icon" id="btnEditProject" title="Edit project">&#9998;</button>
+        <button class="btn-icon danger" id="btnDeleteProject" title="Delete project">&#128465;</button>
+      </div>
+    </div>
+
+    <div class="detail-info" id="detailInfo"></div>
+
+    <!-- Document Tabs -->
+    <div class="doc-tabs" id="docTabs">
+      <div class="tab active" data-cat="all">All</div>
+      <div class="tab" data-cat="drawings">Drawings</div>
+      <div class="tab" data-cat="submittals">Submittals</div>
+      <div class="tab" data-cat="manuals">Manuals</div>
+      <div class="tab" data-cat="warranties">Warranties</div>
+      <div class="tab" data-cat="reports">Reports</div>
+      <div class="tab" data-cat="other">Other</div>
+    </div>
+
+    <!-- Upload -->
+    <div class="doc-upload-row">
+      <button class="btn-upload" id="btnUploadDoc">+ Add Document</button>
+      <input type="file" id="fileInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dwg">
+      <span class="cloud-note">Documents will sync to cloud in upcoming update</span>
+    </div>
+
+    <!-- Category select (shown after file pick) -->
+    <div class="upload-category-select" id="uploadCategorySelect">
+      <label for="uploadCategory">Document Category</label>
+      <select id="uploadCategory">
+        <option value="drawings">Drawings</option>
+        <option value="submittals">Submittals</option>
+        <option value="manuals">Manuals</option>
+        <option value="warranties">Warranties</option>
+        <option value="reports">Reports</option>
+        <option value="other">Other</option>
+      </select>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <button class="btn btn-primary" id="btnConfirmUpload" style="flex:1;">Save</button>
+        <button class="btn btn-secondary" id="btnCancelUpload" style="flex:1;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Document List -->
+    <div class="doc-list" id="docList"></div>
+
+    <div class="empty-state" id="emptyDocs" style="display:none;">
+      <div class="icon" style="font-size:32px;margin-bottom:8px;">&#128196;</div>
+      <p>No documents yet.<br>Tap <strong>+ Add Document</strong> to upload.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- New / Edit Project Modal -->
+<div class="modal-overlay" id="projectModal" style="display:none;">
+  <div class="modal">
+    <h2 id="modalTitle">New Project</h2>
+    <div class="field">
+      <label for="fldName">Project Name *</label>
+      <input type="text" id="fldName" placeholder="e.g. 123 Main St RTU Replacement">
+    </div>
+    <div class="field">
+      <label for="fldCustomer">Customer / Company</label>
+      <input type="text" id="fldCustomer" placeholder="Customer name">
+    </div>
+    <div class="field">
+      <label for="fldAddress">Address</label>
+      <input type="text" id="fldAddress" placeholder="Street address">
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="fldCity">City</label>
+        <input type="text" id="fldCity" placeholder="City">
+      </div>
+      <div class="field" style="max-width:80px;">
+        <label for="fldState">State</label>
+        <input type="text" id="fldState" placeholder="NY" maxlength="2">
+      </div>
+      <div class="field" style="max-width:100px;">
+        <label for="fldZip">Zip</label>
+        <input type="text" id="fldZip" placeholder="10001" maxlength="10">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="fldType">Project Type</label>
+        <select id="fldType">
+          <option value="residential">Residential</option>
+          <option value="commercial" selected>Commercial</option>
+          <option value="industrial">Industrial</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fldStatus">Status</label>
+        <select id="fldStatus">
+          <option value="active">Active</option>
+          <option value="onhold">On Hold</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="fldNotes">Notes</label>
+      <textarea id="fldNotes" placeholder="Project notes, scope of work, etc."></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" id="btnSaveProject">Save Project</button>
+      <button class="btn btn-secondary" id="btnCancelProject">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  var STORAGE_KEY = 'nw_projects';
+  var activeFilter = 'all';
+  var searchTerm = '';
+  var debounceTimer = null;
+  var currentProjectId = null;
+  var editingProjectId = null;
+  var activeDocCat = 'all';
+  var pendingFile = null;
+
+  // ─── Storage helpers ───
+
+  function getProjects() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch(e) { return []; }
+  }
+
+  function saveProjects(projects) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  }
+
+  function genId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
+  }
+
+  // ─── CRUD ───
+
+  function createProject(data) {
+    var projects = getProjects();
+    var project = {
+      id: genId(),
+      name: data.name,
+      customer: data.customer || '',
+      address: data.address || '',
+      city: data.city || '',
+      state: data.state || '',
+      zip: data.zip || '',
+      projectType: data.projectType || 'commercial',
+      status: data.status || 'active',
+      notes: data.notes || '',
+      createdAt: new Date().toISOString(),
+      documents: []
+    };
+    projects.unshift(project);
+    saveProjects(projects);
+    return project;
+  }
+
+  function updateProject(id, data) {
+    var projects = getProjects();
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].id === id) {
+        projects[i].name = data.name;
+        projects[i].customer = data.customer || '';
+        projects[i].address = data.address || '';
+        projects[i].city = data.city || '';
+        projects[i].state = data.state || '';
+        projects[i].zip = data.zip || '';
+        projects[i].projectType = data.projectType || 'commercial';
+        projects[i].status = data.status || 'active';
+        projects[i].notes = data.notes || '';
+        break;
+      }
+    }
+    saveProjects(projects);
+  }
+
+  function deleteProject(id) {
+    var projects = getProjects();
+    projects = projects.filter(function(p) { return p.id !== id; });
+    saveProjects(projects);
+  }
+
+  function getProjectById(id) {
+    var projects = getProjects();
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].id === id) return projects[i];
+    }
+    return null;
+  }
+
+  function addDocument(projectId, docMeta) {
+    var projects = getProjects();
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].id === projectId) {
+        if (!projects[i].documents) projects[i].documents = [];
+        docMeta.id = genId();
+        docMeta.addedAt = new Date().toISOString();
+        projects[i].documents.push(docMeta);
+        break;
+      }
+    }
+    saveProjects(projects);
+  }
+
+  function removeDocument(projectId, docId) {
+    var projects = getProjects();
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].id === projectId) {
+        projects[i].documents = (projects[i].documents || []).filter(function(d) {
+          return d.id !== docId;
+        });
+        break;
+      }
+    }
+    saveProjects(projects);
+  }
+
+  // ─── Formatting helpers ───
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function fmtSize(bytes) {
+    if (!bytes || bytes < 1) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function statusLabel(s) {
+    if (s === 'active') return 'Active';
+    if (s === 'completed') return 'Completed';
+    if (s === 'onhold') return 'On Hold';
+    return s || '';
+  }
+
+  function statusBadgeClass(s) {
+    if (s === 'active') return 'badge badge-active';
+    if (s === 'completed') return 'badge badge-completed';
+    if (s === 'onhold') return 'badge badge-onhold';
+    return 'badge';
+  }
+
+  function typeLabel(t) {
+    if (t === 'residential') return 'Residential';
+    if (t === 'commercial') return 'Commercial';
+    if (t === 'industrial') return 'Industrial';
+    return t || '';
+  }
+
+  function docIcon(name) {
+    var ext = (name || '').split('.').pop().toLowerCase();
+    if (ext === 'pdf') return '&#128459;';
+    if (ext === 'jpg' || ext === 'jpeg' || ext === 'png') return '&#128247;';
+    if (ext === 'doc' || ext === 'docx') return '&#128196;';
+    if (ext === 'xls' || ext === 'xlsx') return '&#128202;';
+    if (ext === 'dwg') return '&#128208;';
+    return '&#128196;';
+  }
+
+  function guessCategory(name) {
+    var ext = (name || '').split('.').pop().toLowerCase();
+    if (ext === 'dwg') return 'drawings';
+    if (ext === 'pdf') return 'submittals';
+    if (ext === 'xls' || ext === 'xlsx') return 'reports';
+    return 'other';
+  }
+
+  // ─── Toast ───
+
+  function showToast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(function() { el.classList.remove('show'); }, 2000);
+  }
+
+  // ─── Render projects list ───
+
+  function renderProjectsList() {
+    var projects = getProjects();
+    var filtered = projects;
+
+    // Status filter
+    if (activeFilter === 'active') {
+      filtered = filtered.filter(function(p) { return p.status === 'active'; });
+    } else if (activeFilter === 'completed') {
+      filtered = filtered.filter(function(p) { return p.status === 'completed'; });
+    } else if (activeFilter === 'onhold') {
+      filtered = filtered.filter(function(p) { return p.status === 'onhold'; });
+    }
+
+    // Search filter
+    if (searchTerm) {
+      var q = searchTerm.toLowerCase();
+      filtered = filtered.filter(function(p) {
+        return (p.name || '').toLowerCase().indexOf(q) !== -1 ||
+               (p.customer || '').toLowerCase().indexOf(q) !== -1 ||
+               (p.address || '').toLowerCase().indexOf(q) !== -1;
+      });
+    }
+
+    // Counts
+    var activeCount = projects.filter(function(p) { return p.status === 'active'; }).length;
+    var completedCount = projects.filter(function(p) { return p.status === 'completed'; }).length;
+    var onholdCount = projects.filter(function(p) { return p.status === 'onhold'; }).length;
+    document.getElementById('countAll').textContent = projects.length;
+    document.getElementById('countActive').textContent = activeCount;
+    document.getElementById('countCompleted').textContent = completedCount;
+    document.getElementById('countOnHold').textContent = onholdCount;
+
+    var container = document.getElementById('projectsList');
+    var emptyState = document.getElementById('emptyState');
+    var summaryText = document.getElementById('summaryText');
+
+    if (filtered.length === 0) {
+      container.innerHTML = '';
+      emptyState.style.display = '';
+      summaryText.textContent = projects.length > 0 ? 'No projects match your filter.' : '';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    summaryText.textContent = filtered.length === projects.length
+      ? filtered.length + ' project' + (filtered.length !== 1 ? 's' : '')
+      : 'Showing ' + filtered.length + ' of ' + projects.length + ' projects';
+
+    var html = '';
+    filtered.forEach(function(p) {
+      var docCount = (p.documents || []).length;
+      var fullAddr = [p.address, p.city, p.state, p.zip].filter(Boolean).join(', ');
+      html += '<div class="project-card" data-id="' + p.id + '">';
+      html += '<div class="project-card-top">';
+      html += '<div class="project-card-name">' + escHtml(p.name) + '</div>';
+      html += '<span class="' + statusBadgeClass(p.status) + '">' + statusLabel(p.status) + '</span>';
+      html += '</div>';
+      if (p.customer) {
+        html += '<div class="project-card-row"><span>' + escHtml(p.customer) + '</span></div>';
+      }
+      if (fullAddr) {
+        html += '<div class="project-card-row">' + escHtml(fullAddr) + '</div>';
+      }
+      html += '<div class="project-card-footer">';
+      html += '<span>' + fmtDate(p.createdAt) + '</span>';
+      html += '<span class="project-card-docs">' + docCount + ' doc' + (docCount !== 1 ? 's' : '') + '</span>';
+      html += '</div>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
+  // ─── Render project detail ───
+
+  function renderProjectDetail(projectId) {
+    var p = getProjectById(projectId);
+    if (!p) return;
+
+    currentProjectId = projectId;
+
+    document.getElementById('detailTitle').textContent = p.name;
+
+    var fullAddr = [p.address, p.city, p.state, p.zip].filter(Boolean).join(', ');
+    var infoHtml = '';
+    infoHtml += '<div class="detail-info-row"><div class="detail-info-label">Customer</div><div class="detail-info-value">' + escHtml(p.customer || '—') + '</div></div>';
+    infoHtml += '<div class="detail-info-row"><div class="detail-info-label">Address</div><div class="detail-info-value">' + escHtml(fullAddr || '—') + '</div></div>';
+    infoHtml += '<div class="detail-info-row"><div class="detail-info-label">Type</div><div class="detail-info-value">' + typeLabel(p.projectType) + '</div></div>';
+    infoHtml += '<div class="detail-info-row"><div class="detail-info-label">Status</div><div class="detail-info-value"><span class="' + statusBadgeClass(p.status) + '">' + statusLabel(p.status) + '</span></div></div>';
+    infoHtml += '<div class="detail-info-row"><div class="detail-info-label">Created</div><div class="detail-info-value">' + fmtDate(p.createdAt) + '</div></div>';
+    if (p.notes) {
+      infoHtml += '<div class="detail-notes">' + escHtml(p.notes) + '</div>';
+    }
+    document.getElementById('detailInfo').innerHTML = infoHtml;
+
+    renderDocList();
+
+    // Show detail, hide list
+    document.getElementById('listView').style.display = 'none';
+    document.getElementById('detailView').classList.add('active');
+  }
+
+  function renderDocList() {
+    var p = getProjectById(currentProjectId);
+    if (!p) return;
+    var docs = p.documents || [];
+
+    // Filter by category
+    if (activeDocCat !== 'all') {
+      docs = docs.filter(function(d) { return d.category === activeDocCat; });
+    }
+
+    var container = document.getElementById('docList');
+    var emptyDocs = document.getElementById('emptyDocs');
+
+    if (docs.length === 0) {
+      container.innerHTML = '';
+      emptyDocs.style.display = '';
+      return;
+    }
+
+    emptyDocs.style.display = 'none';
+    var html = '';
+    docs.forEach(function(d) {
+      html += '<div class="doc-item" data-doc-id="' + d.id + '">';
+      html += '<div class="doc-icon">' + docIcon(d.name) + '</div>';
+      html += '<div class="doc-info">';
+      html += '<div class="doc-name">' + escHtml(d.name) + '</div>';
+      html += '<div class="doc-meta">';
+      html += '<span class="doc-badge">' + escHtml(d.category || 'other') + '</span>';
+      html += ' &middot; ' + fmtDate(d.addedAt);
+      if (d.size) html += ' &middot; ' + fmtSize(d.size);
+      html += '</div>';
+      html += '</div>';
+      html += '<button class="doc-remove" data-doc-id="' + d.id + '" title="Remove">&#10005;</button>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  // ─── Modal helpers ───
+
+  function openModal(projectId) {
+    editingProjectId = projectId || null;
+    var modal = document.getElementById('projectModal');
+    var title = document.getElementById('modalTitle');
+
+    if (projectId) {
+      title.textContent = 'Edit Project';
+      var p = getProjectById(projectId);
+      if (p) {
+        document.getElementById('fldName').value = p.name || '';
+        document.getElementById('fldCustomer').value = p.customer || '';
+        document.getElementById('fldAddress').value = p.address || '';
+        document.getElementById('fldCity').value = p.city || '';
+        document.getElementById('fldState').value = p.state || '';
+        document.getElementById('fldZip').value = p.zip || '';
+        document.getElementById('fldType').value = p.projectType || 'commercial';
+        document.getElementById('fldStatus').value = p.status || 'active';
+        document.getElementById('fldNotes').value = p.notes || '';
+      }
+    } else {
+      title.textContent = 'New Project';
+      document.getElementById('fldName').value = '';
+      document.getElementById('fldCustomer').value = '';
+      document.getElementById('fldAddress').value = '';
+      document.getElementById('fldCity').value = '';
+      document.getElementById('fldState').value = '';
+      document.getElementById('fldZip').value = '';
+      document.getElementById('fldType').value = 'commercial';
+      document.getElementById('fldStatus').value = 'active';
+      document.getElementById('fldNotes').value = '';
+    }
+    modal.style.display = 'flex';
+  }
+
+  function closeModal() {
+    document.getElementById('projectModal').style.display = 'none';
+    editingProjectId = null;
+  }
+
+  function saveFromModal() {
+    var name = document.getElementById('fldName').value.trim();
+    if (!name) {
+      showToast('Project name is required');
+      document.getElementById('fldName').focus();
+      return;
+    }
+    var data = {
+      name: name,
+      customer: document.getElementById('fldCustomer').value.trim(),
+      address: document.getElementById('fldAddress').value.trim(),
+      city: document.getElementById('fldCity').value.trim(),
+      state: document.getElementById('fldState').value.trim().toUpperCase(),
+      zip: document.getElementById('fldZip').value.trim(),
+      projectType: document.getElementById('fldType').value,
+      status: document.getElementById('fldStatus').value,
+      notes: document.getElementById('fldNotes').value.trim()
+    };
+
+    if (editingProjectId) {
+      updateProject(editingProjectId, data);
+      showToast('Project updated');
+      // Re-render detail if we're viewing it
+      if (currentProjectId === editingProjectId) {
+        renderProjectDetail(currentProjectId);
+      }
+    } else {
+      createProject(data);
+      showToast('Project created');
+    }
+
+    closeModal();
+    renderProjectsList();
+  }
+
+  // ─── Back to list ───
+
+  function showList() {
+    document.getElementById('detailView').classList.remove('active');
+    document.getElementById('listView').style.display = '';
+    document.getElementById('uploadCategorySelect').classList.remove('active');
+    currentProjectId = null;
+    pendingFile = null;
+    activeDocCat = 'all';
+    // Reset doc tab
+    var docTabEls = document.querySelectorAll('#docTabs .tab');
+    docTabEls.forEach(function(t) { t.classList.remove('active'); });
+    if (docTabEls[0]) docTabEls[0].classList.add('active');
+    renderProjectsList();
+  }
+
+  // ─── Event binding ───
+
+  function init() {
+    renderProjectsList();
+
+    // New project
+    document.getElementById('btnNewProject').addEventListener('click', function() {
+      openModal(null);
+    });
+
+    // Save project
+    document.getElementById('btnSaveProject').addEventListener('click', saveFromModal);
+
+    // Cancel modal
+    document.getElementById('btnCancelProject').addEventListener('click', closeModal);
+
+    // Close modal on overlay click
+    document.getElementById('projectModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+
+    // Search
+    document.getElementById('searchInput').addEventListener('input', function() {
+      var val = this.value;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function() {
+        searchTerm = val.trim();
+        renderProjectsList();
+      }, 250);
+    });
+
+    // Status tabs
+    document.getElementById('statusTabs').addEventListener('click', function(e) {
+      var tab = e.target.closest('.tab');
+      if (!tab) return;
+      this.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      activeFilter = tab.getAttribute('data-filter');
+      renderProjectsList();
+    });
+
+    // Click project card
+    document.getElementById('projectsList').addEventListener('click', function(e) {
+      var card = e.target.closest('.project-card');
+      if (!card) return;
+      renderProjectDetail(card.getAttribute('data-id'));
+    });
+
+    // Detail back
+    document.getElementById('btnDetailBack').addEventListener('click', showList);
+
+    // Edit project from detail
+    document.getElementById('btnEditProject').addEventListener('click', function() {
+      if (currentProjectId) openModal(currentProjectId);
+    });
+
+    // Delete project from detail
+    document.getElementById('btnDeleteProject').addEventListener('click', function() {
+      if (!currentProjectId) return;
+      if (!confirm('Delete this project and all its documents?')) return;
+      deleteProject(currentProjectId);
+      showToast('Project deleted');
+      showList();
+    });
+
+    // Doc category tabs
+    document.getElementById('docTabs').addEventListener('click', function(e) {
+      var tab = e.target.closest('.tab');
+      if (!tab) return;
+      this.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      activeDocCat = tab.getAttribute('data-cat');
+      renderDocList();
+    });
+
+    // Upload button
+    document.getElementById('btnUploadDoc').addEventListener('click', function() {
+      document.getElementById('fileInput').click();
+    });
+
+    // File selected
+    document.getElementById('fileInput').addEventListener('change', function() {
+      if (!this.files || !this.files[0]) return;
+      pendingFile = this.files[0];
+      // Auto-guess category
+      document.getElementById('uploadCategory').value = guessCategory(pendingFile.name);
+      document.getElementById('uploadCategorySelect').classList.add('active');
+      this.value = '';
+    });
+
+    // Confirm upload
+    document.getElementById('btnConfirmUpload').addEventListener('click', function() {
+      if (!pendingFile || !currentProjectId) return;
+      var cat = document.getElementById('uploadCategory').value;
+      addDocument(currentProjectId, {
+        name: pendingFile.name,
+        category: cat,
+        size: pendingFile.size,
+        type: pendingFile.type || ''
+      });
+      pendingFile = null;
+      document.getElementById('uploadCategorySelect').classList.remove('active');
+      renderDocList();
+      renderProjectsList();
+      showToast('Document added');
+    });
+
+    // Cancel upload
+    document.getElementById('btnCancelUpload').addEventListener('click', function() {
+      pendingFile = null;
+      document.getElementById('uploadCategorySelect').classList.remove('active');
+    });
+
+    // Remove document
+    document.getElementById('docList').addEventListener('click', function(e) {
+      var btn = e.target.closest('.doc-remove');
+      if (!btn || !currentProjectId) return;
+      var docId = btn.getAttribute('data-doc-id');
+      if (!confirm('Remove this document?')) return;
+      removeDocument(currentProjectId, docId);
+      renderDocList();
+      renderProjectsList();
+      showToast('Document removed');
+    });
+  }
+
+  // Wait for DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+<!-- Service Worker -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(function() {});
+}
+</script>
+
+</body>
+</html>

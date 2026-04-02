@@ -538,7 +538,8 @@
       'site-survey': '\uD83D\uDCCB',
       'pm-checklist': '\u2705',
       'work-order': '\uD83D\uDCDD',
-      'change-order': '\uD83D\uDCCB'
+      'change-order': '\uD83D\uDCCB',
+      'rfi': '\u2753'
     };
     return icons[type] || '\uD83D\uDCCB';
   }
@@ -550,7 +551,8 @@
       'site-survey': 'Site Survey',
       'pm-checklist': 'PM Checklist',
       'work-order': 'Work Order',
-      'change-order': 'Change Order'
+      'change-order': 'Change Order',
+      'rfi': 'RFI'
     };
     return labels[type] || type || 'Report';
   }
@@ -562,7 +564,8 @@
       'site-survey': 'site-survey-report.html',
       'pm-checklist': 'pm-checklist.html',
       'work-order': 'work-order.html',
-      'change-order': 'change-order.html'
+      'change-order': 'change-order.html',
+      'rfi': 'rfi.html'
     };
     return pages[type] || '#';
   }
@@ -689,7 +692,9 @@
       { type: 'site-survey', icon: '\uD83D\uDCCB', title: 'Site Survey', desc: 'Equipment inventory & conditions', page: 'site-survey-report.html' },
       { type: 'pm-checklist', icon: '\u2705', title: 'PM Checklist', desc: 'Maintenance by equipment type', page: 'pm-checklist.html' },
       { type: 'work-order', icon: '\uD83D\uDCDD', title: 'Work Order', desc: 'Parts, labor, cost tracking', page: 'work-order.html' },
-      { type: 'change-order', icon: '\uD83D\uDCCB', title: 'Change Order', desc: 'Field change requests & costs', page: 'change-order.html' }
+      { type: 'change-order', icon: '\uD83D\uDCCB', title: 'Change Order', desc: 'Field change requests & costs', page: 'change-order.html' },
+      { type: 'rfi', icon: '\u2753', title: 'RFI', desc: 'Request for Information', page: 'rfi.html' },
+      { type: 'projects', icon: '\uD83D\uDCC1', title: 'Projects', desc: 'Shared docs & drawings', page: 'projects.html' }
     ];
 
     var draftCounts = {};
