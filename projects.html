@@ -856,7 +856,8 @@ requireAuth().catch(function(){});
     emptyDocs.style.display = 'none';
     var html = '';
     docs.forEach(function(d) {
-      var urlAttr = d.driveUrl ? ' data-url="' + escHtml(d.driveUrl) + '"' : '';
+      var hasLink = d.driveUrl || d.fileData;
+      var urlAttr = hasLink ? ' data-url="' + (d.driveUrl ? escHtml(d.driveUrl) : 'local') + '"' : '';
       html += '<div class="doc-item" data-doc-id="' + d.id + '"' + urlAttr + '>';
       html += '<div class="doc-icon">' + docIcon(d.name) + '</div>';
       html += '<div class="doc-info">';
@@ -1055,21 +1056,27 @@ requireAuth().catch(function(){});
       this.value = '';
     });
 
-    // Confirm upload
+    // Confirm upload — read file as base64 so it can be opened later
     document.getElementById('btnConfirmUpload').addEventListener('click', function() {
       if (!pendingFile || !currentProjectId) return;
       var cat = document.getElementById('uploadCategory').value;
-      addDocument(currentProjectId, {
-        name: pendingFile.name,
-        category: cat,
-        size: pendingFile.size,
-        type: pendingFile.type || ''
-      });
+      var file = pendingFile;
+      var reader = new FileReader();
+      reader.onload = function() {
+        addDocument(currentProjectId, {
+          name: file.name,
+          category: cat,
+          size: file.size,
+          type: file.type || '',
+          fileData: reader.result  // base64 data URL
+        });
+        renderDocList();
+        renderProjectsList();
+        showToast('Document added');
+      };
+      reader.readAsDataURL(file);
       pendingFile = null;
       document.getElementById('uploadCategorySelect').classList.remove('active');
-      renderDocList();
-      renderProjectsList();
-      showToast('Document added');
     });
 
     // Cancel upload
@@ -1094,7 +1101,20 @@ requireAuth().catch(function(){});
       // Handle clicking doc item to open PDF
       var item = e.target.closest('.doc-item[data-url]');
       if (item) {
-        window.open(item.getAttribute('data-url'), '_blank');
+        var url = item.getAttribute('data-url');
+        if (url && url !== 'local') {
+          window.open(url, '_blank');
+        } else {
+          // Open from stored fileData
+          var docId = item.getAttribute('data-doc-id');
+          var p = getProjectById(currentProjectId);
+          if (p && p.documents) {
+            var doc = p.documents.find(function(d) { return d.id === docId; });
+            if (doc && doc.fileData) {
+              window.open(doc.fileData, '_blank');
+            }
+          }
+        }
       }
     });
   }
