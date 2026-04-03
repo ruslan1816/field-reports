@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v43';
+const CACHE_NAME = 'nw-field-v44';
 const ASSETS = [
   './',
   './index.html',
@@ -26,6 +26,7 @@ const ASSETS = [
   './cloud-save.js',
   './customer-utils.js',
   './customers.html',
+  './dispatch.html',
   './sw-register.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js',

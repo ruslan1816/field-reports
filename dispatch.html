@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=35"></script>
+<script src="auth.js?v=35"></script>
+<title>Dispatch — Northern Wolves AC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="styles.css">
+<style>
+body { padding-bottom: 40px; }
+
+/* Tabs */
+.tabs { display:flex; gap:0; padding:0 16px; max-width:800px; margin:12px auto 0; }
+.tab-btn { flex:1; padding:10px; text-align:center; font-size:13px; font-weight:700; border:1px solid #e2e8f0; background:#fff; cursor:pointer; color:#64748b; font-family:inherit; transition:all .15s; }
+.tab-btn:first-child { border-radius:8px 0 0 8px; }
+.tab-btn:last-child { border-radius:0 8px 8px 0; }
+.tab-btn.active { background:#0696D7; color:#fff; border-color:#0696D7; }
+.tab-btn .tab-count { display:inline-block; background:rgba(255,255,255,0.25); border-radius:10px; padding:1px 7px; font-size:11px; margin-left:4px; }
+.tab-btn.active .tab-count { background:rgba(255,255,255,0.3); }
+
+/* Top bar */
+.top-bar { display:flex; gap:10px; padding:12px 16px; max-width:800px; margin:0 auto; }
+.search-input { flex:1; padding:10px 14px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; background:#fff; font-family:inherit; }
+.search-input:focus { border-color:#0696D7; outline:none; }
+.btn-add { background:#0696D7; color:#fff; border:none; border-radius:8px; padding:10px 18px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap; font-family:inherit; }
+.btn-add:active { opacity:0.85; }
+
+/* Dispatch cards */
+.dispatch-list { max-width:800px; margin:0 auto; padding:0 16px; }
+.dispatch-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:border-color .15s; }
+.dispatch-card:hover { border-color:#0696D7; }
+.dispatch-card.priority-critical { border-left:4px solid #ef4444; }
+.dispatch-card.priority-high { border-left:4px solid #f59e0b; }
+.dispatch-card.priority-standard { border-left:4px solid #0696D7; }
+.dispatch-card.priority-low { border-left:4px solid #94a3b8; }
+.dc-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.dc-title { font-size:15px; font-weight:700; color:#1a2332; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dc-badge { font-size:10px; font-weight:700; padding:3px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }
+.dc-badge.pending { background:#fef3c7; color:#92400e; }
+.dc-badge.accepted { background:#dbeafe; color:#1e40af; }
+.dc-badge.in-progress { background:#ede9fe; color:#6d28d9; }
+.dc-badge.completed { background:#d1fae5; color:#047857; }
+.dc-badge.cancelled { background:#f1f5f9; color:#64748b; }
+.dc-meta { font-size:12px; color:#64748b; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; }
+.dc-meta span { white-space:nowrap; }
+.dc-desc { font-size:13px; color:#94a3b8; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dispatch-empty { text-align:center; padding:40px 16px; color:#94a3b8; font-size:14px; }
+
+/* Modal */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:flex-end; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-sheet { background:#fff; border-radius:16px 16px 0 0; width:100%; max-width:600px; max-height:90vh; overflow-y:auto; padding:20px 16px 32px; animation:slideUp .2s ease-out; }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.modal-title { font-size:18px; font-weight:800; color:#1a2332; }
+.modal-close { background:none; border:none; font-size:24px; color:#94a3b8; cursor:pointer; padding:4px; line-height:1; }
+.modal-close:hover { color:#ef4444; }
+
+/* Form fields */
+.form-field { margin-bottom:14px; }
+.form-field label { display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:4px; text-transform:uppercase; letter-spacing:.3px; }
+.form-field input, .form-field select, .form-field textarea { width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; font-family:inherit; background:#f8fafc; box-sizing:border-box; }
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color:#0696D7; background:#fff; outline:none; }
+.form-field textarea { resize:vertical; min-height:60px; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+/* Priority chips */
+.priority-chips { display:flex; gap:8px; flex-wrap:wrap; }
+.p-chip { padding:8px 14px; border:2px solid #e2e8f0; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; background:#fff; font-family:inherit; transition:all .15s; }
+.p-chip:hover { border-color:#cbd5e1; }
+.p-chip.selected.critical { border-color:#ef4444; background:#fef2f2; color:#dc2626; }
+.p-chip.selected.high { border-color:#f59e0b; background:#fffbeb; color:#d97706; }
+.p-chip.selected.standard { border-color:#0696D7; background:#eff6ff; color:#0696D7; }
+.p-chip.selected.low { border-color:#94a3b8; background:#f8fafc; color:#64748b; }
+
+.btn-save { width:100%; padding:14px; background:#0696D7; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; margin-top:8px; }
+.btn-save:active { opacity:0.85; }
+.btn-delete { width:100%; padding:12px; background:#fee2e2; color:#991b1b; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; margin-top:8px; }
+.btn-delete:hover { background:#fecaca; }
+
+/* Detail view */
+.detail-section { margin-bottom:14px; }
+.detail-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; }
+.detail-value { font-size:14px; color:#1a2332; margin-top:2px; }
+.detail-actions { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+.btn-action { flex:1; padding:12px; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; min-width:120px; }
+.btn-accept { background:#dbeafe; color:#1e40af; }
+.btn-start { background:#ede9fe; color:#6d28d9; }
+.btn-complete { background:#d1fae5; color:#047857; }
+.btn-edit { background:#eff6ff; color:#0696D7; }
+.btn-cancel-job { background:#f1f5f9; color:#64748b; }
+
+/* Toast */
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1a2332; color:#fff; padding:10px 20px; border-radius:10px; font-size:13px; font-weight:600; z-index:2000; opacity:0; transition:opacity .3s; pointer-events:none; }
+.toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="index.html" class="back-btn">&larr;</a>
+  <img src="logo-header.png" alt="Northern Wolves AC" style="height:32px;width:auto;">
+  <div class="header-content">
+    <div class="subtitle">DISPATCH</div>
+  </div>
+</header>
+
+<div class="toast" id="toast"></div>
+
+<!-- Tabs -->
+<div class="tabs" id="tabs">
+  <button class="tab-btn active" data-tab="active" onclick="switchTab('active')">Active <span class="tab-count" id="countActive">0</span></button>
+  <button class="tab-btn" data-tab="completed" onclick="switchTab('completed')">Done <span class="tab-count" id="countDone">0</span></button>
+  <button class="tab-btn" data-tab="all" onclick="switchTab('all')">All <span class="tab-count" id="countAll">0</span></button>
+</div>
+
+<!-- Top bar -->
+<div class="top-bar">
+  <input type="text" class="search-input" id="searchInput" placeholder="Search jobs..." autocomplete="off">
+  <button class="btn-add" id="btnAdd">+ New Job</button>
+</div>
+
+<!-- Dispatch list -->
+<div class="dispatch-list" id="dispatchList"></div>
+
+<!-- Create/Edit Modal -->
+<div class="modal-overlay" id="formModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title" id="formTitle">New Dispatch</div>
+      <button class="modal-close" onclick="closeFormModal()">&times;</button>
+    </div>
+    <form id="dispatchForm" onsubmit="return false;">
+      <input type="hidden" id="fmId">
+      <div class="form-field">
+        <label>Job Title *</label>
+        <input type="text" id="fmTitle" placeholder="e.g. AC not cooling — 5th floor" required>
+      </div>
+      <div class="form-field">
+        <label>Description</label>
+        <textarea id="fmDesc" rows="3" placeholder="Details, symptoms, special instructions..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Customer</label>
+          <input type="text" id="fmCustomer" placeholder="Customer name">
+        </div>
+        <div class="form-field">
+          <label>Address</label>
+          <input type="text" id="fmAddress" placeholder="Job site address">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Scheduled Date</label>
+          <input type="date" id="fmDate">
+        </div>
+        <div class="form-field">
+          <label>Scheduled Time</label>
+          <input type="time" id="fmTime">
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Assign To</label>
+        <select id="fmAssignTo">
+          <option value="">Unassigned</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Report Type</label>
+        <select id="fmReportType">
+          <option value="">None</option>
+          <option value="service-call">Service Call</option>
+          <option value="startup">Start-Up</option>
+          <option value="site-survey">Site Survey</option>
+          <option value="pm-checklist">PM Checklist</option>
+          <option value="work-order">Work Order</option>
+          <option value="change-order">Change Order</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Priority</label>
+        <div class="priority-chips" id="priorityChips">
+          <button type="button" class="p-chip" data-val="critical" onclick="pickPriority(this)">Critical</button>
+          <button type="button" class="p-chip selected standard" data-val="standard" onclick="pickPriority(this)">Standard</button>
+          <button type="button" class="p-chip" data-val="high" onclick="pickPriority(this)">High</button>
+          <button type="button" class="p-chip" data-val="low" onclick="pickPriority(this)">Low</button>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Notes</label>
+        <textarea id="fmNotes" rows="2" placeholder="Internal notes..."></textarea>
+      </div>
+      <button type="button" class="btn-save" id="btnSave" onclick="handleSave()">Create Dispatch</button>
+      <button type="button" class="btn-delete" id="btnDel" style="display:none" onclick="handleDelete()">Delete</button>
+    </form>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title" id="detailTitle">Job Details</div>
+      <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+    </div>
+    <div id="detailBody"></div>
+    <div class="detail-actions" id="detailActions"></div>
+  </div>
+</div>
+
+<script>
+(async function() {
+  try { await requireAuth(); } catch(e) { return; }
+
+  var dispatches = [];
+  var profiles = [];
+  var currentUser = null;
+  var currentTab = 'active';
+  var currentDetailId = null;
+  var selectedPriority = 'standard';
+
+  // ── Init ──
+  var userRes = await getCurrentUser();
+  currentUser = userRes.data;
+
+  // Load profiles for assignment dropdown
+  var profRes = await getAllProfiles();
+  profiles = profRes.data || [];
+  var assignSelect = document.getElementById('fmAssignTo');
+  profiles.forEach(function(p) {
+    var opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = (p.full_name || p.email) + (p.role ? ' (' + p.role + ')' : '');
+    assignSelect.appendChild(opt);
+  });
+
+  await loadDispatches();
+
+  // ── Load ──
+  async function loadDispatches() {
+    var res = await getDispatches({ limit: 200 });
+    if (res.error) { showToast('Failed to load dispatches'); return; }
+    dispatches = res.data || [];
+    renderAll();
+  }
+
+  function renderAll() {
+    var q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+
+    // Filter by tab
+    var filtered = dispatches.filter(function(d) {
+      if (currentTab === 'active') return d.status !== 'completed' && d.status !== 'cancelled';
+      if (currentTab === 'completed') return d.status === 'completed' || d.status === 'cancelled';
+      return true; // 'all'
+    });
+
+    // Search
+    if (q) {
+      filtered = filtered.filter(function(d) {
+        var s = ((d.title || '') + ' ' + (d.customer_name || '') + ' ' + (d.address || '') + ' ' + (d.assigned_tech_name || '') + ' ' + (d.description || '')).toLowerCase();
+        return s.indexOf(q) !== -1;
+      });
+    }
+
+    // Counts
+    var active = dispatches.filter(function(d) { return d.status !== 'completed' && d.status !== 'cancelled'; }).length;
+    var done = dispatches.filter(function(d) { return d.status === 'completed' || d.status === 'cancelled'; }).length;
+    document.getElementById('countActive').textContent = active;
+    document.getElementById('countDone').textContent = done;
+    document.getElementById('countAll').textContent = dispatches.length;
+
+    // Render list
+    var container = document.getElementById('dispatchList');
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="dispatch-empty">' +
+        (q ? 'No jobs match your search' : currentTab === 'active' ? 'No active dispatches' : 'No dispatches') + '</div>';
+      return;
+    }
+
+    // Sort: critical first, then by scheduled_date, then created_at
+    var priorityOrder = { critical: 0, high: 1, standard: 2, low: 3 };
+    filtered.sort(function(a, b) {
+      var pa = priorityOrder[a.priority] || 2;
+      var pb = priorityOrder[b.priority] || 2;
+      if (pa !== pb) return pa - pb;
+      var da = a.scheduled_date || '9999';
+      var db = b.scheduled_date || '9999';
+      if (da !== db) return da < db ? -1 : 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    var html = '';
+    filtered.forEach(function(d) {
+      var statusClass = (d.status || 'pending').replace(' ', '-');
+      html += '<div class="dispatch-card priority-' + (d.priority || 'standard') + '" data-id="' + d.id + '">' +
+        '<div class="dc-top">' +
+          '<div class="dc-title">' + esc(d.title) + '</div>' +
+          '<div class="dc-badge ' + statusClass + '">' + esc(d.status || 'pending') + '</div>' +
+        '</div>' +
+        '<div class="dc-meta">' +
+          (d.assigned_tech_name ? '<span>&#128100; ' + esc(d.assigned_tech_name) + '</span>' : '<span style="color:#f59e0b">Unassigned</span>') +
+          (d.customer_name ? '<span>&#127970; ' + esc(d.customer_name) + '</span>' : '') +
+          (d.scheduled_date ? '<span>&#128197; ' + formatDate(d.scheduled_date) + (d.scheduled_time ? ' ' + formatTime(d.scheduled_time) : '') + '</span>' : '') +
+        '</div>' +
+        (d.description ? '<div class="dc-desc">' + esc(d.description) + '</div>' : '') +
+        '</div>';
+    });
+    container.innerHTML = html;
+
+    container.querySelectorAll('.dispatch-card').forEach(function(card) {
+      card.addEventListener('click', function() { openDetail(card.getAttribute('data-id')); });
+    });
+  }
+
+  // ── Tab switching ──
+  window.switchTab = function(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(function(b) {
+      b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+    });
+    renderAll();
+  };
+
+  // ── Detail modal ──
+  function openDetail(id) {
+    var d = dispatches.find(function(x) { return x.id === id; });
+    if (!d) return;
+    currentDetailId = id;
+    document.getElementById('detailTitle').textContent = d.title || 'Job';
+
+    var html = '';
+    var fields = [
+      { label: 'Status', value: (d.status || 'pending').charAt(0).toUpperCase() + (d.status || 'pending').slice(1) },
+      { label: 'Priority', value: (d.priority || 'standard').charAt(0).toUpperCase() + (d.priority || 'standard').slice(1) },
+      { label: 'Assigned To', value: d.assigned_tech_name || 'Unassigned' },
+      { label: 'Customer', value: d.customer_name },
+      { label: 'Address', value: d.address },
+      { label: 'Scheduled', value: d.scheduled_date ? formatDate(d.scheduled_date) + (d.scheduled_time ? ' at ' + formatTime(d.scheduled_time) : '') : '' },
+      { label: 'Report Type', value: d.report_type ? reportTypeLabel(d.report_type) : '' },
+      { label: 'Description', value: d.description },
+      { label: 'Notes', value: d.notes },
+      { label: 'Created', value: d.created_at ? new Date(d.created_at).toLocaleDateString() : '' }
+    ];
+    fields.forEach(function(f) {
+      if (!f.value) return;
+      html += '<div class="detail-section"><div class="detail-label">' + f.label + '</div><div class="detail-value">' + esc(f.value) + '</div></div>';
+    });
+    document.getElementById('detailBody').innerHTML = html;
+
+    // Action buttons based on status
+    var actions = '';
+    var st = d.status || 'pending';
+    if (st === 'pending') {
+      actions += '<button class="btn-action btn-accept" onclick="updateStatus(\'' + id + '\',\'accepted\')">Accept</button>';
+      actions += '<button class="btn-action btn-edit" onclick="editFromDetail()">Edit</button>';
+      actions += '<button class="btn-action btn-cancel-job" onclick="updateStatus(\'' + id + '\',\'cancelled\')">Cancel</button>';
+    } else if (st === 'accepted') {
+      actions += '<button class="btn-action btn-start" onclick="updateStatus(\'' + id + '\',\'in-progress\')">Start Work</button>';
+      actions += '<button class="btn-action btn-edit" onclick="editFromDetail()">Edit</button>';
+    } else if (st === 'in-progress') {
+      actions += '<button class="btn-action btn-complete" onclick="updateStatus(\'' + id + '\',\'completed\')">Complete</button>';
+      if (d.report_type) {
+        actions += '<button class="btn-action btn-edit" onclick="openReport(\'' + esc(d.report_type) + '\')">Open Report Form</button>';
+      }
+    } else if (st === 'completed') {
+      actions += '<button class="btn-action btn-edit" onclick="editFromDetail()">Edit</button>';
+    } else if (st === 'cancelled') {
+      actions += '<button class="btn-action btn-accept" onclick="updateStatus(\'' + id + '\',\'pending\')">Reopen</button>';
+    }
+    document.getElementById('detailActions').innerHTML = actions;
+
+    document.getElementById('detailModal').classList.add('open');
+  }
+
+  window.closeDetailModal = function() {
+    document.getElementById('detailModal').classList.remove('open');
+  };
+
+  window.editFromDetail = function() {
+    var id = currentDetailId;
+    closeDetailModal();
+    openFormModal(id);
+  };
+
+  window.updateStatus = async function(id, status) {
+    var res = await updateDispatchStatus(id, status);
+    if (res.error) { showToast('Update failed'); return; }
+    showToast('Status: ' + status);
+    closeDetailModal();
+    await loadDispatches();
+  };
+
+  window.openReport = function(type) {
+    var pages = {
+      'service-call': 'service-call-report.html',
+      'startup': 'startup-report.html',
+      'site-survey': 'site-survey-report.html',
+      'pm-checklist': 'pm-checklist.html',
+      'work-order': 'work-order.html',
+      'change-order': 'change-order.html'
+    };
+    if (pages[type]) window.location.href = pages[type];
+  };
+
+  // ── Form modal ──
+  function openFormModal(id) {
+    var isEdit = !!id;
+    document.getElementById('formTitle').textContent = isEdit ? 'Edit Dispatch' : 'New Dispatch';
+    document.getElementById('btnSave').textContent = isEdit ? 'Save Changes' : 'Create Dispatch';
+    document.getElementById('btnDel').style.display = isEdit ? 'block' : 'none';
+
+    // Reset priority
+    selectedPriority = 'standard';
+    document.querySelectorAll('.p-chip').forEach(function(c) {
+      c.classList.remove('selected', 'critical', 'high', 'standard', 'low');
+    });
+
+    if (isEdit) {
+      var d = dispatches.find(function(x) { return x.id === id; });
+      if (!d) return;
+      document.getElementById('fmId').value = d.id;
+      document.getElementById('fmTitle').value = d.title || '';
+      document.getElementById('fmDesc').value = d.description || '';
+      document.getElementById('fmCustomer').value = d.customer_name || '';
+      document.getElementById('fmAddress').value = d.address || '';
+      document.getElementById('fmDate').value = d.scheduled_date || '';
+      document.getElementById('fmTime').value = d.scheduled_time || '';
+      document.getElementById('fmAssignTo').value = d.assigned_to || '';
+      document.getElementById('fmReportType').value = d.report_type || '';
+      document.getElementById('fmNotes').value = d.notes || '';
+      selectedPriority = d.priority || 'standard';
+    } else {
+      document.getElementById('fmId').value = '';
+      document.getElementById('dispatchForm').reset();
+      // Default date to today
+      document.getElementById('fmDate').value = new Date().toISOString().split('T')[0];
+    }
+
+    // Highlight priority chip
+    document.querySelectorAll('.p-chip').forEach(function(c) {
+      if (c.getAttribute('data-val') === selectedPriority) {
+        c.classList.add('selected', selectedPriority);
+      }
+    });
+
+    document.getElementById('formModal').classList.add('open');
+  }
+
+  window.closeFormModal = function() {
+    document.getElementById('formModal').classList.remove('open');
+  };
+
+  window.pickPriority = function(chip) {
+    document.querySelectorAll('.p-chip').forEach(function(c) {
+      c.classList.remove('selected', 'critical', 'high', 'standard', 'low');
+    });
+    selectedPriority = chip.getAttribute('data-val');
+    chip.classList.add('selected', selectedPriority);
+  };
+
+  // ── Save ──
+  window.handleSave = async function() {
+    var title = document.getElementById('fmTitle').value.trim();
+    if (!title) { alert('Job title is required.'); return; }
+
+    var btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    var id = document.getElementById('fmId').value;
+    var assignToId = document.getElementById('fmAssignTo').value;
+    var assignedTechName = '';
+    if (assignToId) {
+      var tech = profiles.find(function(p) { return p.id === assignToId; });
+      assignedTechName = tech ? (tech.full_name || tech.email) : '';
+    }
+
+    var row = {
+      title: title,
+      description: document.getElementById('fmDesc').value.trim(),
+      customer_name: document.getElementById('fmCustomer').value.trim(),
+      address: document.getElementById('fmAddress').value.trim(),
+      scheduled_date: document.getElementById('fmDate').value || null,
+      scheduled_time: document.getElementById('fmTime').value || null,
+      assigned_to: assignToId || null,
+      assigned_tech_name: assignedTechName,
+      report_type: document.getElementById('fmReportType').value || null,
+      priority: selectedPriority,
+      notes: document.getElementById('fmNotes').value.trim()
+    };
+
+    if (id) {
+      row.id = id;
+    } else {
+      row.created_by = currentUser ? currentUser.id : null;
+      row.status = 'pending';
+    }
+
+    var res = await saveDispatch(row);
+    btn.disabled = false; btn.textContent = id ? 'Save Changes' : 'Create Dispatch';
+
+    if (res.error) { alert('Save failed: ' + res.error.message); return; }
+    showToast(id ? 'Dispatch updated' : 'Dispatch created');
+    closeFormModal();
+    await loadDispatches();
+  };
+
+  // ── Delete ──
+  window.handleDelete = async function() {
+    var id = document.getElementById('fmId').value;
+    if (!id || !confirm('Delete this dispatch?')) return;
+    var res = await deleteDispatch(id);
+    if (res.error) { alert('Delete failed'); return; }
+    showToast('Dispatch deleted');
+    closeFormModal();
+    await loadDispatches();
+  };
+
+  // ── Events ──
+  document.getElementById('searchInput').addEventListener('input', renderAll);
+  document.getElementById('btnAdd').addEventListener('click', function() { openFormModal(null); });
+  ['formModal', 'detailModal'].forEach(function(id) {
+    document.getElementById(id).addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('open');
+    });
+  });
+
+  // ── Helpers ──
+  function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function formatDate(d) {
+    if (!d) return '';
+    var parts = d.split('-');
+    return parts[1] + '/' + parts[2] + '/' + parts[0];
+  }
+  function formatTime(t) {
+    if (!t) return '';
+    var parts = t.split(':');
+    var h = parseInt(parts[0]); var m = parts[1];
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + m + ' ' + ampm;
+  }
+  function reportTypeLabel(t) {
+    var labels = { 'service-call':'Service Call', 'startup':'Start-Up', 'site-survey':'Site Survey', 'pm-checklist':'PM Checklist', 'work-order':'Work Order', 'change-order':'Change Order' };
+    return labels[t] || t;
+  }
+  function showToast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');}, 2000); }
+
+})();
+</script>
+<script src="sw-register.js"></script>
+</body>
+</html>

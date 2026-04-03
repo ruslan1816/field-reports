@@ -735,4 +735,123 @@ async function uploadReportSignature(reportId, type, blob) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Dispatch helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch dispatches with optional filters.
+ * @param {object} filters - { assigned_to, status, priority, limit }
+ * @returns {Promise<{data: array|null, error: object|null}>}
+ */
+async function getDispatches(filters) {
+    filters = filters || {};
+    try {
+        var query = supabaseClient
+            .from('dispatches')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (filters.assigned_to) query = query.eq('assigned_to', filters.assigned_to);
+        if (filters.status)      query = query.eq('status', filters.status);
+        if (filters.priority)    query = query.eq('priority', filters.priority);
+        if (filters.created_by)  query = query.eq('created_by', filters.created_by);
+        if (filters.not_status)  query = query.neq('status', filters.not_status);
+
+        query = query.limit(filters.limit || 100);
+
+        var { data, error } = await query;
+        if (error) console.error('[supabase-config] getDispatches error:', error.message);
+        return { data: data, error: error };
+    } catch (err) {
+        console.error('[supabase-config] getDispatches exception:', err);
+        return { data: null, error: err };
+    }
+}
+
+/**
+ * Create or update a dispatch.
+ * @param {object} dispatchData
+ * @returns {Promise<{data: object|null, error: object|null}>}
+ */
+async function saveDispatch(dispatchData) {
+    try {
+        console.log('[supabase-config] saveDispatch:', dispatchData.title);
+
+        var { data, error } = await supabaseClient
+            .from('dispatches')
+            .upsert(dispatchData, { onConflict: 'id' })
+            .select()
+            .single();
+
+        if (error) console.error('[supabase-config] saveDispatch error:', error.message);
+        return { data: data, error: error };
+    } catch (err) {
+        console.error('[supabase-config] saveDispatch exception:', err);
+        return { data: null, error: err };
+    }
+}
+
+/**
+ * Update a dispatch's status.
+ * @param {string} dispatchId - UUID
+ * @param {string} status - pending/accepted/in-progress/completed/cancelled
+ * @returns {Promise<{data: object|null, error: object|null}>}
+ */
+async function updateDispatchStatus(dispatchId, status) {
+    try {
+        var updates = { status: status };
+        if (status === 'completed') updates.completed_at = new Date().toISOString();
+
+        var { data, error } = await supabaseClient
+            .from('dispatches')
+            .update(updates)
+            .eq('id', dispatchId)
+            .select()
+            .single();
+
+        if (error) console.error('[supabase-config] updateDispatchStatus error:', error.message);
+        return { data: data, error: error };
+    } catch (err) {
+        console.error('[supabase-config] updateDispatchStatus exception:', err);
+        return { data: null, error: err };
+    }
+}
+
+/**
+ * Delete a dispatch.
+ */
+async function deleteDispatch(dispatchId) {
+    try {
+        var { error } = await supabaseClient
+            .from('dispatches')
+            .delete()
+            .eq('id', dispatchId);
+        if (error) console.error('[supabase-config] deleteDispatch error:', error.message);
+        return { error: error };
+    } catch (err) {
+        console.error('[supabase-config] deleteDispatch exception:', err);
+        return { error: err };
+    }
+}
+
+/**
+ * Fetch all profiles (for tech assignment dropdown).
+ * @returns {Promise<{data: array|null, error: object|null}>}
+ */
+async function getAllProfiles() {
+    try {
+        var { data, error } = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, email, role, is_active')
+            .eq('is_active', true)
+            .order('full_name', { ascending: true });
+        if (error) console.error('[supabase-config] getAllProfiles error:', error.message);
+        return { data: data, error: error };
+    } catch (err) {
+        console.error('[supabase-config] getAllProfiles exception:', err);
+        return { data: null, error: err };
+    }
+}
+
 console.log('[supabase-config] All helper functions loaded.');

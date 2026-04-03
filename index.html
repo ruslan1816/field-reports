@@ -413,6 +413,13 @@
     </div>
   </div>
 
+  <!-- My Dispatches -->
+  <div class="section-title" id="dispatchSection" style="display:none">
+    <h2>My Jobs</h2>
+    <a href="dispatch.html">View All &rarr;</a>
+  </div>
+  <div class="activity-feed" id="dispatchFeed"></div>
+
   <!-- Recent Activity -->
   <div class="section-title">
     <h2>Recent Activity</h2>
@@ -651,6 +658,7 @@
       { type: 'work-order', icon: '\uD83D\uDCDD', title: 'Work Order', desc: 'Parts, labor, cost tracking', page: 'work-order.html' },
       { type: 'change-order', icon: '\uD83D\uDCCB', title: 'Change Order', desc: 'Field change requests & costs', page: 'change-order.html' },
       { type: 'rfi', icon: '\u2753', title: 'RFI', desc: 'Request for Information', page: 'rfi.html' },
+      { type: 'dispatch', icon: '\uD83D\uDCE8', title: 'Dispatch', desc: 'Job assignments & scheduling', page: 'dispatch.html' },
       { type: 'customers', icon: '\uD83C\uDFE2', title: 'Customers', desc: 'Shared customer database', page: 'customers.html' },
       { type: 'projects', icon: '\uD83D\uDCC1', title: 'Projects', desc: 'Shared docs & drawings', page: 'projects.html' },
       { type: 'management', icon: '\uD83D\uDCCA', title: 'Management', desc: 'All reports & status', page: 'management.html' }
@@ -733,10 +741,44 @@
     }
   }
 
+  // ===== DISPATCH INBOX =====
+  async function renderDispatches() {
+    if (typeof getDispatches !== 'function' || typeof getCurrentUser !== 'function') return;
+    try {
+      var userRes = await getCurrentUser();
+      if (!userRes.data) return;
+      var res = await getDispatches({ assigned_to: userRes.data.id, not_status: 'completed', limit: 5 });
+      var jobs = (res.data || []).filter(function(d) { return d.status !== 'cancelled'; });
+      if (jobs.length === 0) return;
+
+      document.getElementById('dispatchSection').style.display = 'flex';
+      var container = document.getElementById('dispatchFeed');
+      var priorityIcons = { critical: '\uD83D\uDD34', high: '\uD83D\uDFE0', standard: '\uD83D\uDD35', low: '\u26AA' };
+      var html = '';
+      jobs.forEach(function(d) {
+        html += '<a class="activity-item" href="dispatch.html">' +
+          '<div class="activity-icon">' + (priorityIcons[d.priority] || '\uD83D\uDD35') + '</div>' +
+          '<div class="activity-info">' +
+            '<div class="activity-title">' + escapeHtml(d.title) + '</div>' +
+            '<div class="activity-customer">' + escapeHtml(d.customer_name || d.address || 'No location') + '</div>' +
+          '</div>' +
+          '<div class="activity-meta">' +
+            (d.scheduled_date ? '<div class="activity-time">' + d.scheduled_date.substring(5).replace('-','/') + '</div>' : '') +
+            '<div class="activity-badge ' + (d.status === 'pending' ? 'draft' : 'completed') + '">' + (d.status || 'pending') + '</div>' +
+          '</div>' +
+        '</a>';
+      });
+      container.innerHTML = html;
+    } catch(e) {
+      console.error('[dashboard] dispatch load error:', e);
+    }
+  }
+
   // ===== INIT =====
   renderStats();
   renderActivity();
   renderReportGrid();
+  renderDispatches();
 
   // Delayed iOS check (wait for beforeinstallprompt to potentially fire)
   setTimeout(checkiOSInstall, 1000);
