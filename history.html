@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=35"></script>
 <script src="auth.js?v=35"></script>
+<script src="cloud-save.js?v=35"></script>
 <title>Report History — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="draft-utils.js"></script>
@@ -82,6 +83,7 @@
   <div class="status-tabs" id="statusTabs">
     <div class="tab active" data-filter="all">All <span class="count" id="countAll">0</span></div>
     <div class="tab" data-filter="draft">Drafts <span class="count" id="countDrafts">0</span></div>
+    <div class="tab" data-filter="submitted">Submitted <span class="count" id="countSubmitted">0</span></div>
     <div class="tab" data-filter="completed">Completed <span class="count" id="countCompleted">0</span></div>
   </div>
 
@@ -130,7 +132,9 @@ requireAuth().catch(function(){});
     'startup': 'Start-Up',
     'site-survey': 'Site Survey',
     'pm-checklist': 'PM Checklist',
-    'work-order': 'Work Order'
+    'work-order': 'Work Order',
+    'change-order': 'Change Order',
+    'rfi': 'RFI'
   };
 
   // --- Form page mapping ---
@@ -139,7 +143,9 @@ requireAuth().catch(function(){});
     'startup': 'startup-report.html',
     'site-survey': 'site-survey-report.html',
     'pm-checklist': 'pm-checklist.html',
-    'work-order': 'work-order.html'
+    'work-order': 'work-order.html',
+    'change-order': 'change-order.html',
+    'rfi': 'rfi.html'
   };
 
   var allReports = [];
@@ -164,6 +170,7 @@ requireAuth().catch(function(){});
         customer: d.customer || d.title || '',
         techName: d.techName || '',
         status: 'draft',
+        source: 'local',
         link: (d.formPage || FORM_MAP[d.type] || '') + '?draft=' + d.id,
         sortDate: new Date(d.lastModified || d.date || 0)
       });
@@ -176,6 +183,7 @@ requireAuth().catch(function(){});
         customer: h.customer || h.title || '',
         techName: h.techName || '',
         status: 'completed',
+        source: 'local',
         link: '',
         sortDate: new Date(h.completedAt || h.date || 0)
       });
@@ -185,12 +193,52 @@ requireAuth().catch(function(){});
     allReports.sort(function(a, b) { return b.sortDate - a.sortDate; });
   }
 
+  // --- Load cloud reports from Supabase and merge ---
+  async function loadCloudReports() {
+    try {
+      if (typeof getCloudReports !== 'function') return;
+      var result = await getCloudReports({ limit: 200 });
+      if (result.error || !result.data || result.data.length === 0) return;
+
+      // Build a set of existing report numbers to avoid duplicates
+      var existingNumbers = {};
+      allReports.forEach(function(r) {
+        if (r.reportNumber) existingNumbers[r.reportNumber] = true;
+      });
+
+      result.data.forEach(function(row) {
+        // Skip if we already have this report from localStorage
+        if (existingNumbers[row.report_number]) return;
+
+        allReports.push({
+          date: row.report_date || row.created_at || '',
+          type: row.report_type || '',
+          customer: row.customer_name || '',
+          techName: row.tech_name || '',
+          status: row.status === 'draft' ? 'draft' : 'completed',
+          source: 'cloud',
+          reportNumber: row.report_number,
+          link: '',
+          sortDate: new Date(row.created_at || row.report_date || 0)
+        });
+      });
+
+      // Re-sort after merge
+      allReports.sort(function(a, b) { return b.sortDate - a.sortDate; });
+      render();
+    } catch(err) {
+      console.error('[history] Cloud load error:', err);
+    }
+  }
+
   // --- Filter reports ---
   function getFiltered() {
     var filtered = allReports;
 
     if (activeFilter === 'draft') {
       filtered = filtered.filter(function(r) { return r.status === 'draft'; });
+    } else if (activeFilter === 'submitted') {
+      filtered = filtered.filter(function(r) { return r.status === 'submitted'; });
     } else if (activeFilter === 'completed') {
       filtered = filtered.filter(function(r) { return r.status === 'completed'; });
     }
@@ -226,9 +274,11 @@ requireAuth().catch(function(){});
 
     // Counts
     var draftCount = allReports.filter(function(r) { return r.status === 'draft'; }).length;
+    var submittedCount = allReports.filter(function(r) { return r.status === 'submitted'; }).length;
     var completedCount = allReports.filter(function(r) { return r.status === 'completed'; }).length;
     document.getElementById('countAll').textContent = allReports.length;
     document.getElementById('countDrafts').textContent = draftCount;
+    document.getElementById('countSubmitted').textContent = submittedCount;
     document.getElementById('countCompleted').textContent = completedCount;
 
     // Empty state
@@ -247,8 +297,8 @@ requireAuth().catch(function(){});
     var rowsHtml = '';
     filtered.forEach(function(r) {
       var typeLabel = TYPE_MAP[r.type] || r.type || '—';
-      var badgeClass = r.status === 'draft' ? 'badge-draft' : 'badge-completed';
-      var badgeText = r.status === 'draft' ? 'Draft' : 'Completed';
+      var badgeClass = r.status === 'draft' ? 'badge-draft' : r.status === 'submitted' ? 'badge-submitted' : 'badge-completed';
+      var badgeText = r.status === 'draft' ? 'Draft' : r.status === 'submitted' ? 'Submitted' : 'Completed';
       var linkAttr = r.status === 'draft' && r.link ? ' data-link="' + r.link + '"' : '';
       rowsHtml += '<tr' + linkAttr + '>' +
         '<td>' + fmtDate(r.date) + '</td>' +
@@ -264,8 +314,8 @@ requireAuth().catch(function(){});
     var cardsHtml = '';
     filtered.forEach(function(r) {
       var typeLabel = TYPE_MAP[r.type] || r.type || '—';
-      var badgeClass = r.status === 'draft' ? 'badge-draft' : 'badge-completed';
-      var badgeText = r.status === 'draft' ? 'Draft' : 'Completed';
+      var badgeClass = r.status === 'draft' ? 'badge-draft' : r.status === 'submitted' ? 'badge-submitted' : 'badge-completed';
+      var badgeText = r.status === 'draft' ? 'Draft' : r.status === 'submitted' ? 'Submitted' : 'Completed';
       var tag = r.status === 'draft' && r.link ? 'a' : 'div';
       var hrefAttr = r.status === 'draft' && r.link ? ' href="' + r.link + '"' : '';
       cardsHtml += '<' + tag + ' class="history-card"' + hrefAttr + '>' +
@@ -328,6 +378,8 @@ requireAuth().catch(function(){});
   loadProfile();
   loadReports();
   render();
+  // Fetch cloud reports in background and merge
+  loadCloudReports();
 })();
 
 // Service Worker

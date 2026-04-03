@@ -536,6 +536,11 @@ body {
   color: #3d6b1a;
 }
 
+.badge-submitted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 /* ---------- Stats Bar ---------- */
 .stats-bar {
   display: grid;

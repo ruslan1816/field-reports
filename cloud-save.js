@@ -1,0 +1,113 @@
+/**
+ * cloud-save.js — Northern Wolves AC Field Reporting PWA
+ * =======================================================
+ * Phase 3: Save reports to Supabase cloud database.
+ * Works alongside the existing EmailJS + Google Drive flow.
+ *
+ * Requires: supabase-config.js, auth.js (loaded before this file)
+ */
+
+(function() {
+  'use strict';
+
+  /**
+   * Save a completed report to Supabase.
+   * Called from generateAndEmailWithHistory() in each form.
+   *
+   * @param {string} formType - e.g. 'service-call', 'startup', 'pm-checklist', etc.
+   * @param {object} formData - the full collectData() object from the form
+   * @param {object} [options]
+   * @param {string} [options.reportId] - existing report ID from the form
+   * @param {string} [options.projectId] - linked project ID
+   * @returns {Promise<{data: object|null, error: object|null}>}
+   */
+  async function saveReportToCloud(formType, formData, options) {
+    options = options || {};
+
+    try {
+      // Get authenticated user
+      var session = await supabaseClient.auth.getSession();
+      var user = session.data && session.data.session ? session.data.session.user : null;
+      var techId = user ? user.id : null;
+
+      // Extract common fields from form data
+      var customerName = formData.custName || formData.customerName || formData.customer || '';
+      var techName = formData.techName || formData.fromName || formData.requestedBy || '';
+      var reportDate = formData.callDate || formData.suDate || formData.pmDate || formData.coDate ||
+                       formData.surveyDate || formData.rfiDate || new Date().toISOString().split('T')[0];
+      var address = formData.custAddress || formData.projAddress || formData.address || '';
+
+      // Build report row
+      var row = {
+        report_number: options.reportId || formData.reportId || generateReportNumber(formType),
+        report_type: formType,
+        report_date: reportDate,
+        customer_name: customerName,
+        tech_name: techName,
+        tech_id: techId,
+        form_data: formData,
+        status: 'submitted'
+      };
+
+      console.log('[cloud-save] Saving report:', row.report_number, row.report_type);
+
+      var result = await supabaseClient
+        .from('reports')
+        .insert(row)
+        .select()
+        .single();
+
+      if (result.error) {
+        console.error('[cloud-save] Save error:', result.error.message);
+        return { data: null, error: result.error };
+      }
+
+      console.log('[cloud-save] Report saved:', result.data.id);
+      return { data: result.data, error: null };
+
+    } catch (err) {
+      console.error('[cloud-save] Exception:', err);
+      // Don't block the email flow — cloud save is additive
+      return { data: null, error: err };
+    }
+  }
+
+  /**
+   * Fetch reports from Supabase for the history page.
+   *
+   * @param {object} [filters]
+   * @param {string} [filters.tech_id] - filter by technician
+   * @param {string} [filters.report_type] - filter by type
+   * @param {string} [filters.status] - filter by status
+   * @param {number} [filters.limit] - max results (default 100)
+   * @returns {Promise<{data: array|null, error: object|null}>}
+   */
+  async function getCloudReports(filters) {
+    filters = filters || {};
+    try {
+      var query = supabaseClient
+        .from('reports')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(filters.limit || 100);
+
+      if (filters.tech_id) query = query.eq('tech_id', filters.tech_id);
+      if (filters.report_type) query = query.eq('report_type', filters.report_type);
+      if (filters.status) query = query.eq('status', filters.status);
+
+      var result = await query;
+      if (result.error) {
+        console.error('[cloud-save] getCloudReports error:', result.error.message);
+      }
+      return { data: result.data || [], error: result.error || null };
+    } catch (err) {
+      console.error('[cloud-save] getCloudReports exception:', err);
+      return { data: [], error: err };
+    }
+  }
+
+  // Expose on window
+  window.saveReportToCloud = saveReportToCloud;
+  window.getCloudReports = getCloudReports;
+
+})();

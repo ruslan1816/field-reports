@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=35"></script>
 <script src="auth.js?v=35"></script>
+<script src="cloud-save.js?v=35"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Start-Up Report — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
@@ -695,6 +696,7 @@ function generateAndEmailWithHistory(){
       reportId: reportId
     });
   }
+  saveReportToCloud('startup', d, { reportId: reportId, projectId: projId });
   generateAndEmail();
 }
 async function generateAndEmail(){
