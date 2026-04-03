@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=35"></script>
+<script src="auth.js?v=35"></script>
+<script src="cloud-save.js?v=35"></script>
+<title>Management Dashboard — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { padding-bottom: 24px; }
+
+  .mgmt-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .header .profile-circle { margin-left: auto; }
+
+  /* Stats row */
+  .mgmt-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 10px;
+    padding: 16px;
+  }
+  @media (max-width: 500px) {
+    .mgmt-stats { grid-template-columns: 1fr 1fr; }
+  }
+  .mgmt-stat {
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 14px 12px;
+    text-align: center;
+  }
+  .mgmt-stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .mgmt-stat-value.total { color: var(--nw-primary); }
+  .mgmt-stat-value.submitted { color: #f59e0b; }
+  .mgmt-stat-value.reviewed { color: #8b5cf6; }
+  .mgmt-stat-value.approved { color: #10b981; }
+  .mgmt-stat-label {
+    font-size: 11px;
+    color: var(--nw-muted);
+    font-weight: 600;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Filters */
+  .mgmt-filters {
+    padding: 0 16px 12px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .mgmt-filters select, .mgmt-filters input {
+    padding: 8px 10px;
+    border: 1px solid var(--nw-border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--nw-card);
+    color: var(--nw-text);
+    font-family: inherit;
+  }
+  .mgmt-filters select { min-width: 130px; }
+  .mgmt-filters input[type="text"] { flex: 1; min-width: 140px; }
+  .mgmt-filters input[type="date"] { min-width: 130px; }
+
+  /* Table */
+  .mgmt-table-wrap {
+    padding: 0 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mgmt-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .mgmt-table th {
+    background: var(--nw-section);
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 700;
+    color: var(--nw-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .mgmt-table td {
+    padding: 10px 12px;
+    border-top: 1px solid var(--nw-border);
+    vertical-align: middle;
+  }
+  .mgmt-table tr:hover td { background: #f8fafc; }
+  .mgmt-table tr[data-id] { cursor: pointer; }
+
+  /* Mobile cards (hidden on desktop) */
+  .mgmt-cards { display: none; padding: 0 12px; }
+  .mgmt-card {
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .mgmt-card:hover { border-color: var(--nw-primary); }
+  .mgmt-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .mgmt-card-type { font-weight: 700; font-size: 14px; }
+  .mgmt-card-row { font-size: 13px; color: var(--nw-muted); margin-top: 2px; }
+  .mgmt-card-row span { color: var(--nw-text); }
+  .mgmt-card-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+
+  @media (max-width: 700px) {
+    .mgmt-table-wrap { display: none; }
+    .mgmt-cards { display: block; }
+  }
+
+  /* Status select in detail */
+  .status-select {
+    padding: 6px 10px;
+    border: 1px solid var(--nw-border);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    background: var(--nw-card);
+  }
+
+  /* Detail modal */
+  .detail-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 500;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 16px;
+    overflow-y: auto;
+  }
+  .detail-overlay.active { display: flex; }
+  .detail-panel {
+    background: #fff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 700px;
+    padding: 24px;
+    position: relative;
+  }
+  .detail-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--nw-muted);
+    line-height: 1;
+  }
+  .detail-close:hover { color: var(--nw-text); }
+  .detail-title {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .detail-subtitle {
+    font-size: 13px;
+    color: var(--nw-muted);
+    margin-bottom: 16px;
+  }
+  .detail-section {
+    margin-bottom: 16px;
+  }
+  .detail-section h4 {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--nw-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+  }
+  @media (max-width: 500px) {
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+  .detail-field {
+    font-size: 13px;
+  }
+  .detail-field-label {
+    font-weight: 600;
+    color: var(--nw-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  .detail-field-value {
+    color: var(--nw-text);
+    margin-top: 2px;
+    word-break: break-word;
+  }
+  .detail-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--nw-border);
+  }
+  .detail-actions label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--nw-muted);
+  }
+
+  .summary-text {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--nw-muted);
+  }
+
+  .loading-text {
+    text-align: center;
+    padding: 40px 16px;
+    color: var(--nw-muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="mgmt-wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Management Dashboard</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="mgmt-stats">
+    <div class="mgmt-stat">
+      <div class="mgmt-stat-value total" id="statTotal">-</div>
+      <div class="mgmt-stat-label">Total</div>
+    </div>
+    <div class="mgmt-stat">
+      <div class="mgmt-stat-value submitted" id="statSubmitted">-</div>
+      <div class="mgmt-stat-label">Submitted</div>
+    </div>
+    <div class="mgmt-stat">
+      <div class="mgmt-stat-value reviewed" id="statReviewed">-</div>
+      <div class="mgmt-stat-label">Reviewed</div>
+    </div>
+    <div class="mgmt-stat">
+      <div class="mgmt-stat-value approved" id="statApproved">-</div>
+      <div class="mgmt-stat-label">Approved</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="mgmt-filters">
+    <select id="filterType">
+      <option value="">All Types</option>
+      <option value="service-call">Service Call</option>
+      <option value="startup">Start-Up</option>
+      <option value="site-survey">Site Survey</option>
+      <option value="pm-checklist">PM Checklist</option>
+      <option value="work-order">Work Order</option>
+      <option value="change-order">Change Order</option>
+      <option value="rfi">RFI</option>
+    </select>
+    <select id="filterStatus">
+      <option value="">All Status</option>
+      <option value="submitted">Submitted</option>
+      <option value="reviewed">Reviewed</option>
+      <option value="approved">Approved</option>
+      <option value="rejected">Rejected</option>
+    </select>
+    <select id="filterTech">
+      <option value="">All Techs</option>
+    </select>
+    <input type="text" id="filterSearch" placeholder="Search customer...">
+  </div>
+
+  <!-- Desktop Table -->
+  <div class="mgmt-table-wrap">
+    <table class="mgmt-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Customer</th>
+          <th>Technician</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Mobile Cards -->
+  <div class="mgmt-cards" id="cardContainer"></div>
+
+  <!-- Loading / Empty -->
+  <div class="loading-text" id="loadingState">Loading reports...</div>
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="icon">📊</div>
+    <p>No reports found.</p>
+  </div>
+
+  <div class="summary-text" id="summaryText"></div>
+
+</div>
+
+<!-- Detail Modal -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-panel">
+    <button class="detail-close" id="detailClose">&times;</button>
+    <div class="detail-title" id="detailTitle"></div>
+    <div class="detail-subtitle" id="detailSubtitle"></div>
+    <div class="detail-section">
+      <h4>Report Info</h4>
+      <div class="detail-grid" id="detailInfo"></div>
+    </div>
+    <div class="detail-section" id="detailFormSection">
+      <h4>Form Data</h4>
+      <div class="detail-grid" id="detailFormData"></div>
+    </div>
+    <div class="detail-actions">
+      <label>Status:</label>
+      <select class="status-select" id="detailStatus">
+        <option value="submitted">Submitted</option>
+        <option value="reviewed">Reviewed</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <button class="btn btn-primary" id="btnSaveStatus" style="margin-left:auto; padding:8px 20px; font-size:13px;">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var TYPE_MAP = {
+    'service-call': 'Service Call',
+    'startup': 'Start-Up',
+    'site-survey': 'Site Survey',
+    'pm-checklist': 'PM Checklist',
+    'work-order': 'Work Order',
+    'change-order': 'Change Order',
+    'rfi': 'RFI'
+  };
+
+  var allReports = [];
+  var currentReport = null;
+
+  // --- Load all reports from Supabase ---
+  async function loadReports() {
+    try {
+      var { data, error } = await supabaseClient
+        .from('reports')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (error) {
+        console.error('[mgmt] Load error:', error.message);
+        document.getElementById('loadingState').textContent = 'Error loading reports.';
+        return;
+      }
+
+      allReports = data || [];
+      document.getElementById('loadingState').style.display = 'none';
+
+      // Populate tech filter
+      populateTechFilter();
+      renderStats();
+      render();
+    } catch(e) {
+      console.error('[mgmt] Exception:', e);
+      document.getElementById('loadingState').textContent = 'Error loading reports.';
+    }
+  }
+
+  function populateTechFilter() {
+    var techs = {};
+    allReports.forEach(function(r) {
+      if (r.tech_name) techs[r.tech_name] = true;
+    });
+    var select = document.getElementById('filterTech');
+    Object.keys(techs).sort().forEach(function(name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+  }
+
+  // --- Stats ---
+  function renderStats() {
+    var total = allReports.length;
+    var submitted = allReports.filter(function(r) { return r.status === 'submitted'; }).length;
+    var reviewed = allReports.filter(function(r) { return r.status === 'reviewed'; }).length;
+    var approved = allReports.filter(function(r) { return r.status === 'approved'; }).length;
+    document.getElementById('statTotal').textContent = total;
+    document.getElementById('statSubmitted').textContent = submitted;
+    document.getElementById('statReviewed').textContent = reviewed;
+    document.getElementById('statApproved').textContent = approved;
+  }
+
+  // --- Filters ---
+  function getFiltered() {
+    var typeFilter = document.getElementById('filterType').value;
+    var statusFilter = document.getElementById('filterStatus').value;
+    var techFilter = document.getElementById('filterTech').value;
+    var searchFilter = document.getElementById('filterSearch').value.trim().toLowerCase();
+
+    return allReports.filter(function(r) {
+      if (typeFilter && r.report_type !== typeFilter) return false;
+      if (statusFilter && r.status !== statusFilter) return false;
+      if (techFilter && r.tech_name !== techFilter) return false;
+      if (searchFilter && (r.customer_name || '').toLowerCase().indexOf(searchFilter) === -1) return false;
+      return true;
+    });
+  }
+
+  // --- Format helpers ---
+  function fmtDate(dateStr) {
+    if (!dateStr) return '—';
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function statusBadge(status) {
+    var cls = 'badge ';
+    if (status === 'submitted') cls += 'badge-submitted';
+    else if (status === 'reviewed') cls += 'badge-reviewed';
+    else if (status === 'approved') cls += 'badge-completed';
+    else if (status === 'rejected') cls += 'badge-rejected';
+    else cls += 'badge-draft';
+    var label = (status || 'unknown').charAt(0).toUpperCase() + (status || '').slice(1);
+    return '<span class="' + cls + '">' + label + '</span>';
+  }
+
+  // --- Render ---
+  function render() {
+    var filtered = getFiltered();
+    var tableBody = document.getElementById('tableBody');
+    var cardContainer = document.getElementById('cardContainer');
+    var emptyState = document.getElementById('emptyState');
+    var summaryText = document.getElementById('summaryText');
+
+    if (filtered.length === 0) {
+      tableBody.innerHTML = '';
+      cardContainer.innerHTML = '';
+      emptyState.style.display = '';
+      summaryText.textContent = '';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    summaryText.textContent = filtered.length === allReports.length
+      ? filtered.length + ' reports'
+      : 'Showing ' + filtered.length + ' of ' + allReports.length + ' reports';
+
+    // Desktop table
+    var rowsHtml = '';
+    filtered.forEach(function(r) {
+      var typeLabel = TYPE_MAP[r.report_type] || r.report_type || '—';
+      rowsHtml += '<tr data-id="' + r.id + '">' +
+        '<td>' + fmtDate(r.report_date) + '</td>' +
+        '<td>' + typeLabel + '</td>' +
+        '<td>' + (r.customer_name || '—') + '</td>' +
+        '<td>' + (r.tech_name || '—') + '</td>' +
+        '<td>' + statusBadge(r.status) + '</td>' +
+        '</tr>';
+    });
+    tableBody.innerHTML = rowsHtml;
+
+    // Mobile cards
+    var cardsHtml = '';
+    filtered.forEach(function(r) {
+      var typeLabel = TYPE_MAP[r.report_type] || r.report_type || '—';
+      cardsHtml += '<div class="mgmt-card" data-id="' + r.id + '">' +
+        '<div class="mgmt-card-top">' +
+          '<span class="mgmt-card-type">' + typeLabel + '</span>' +
+          statusBadge(r.status) +
+        '</div>' +
+        '<div class="mgmt-card-row">Customer: <span>' + (r.customer_name || '—') + '</span></div>' +
+        '<div class="mgmt-card-row">Tech: <span>' + (r.tech_name || '—') + '</span></div>' +
+        '<div class="mgmt-card-bottom">' +
+          '<span style="font-size:12px;color:var(--nw-muted)">' + fmtDate(r.report_date) + '</span>' +
+          '<span style="font-size:11px;color:var(--nw-muted)">' + (r.report_number || '') + '</span>' +
+        '</div>' +
+      '</div>';
+    });
+    cardContainer.innerHTML = cardsHtml;
+  }
+
+  // --- Detail modal ---
+  function openDetail(reportId) {
+    var report = allReports.find(function(r) { return r.id === reportId; });
+    if (!report) return;
+    currentReport = report;
+
+    var typeLabel = TYPE_MAP[report.report_type] || report.report_type || 'Report';
+    document.getElementById('detailTitle').textContent = typeLabel;
+    document.getElementById('detailSubtitle').textContent =
+      (report.report_number || '') + ' — ' + fmtDate(report.report_date);
+
+    // Info grid
+    var infoHtml = '';
+    infoHtml += field('Customer', report.customer_name);
+    infoHtml += field('Technician', report.tech_name);
+    infoHtml += field('Date', fmtDate(report.report_date));
+    infoHtml += field('Report #', report.report_number);
+    infoHtml += field('Status', report.status);
+    infoHtml += field('Submitted', fmtDate(report.created_at));
+    document.getElementById('detailInfo').innerHTML = infoHtml;
+
+    // Form data
+    var fd = report.form_data || {};
+    var fdHtml = '';
+    var skipKeys = ['reportId', 'custName', 'customerName', 'customer', 'techName', 'fromName',
+                    'callDate', 'suDate', 'pmDate', 'coDate', 'woDate', 'surveyDate', 'rfiDate'];
+    Object.keys(fd).forEach(function(key) {
+      if (skipKeys.indexOf(key) !== -1) return;
+      var val = fd[key];
+      if (val === null || val === undefined || val === '') return;
+      if (typeof val === 'object') {
+        // Show arrays/objects as JSON
+        val = JSON.stringify(val, null, 2);
+        if (val.length > 200) val = val.substring(0, 200) + '...';
+      }
+      fdHtml += field(humanize(key), String(val));
+    });
+    document.getElementById('detailFormData').innerHTML = fdHtml || '<p style="color:var(--nw-muted);font-size:13px;">No additional data</p>';
+
+    // Status select
+    document.getElementById('detailStatus').value = report.status || 'submitted';
+
+    document.getElementById('detailOverlay').classList.add('active');
+  }
+
+  function closeDetail() {
+    document.getElementById('detailOverlay').classList.remove('active');
+    currentReport = null;
+  }
+
+  function field(label, value) {
+    return '<div class="detail-field">' +
+      '<div class="detail-field-label">' + label + '</div>' +
+      '<div class="detail-field-value">' + (value || '—') + '</div>' +
+    '</div>';
+  }
+
+  function humanize(key) {
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/[_-]/g, ' ')
+      .replace(/^\w/, function(c) { return c.toUpperCase(); })
+      .trim();
+  }
+
+  // --- Save status ---
+  async function saveStatus() {
+    if (!currentReport) return;
+    var newStatus = document.getElementById('detailStatus').value;
+    if (newStatus === currentReport.status) {
+      closeDetail();
+      return;
+    }
+
+    try {
+      var { error } = await supabaseClient
+        .from('reports')
+        .update({ status: newStatus })
+        .eq('id', currentReport.id);
+
+      if (error) {
+        alert('Error updating status: ' + error.message);
+        return;
+      }
+
+      // Update local data
+      currentReport.status = newStatus;
+      renderStats();
+      render();
+      closeDetail();
+    } catch(e) {
+      alert('Error: ' + e.message);
+    }
+  }
+
+  // --- Profile circle ---
+  function loadProfile() {
+    try {
+      var profile = JSON.parse(localStorage.getItem('nw_tech_profile') || '{}');
+      var name = profile.name || profile.full_name || '';
+      if (name) {
+        var parts = name.trim().split(/\s+/);
+        var initials = parts.length >= 2
+          ? parts[0][0] + parts[parts.length - 1][0]
+          : name.substring(0, 2);
+        document.getElementById('profileCircle').textContent = initials.toUpperCase();
+      }
+    } catch(e) {}
+  }
+
+  // --- Events ---
+  // Filter changes
+  ['filterType', 'filterStatus', 'filterTech'].forEach(function(id) {
+    document.getElementById(id).addEventListener('change', render);
+  });
+
+  var searchTimer = null;
+  document.getElementById('filterSearch').addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(render, 300);
+  });
+
+  // Table row click
+  document.getElementById('tableBody').addEventListener('click', function(e) {
+    var row = e.target.closest('tr[data-id]');
+    if (row) openDetail(row.getAttribute('data-id'));
+  });
+
+  // Card click
+  document.getElementById('cardContainer').addEventListener('click', function(e) {
+    var card = e.target.closest('.mgmt-card[data-id]');
+    if (card) openDetail(card.getAttribute('data-id'));
+  });
+
+  // Detail close
+  document.getElementById('detailClose').addEventListener('click', closeDetail);
+  document.getElementById('detailOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeDetail();
+  });
+
+  // Save status
+  document.getElementById('btnSaveStatus').addEventListener('click', saveStatus);
+
+  // --- Init ---
+  loadProfile();
+  loadReports();
+})();
+</script>
+<script src="sw-register.js"></script>
+</body>
+</html>

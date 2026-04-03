@@ -541,6 +541,16 @@ body {
   color: #1e40af;
 }
 
+.badge-reviewed {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.badge-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 /* ---------- Stats Bar ---------- */
 .stats-bar {
   display: grid;
