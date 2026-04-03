@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=35"></script>
+<script src="auth.js?v=35"></script>
+<title>Customers — Northern Wolves AC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="styles.css">
+<style>
+body { padding-bottom: 40px; }
+
+.page-title {
+  font-size: 18px; font-weight: 800; color: #1a2332;
+}
+
+/* Search & Add bar */
+.top-bar {
+  display: flex; gap: 10px; padding: 16px;
+  max-width: 700px; margin: 0 auto;
+}
+.search-input {
+  flex: 1; padding: 10px 14px; border: 1px solid #e2e8f0;
+  border-radius: 8px; font-size: 14px; background: #fff;
+  font-family: inherit;
+}
+.search-input:focus { border-color: #0696D7; outline: none; }
+.btn-add {
+  background: #0696D7; color: #fff; border: none; border-radius: 8px;
+  padding: 10px 18px; font-size: 14px; font-weight: 700; cursor: pointer;
+  white-space: nowrap; font-family: inherit;
+}
+.btn-add:active { opacity: 0.85; }
+
+/* Stats */
+.cust-stats {
+  display: flex; gap: 10px; padding: 0 16px 12px;
+  max-width: 700px; margin: 0 auto;
+}
+.cust-stat {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 10px 14px; flex: 1; text-align: center;
+}
+.cust-stat-val { font-size: 22px; font-weight: 800; color: #0696D7; }
+.cust-stat-lbl { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+
+/* Customer list */
+.cust-list {
+  max-width: 700px; margin: 0 auto; padding: 0 16px;
+}
+.cust-card {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
+  transition: border-color 0.15s;
+}
+.cust-card:hover { border-color: #0696D7; }
+.cust-card-top {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.cust-card-name {
+  font-size: 15px; font-weight: 700; color: #1a2332;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cust-card-type {
+  font-size: 11px; font-weight: 600; color: #0696D7; background: #eff6ff;
+  padding: 2px 8px; border-radius: 10px; white-space: nowrap; flex-shrink: 0;
+}
+.cust-card-addr {
+  font-size: 13px; color: #64748b; margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cust-card-contact {
+  font-size: 12px; color: #94a3b8; margin-top: 2px;
+}
+.cust-empty {
+  text-align: center; padding: 40px 16px; color: #94a3b8; font-size: 14px;
+}
+
+/* Modal overlay */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 1000; align-items: flex-end; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet {
+  background: #fff; border-radius: 16px 16px 0 0; width: 100%;
+  max-width: 600px; max-height: 90vh; overflow-y: auto;
+  padding: 20px 16px 32px; animation: slideUp 0.2s ease-out;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-title { font-size: 18px; font-weight: 800; color: #1a2332; }
+.modal-close {
+  background: none; border: none; font-size: 24px; color: #94a3b8;
+  cursor: pointer; padding: 4px; line-height: 1;
+}
+.modal-close:hover { color: #ef4444; }
+
+/* Form fields inside modal */
+.form-field { margin-bottom: 14px; }
+.form-field label {
+  display: block; font-size: 12px; font-weight: 700; color: #475569;
+  margin-bottom: 4px; text-transform: uppercase; letter-spacing: .3px;
+}
+.form-field input, .form-field select, .form-field textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0;
+  border-radius: 8px; font-size: 14px; font-family: inherit; background: #f8fafc;
+  box-sizing: border-box;
+}
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+  border-color: #0696D7; background: #fff; outline: none;
+}
+.form-field textarea { resize: vertical; min-height: 60px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+
+.btn-save {
+  width: 100%; padding: 14px; background: #0696D7; color: #fff;
+  border: none; border-radius: 10px; font-size: 15px; font-weight: 700;
+  cursor: pointer; font-family: inherit; margin-top: 8px;
+}
+.btn-save:active { opacity: 0.85; }
+.btn-delete {
+  width: 100%; padding: 12px; background: #fee2e2; color: #991b1b;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 600;
+  cursor: pointer; font-family: inherit; margin-top: 8px;
+}
+.btn-delete:hover { background: #fecaca; }
+
+/* Detail view */
+.detail-section { margin-bottom: 16px; }
+.detail-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
+.detail-value { font-size: 14px; color: #1a2332; margin-top: 2px; }
+.detail-value a { color: #0696D7; text-decoration: none; }
+.detail-value a:hover { text-decoration: underline; }
+
+.detail-actions { display: flex; gap: 10px; margin-top: 16px; }
+.btn-edit {
+  flex: 1; padding: 12px; background: #eff6ff; color: #0696D7;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+.btn-edit:hover { background: #dbeafe; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1a2332; color: #fff; padding: 10px 20px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; z-index: 2000;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="index.html" class="back-btn">&larr;</a>
+  <img src="logo-header.png" alt="Northern Wolves AC" style="height:32px;width:auto;">
+  <div class="header-content">
+    <div class="subtitle">CUSTOMERS</div>
+  </div>
+</header>
+
+<div class="toast" id="toast"></div>
+
+<!-- Top bar: search + add -->
+<div class="top-bar">
+  <input type="text" class="search-input" id="searchInput" placeholder="Search customers..." autocomplete="off">
+  <button class="btn-add" id="btnAdd">+ Add</button>
+</div>
+
+<!-- Stats -->
+<div class="cust-stats">
+  <div class="cust-stat">
+    <div class="cust-stat-val" id="statTotal">0</div>
+    <div class="cust-stat-lbl">Total</div>
+  </div>
+  <div class="cust-stat">
+    <div class="cust-stat-val" id="statCommercial">0</div>
+    <div class="cust-stat-lbl">Commercial</div>
+  </div>
+  <div class="cust-stat">
+    <div class="cust-stat-val" id="statResidential">0</div>
+    <div class="cust-stat-lbl">Residential</div>
+  </div>
+</div>
+
+<!-- Customer list -->
+<div class="cust-list" id="custList"></div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="formModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title" id="formModalTitle">Add Customer</div>
+      <button class="modal-close" onclick="closeFormModal()">&times;</button>
+    </div>
+    <form id="custForm" onsubmit="return false;">
+      <input type="hidden" id="fmId" value="">
+      <div class="form-field">
+        <label>Customer / Company Name *</label>
+        <input type="text" id="fmName" required>
+      </div>
+      <div class="form-field">
+        <label>Address</label>
+        <input type="text" id="fmAddress" placeholder="Street address">
+      </div>
+      <div class="form-row-3">
+        <div class="form-field">
+          <label>City</label>
+          <input type="text" id="fmCity">
+        </div>
+        <div class="form-field">
+          <label>State</label>
+          <input type="text" id="fmState" maxlength="2" placeholder="NY">
+        </div>
+        <div class="form-field">
+          <label>ZIP</label>
+          <input type="text" id="fmZip" maxlength="10">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Contact Name</label>
+          <input type="text" id="fmContactName">
+        </div>
+        <div class="form-field">
+          <label>Contact Phone</label>
+          <input type="tel" id="fmContactPhone">
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Contact Email</label>
+        <input type="email" id="fmContactEmail">
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Building Type</label>
+          <select id="fmBuildingType">
+            <option value="">Select...</option>
+            <option value="commercial">Commercial</option>
+            <option value="residential">Residential</option>
+            <option value="industrial">Industrial</option>
+            <option value="retail">Retail</option>
+            <option value="restaurant">Restaurant</option>
+            <option value="medical">Medical</option>
+            <option value="education">Education</option>
+            <option value="government">Government</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>&nbsp;</label>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Notes</label>
+        <textarea id="fmNotes" rows="3" placeholder="Access codes, special instructions..."></textarea>
+      </div>
+      <button type="button" class="btn-save" id="btnSave" onclick="handleSave()">Save Customer</button>
+      <button type="button" class="btn-delete" id="btnDelete" style="display:none" onclick="handleDelete()">Delete Customer</button>
+    </form>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title" id="detailName">Customer</div>
+      <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+    </div>
+    <div id="detailBody"></div>
+    <div class="detail-actions">
+      <button class="btn-edit" id="btnEditFromDetail" onclick="editFromDetail()">Edit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function() {
+  try { await requireAuth(); } catch(e) { return; }
+
+  var customers = [];
+  var currentDetailId = null;
+
+  // ── Load customers from Supabase ──
+  async function loadCustomers() {
+    var result = await getCustomers();
+    if (result.error) {
+      console.error('[customers] Load error:', result.error);
+      showToast('Failed to load customers');
+      return;
+    }
+    customers = result.data || [];
+    renderAll();
+  }
+
+  function renderAll() {
+    var q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+    var filtered = customers;
+    if (q) {
+      filtered = customers.filter(function(c) {
+        var searchable = ((c.name || '') + ' ' + (c.address || '') + ' ' + (c.city || '') + ' ' +
+          (c.contact_name || '') + ' ' + (c.building_type || '')).toLowerCase();
+        return searchable.indexOf(q) !== -1;
+      });
+    }
+
+    // Stats (always from full list)
+    document.getElementById('statTotal').textContent = customers.length;
+    var commercial = 0, residential = 0;
+    customers.forEach(function(c) {
+      var bt = (c.building_type || '').toLowerCase();
+      if (bt === 'residential') residential++;
+      else if (bt) commercial++;
+    });
+    document.getElementById('statCommercial').textContent = commercial;
+    document.getElementById('statResidential').textContent = residential;
+
+    // List
+    var container = document.getElementById('custList');
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="cust-empty">' +
+        (q ? 'No customers match "' + escapeHtml(q) + '"' : 'No customers yet — tap + Add to create one') +
+        '</div>';
+      return;
+    }
+
+    var html = '';
+    filtered.forEach(function(c) {
+      var addr = buildAddr(c);
+      var typeLabel = c.building_type ? c.building_type.charAt(0).toUpperCase() + c.building_type.slice(1) : '';
+      html += '<div class="cust-card" data-id="' + c.id + '">' +
+        '<div class="cust-card-top">' +
+          '<div class="cust-card-name">' + escapeHtml(c.name || 'Unnamed') + '</div>' +
+          (typeLabel ? '<div class="cust-card-type">' + escapeHtml(typeLabel) + '</div>' : '') +
+        '</div>' +
+        (addr ? '<div class="cust-card-addr">' + escapeHtml(addr) + '</div>' : '') +
+        (c.contact_name ? '<div class="cust-card-contact">' + escapeHtml(c.contact_name) +
+          (c.contact_phone ? ' &middot; ' + escapeHtml(c.contact_phone) : '') + '</div>' : '') +
+        '</div>';
+    });
+    container.innerHTML = html;
+
+    // Attach click handlers
+    container.querySelectorAll('.cust-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        openDetail(card.getAttribute('data-id'));
+      });
+    });
+  }
+
+  function buildAddr(c) {
+    var parts = [];
+    if (c.address) parts.push(c.address);
+    if (c.city) parts.push(c.city);
+    if (c.state) parts.push(c.state);
+    if (c.zip) parts.push(c.zip);
+    return parts.join(', ');
+  }
+
+  // ── Detail modal ──
+  function openDetail(id) {
+    var c = customers.find(function(x) { return x.id === id; });
+    if (!c) return;
+    currentDetailId = id;
+    document.getElementById('detailName').textContent = c.name || 'Customer';
+
+    var html = '';
+    var fields = [
+      { label: 'Address', value: buildAddr(c) },
+      { label: 'Contact', value: c.contact_name },
+      { label: 'Phone', value: c.contact_phone, link: 'tel:' + c.contact_phone },
+      { label: 'Email', value: c.contact_email, link: 'mailto:' + c.contact_email },
+      { label: 'Building Type', value: c.building_type ? c.building_type.charAt(0).toUpperCase() + c.building_type.slice(1) : '' },
+      { label: 'Notes', value: c.notes }
+    ];
+    fields.forEach(function(f) {
+      if (!f.value) return;
+      html += '<div class="detail-section">' +
+        '<div class="detail-label">' + f.label + '</div>' +
+        '<div class="detail-value">' +
+        (f.link ? '<a href="' + f.link + '">' + escapeHtml(f.value) + '</a>' : escapeHtml(f.value)) +
+        '</div></div>';
+    });
+
+    document.getElementById('detailBody').innerHTML = html;
+    document.getElementById('detailModal').classList.add('open');
+  }
+
+  window.closeDetailModal = function() {
+    document.getElementById('detailModal').classList.remove('open');
+    currentDetailId = null;
+  };
+
+  window.editFromDetail = function() {
+    closeDetailModal();
+    openFormModal(currentDetailId);
+  };
+
+  // ── Form modal (add/edit) ──
+  function openFormModal(id) {
+    var isEdit = !!id;
+    document.getElementById('formModalTitle').textContent = isEdit ? 'Edit Customer' : 'Add Customer';
+    document.getElementById('btnDelete').style.display = isEdit ? 'block' : 'none';
+
+    if (isEdit) {
+      var c = customers.find(function(x) { return x.id === id; });
+      if (!c) return;
+      document.getElementById('fmId').value = c.id;
+      document.getElementById('fmName').value = c.name || '';
+      document.getElementById('fmAddress').value = c.address || '';
+      document.getElementById('fmCity').value = c.city || '';
+      document.getElementById('fmState').value = c.state || '';
+      document.getElementById('fmZip').value = c.zip || '';
+      document.getElementById('fmContactName').value = c.contact_name || '';
+      document.getElementById('fmContactPhone').value = c.contact_phone || '';
+      document.getElementById('fmContactEmail').value = c.contact_email || '';
+      document.getElementById('fmBuildingType').value = c.building_type || '';
+      document.getElementById('fmNotes').value = c.notes || '';
+    } else {
+      document.getElementById('fmId').value = '';
+      document.getElementById('custForm').reset();
+    }
+
+    document.getElementById('formModal').classList.add('open');
+  }
+
+  window.closeFormModal = function() {
+    document.getElementById('formModal').classList.remove('open');
+  };
+
+  // ── Save ──
+  window.handleSave = async function() {
+    var name = document.getElementById('fmName').value.trim();
+    if (!name) { alert('Customer name is required.'); return; }
+
+    var btn = document.getElementById('btnSave');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    var id = document.getElementById('fmId').value;
+    var row = {
+      name: name,
+      address: document.getElementById('fmAddress').value.trim(),
+      city: document.getElementById('fmCity').value.trim(),
+      state: document.getElementById('fmState').value.trim().toUpperCase(),
+      zip: document.getElementById('fmZip').value.trim(),
+      contact_name: document.getElementById('fmContactName').value.trim(),
+      contact_phone: document.getElementById('fmContactPhone').value.trim(),
+      contact_email: document.getElementById('fmContactEmail').value.trim(),
+      building_type: document.getElementById('fmBuildingType').value,
+      notes: document.getElementById('fmNotes').value.trim()
+    };
+
+    if (id) row.id = id;
+
+    var result = await saveCustomer(row);
+    btn.disabled = false;
+    btn.textContent = 'Save Customer';
+
+    if (result.error) {
+      alert('Save failed: ' + result.error.message);
+      return;
+    }
+
+    showToast(id ? 'Customer updated' : 'Customer added');
+    closeFormModal();
+    await loadCustomers();
+  };
+
+  // ── Delete ──
+  window.handleDelete = async function() {
+    var id = document.getElementById('fmId').value;
+    if (!id) return;
+    if (!confirm('Delete this customer? This cannot be undone.')) return;
+
+    try {
+      var { error } = await supabaseClient.from('customers').delete().eq('id', id);
+      if (error) { alert('Delete failed: ' + error.message); return; }
+      showToast('Customer deleted');
+      closeFormModal();
+      await loadCustomers();
+    } catch (e) {
+      alert('Delete failed: ' + e.message);
+    }
+  };
+
+  // ── Helpers ──
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 2000);
+  }
+
+  // ── Events ──
+  document.getElementById('searchInput').addEventListener('input', renderAll);
+  document.getElementById('btnAdd').addEventListener('click', function() { openFormModal(null); });
+
+  // Close modals on overlay click
+  ['formModal', 'detailModal'].forEach(function(id) {
+    document.getElementById(id).addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('open');
+    });
+  });
+
+  // ── Init ──
+  await loadCustomers();
+
+})();
+</script>
+<script src="sw-register.js"></script>
+</body>
+</html>

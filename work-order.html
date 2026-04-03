@@ -15,6 +15,7 @@
 <title>Work Order — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
 <script src="project-utils.js?v=35"></script>
+<script src="customer-utils.js?v=35"></script>
 <script src="equipment-utils.js?v=35"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=17"></script>
@@ -196,6 +197,9 @@ autoFillTechName();
 // Project Picker
 if (typeof injectProjectPicker === 'function') {
   injectProjectPicker('projectPickerContainer', { autoFillCustomer: true, customerFieldId: 'custName', addressFieldId: 'address' });
+}
+if (typeof initCustomerAutocomplete === 'function') {
+  initCustomerAutocomplete({ nameFieldId: 'custName', addressFieldId: 'address' });
 }
 if (typeof injectEquipmentList === 'function') {
   injectEquipmentList('equipmentContainer', { showRefrigerant: false, showLocation: true });
