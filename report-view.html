@@ -244,6 +244,23 @@ body{font-family:'Inter',sans-serif;background:#f0f2f5;color:#1a2332;-webkit-fon
 (async function() {
   'use strict';
 
+  // ── Type map ──
+  var TYPE_MAP = {
+    'service-call': 'Service Call Report',
+    'startup': 'Start-Up Report',
+    'site-survey': 'Site Survey Report',
+    'pm-checklist': 'Maintenance Report',
+    'work-order': 'Work Order',
+    'change-order': 'Change Order',
+    'rfi': 'Request for Information'
+  };
+
+  // ── Show error ──
+  function showError() {
+    document.getElementById('loadingView').style.display = 'none';
+    document.getElementById('errorView').style.display = 'block';
+  }
+
   // ── Parse token from URL ──
   var params = new URLSearchParams(window.location.search);
   var token = params.get('token');
@@ -271,23 +288,6 @@ body{font-family:'Inter',sans-serif;background:#f0f2f5;color:#1a2332;-webkit-fon
     console.error('[report-view] Error:', err);
     showError();
   }
-
-  // ── Show error ──
-  function showError() {
-    document.getElementById('loadingView').style.display = 'none';
-    document.getElementById('errorView').style.display = 'block';
-  }
-
-  // ── Type map ──
-  var TYPE_MAP = {
-    'service-call': 'Service Call Report',
-    'startup': 'Start-Up Report',
-    'site-survey': 'Site Survey Report',
-    'pm-checklist': 'Maintenance Report',
-    'work-order': 'Work Order',
-    'change-order': 'Change Order',
-    'rfi': 'Request for Information'
-  };
 
   // ── Main render ──
   function renderReport(report) {
