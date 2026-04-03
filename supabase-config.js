@@ -749,8 +749,7 @@ async function getDispatches(filters) {
     try {
         var query = supabaseClient
             .from('dispatches')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select('*');
 
         if (filters.assigned_to) query = query.eq('assigned_to', filters.assigned_to);
         if (filters.status)      query = query.eq('status', filters.status);
