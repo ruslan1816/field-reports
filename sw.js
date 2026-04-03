@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v39';
+const CACHE_NAME = 'nw-field-v40';
 const ASSETS = [
   './',
   './index.html',
@@ -23,6 +23,7 @@ const ASSETS = [
   './project-utils.js',
   './equipment-utils.js',
   './cloud-save.js',
+  './sw-register.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -46,6 +47,13 @@ self.addEventListener('activate', event => {
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
+});
+
+// Message — allow page to trigger skipWaiting
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Fetch — serve from cache first, fall back to network

@@ -731,11 +731,6 @@
     }
   }
 
-  // ===== SERVICE WORKER =====
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(function() {});
-  }
-
   // ===== INIT =====
   renderStats();
   renderActivity();
@@ -745,5 +740,6 @@
   setTimeout(checkiOSInstall, 1000);
 })();
 </script>
+<script src="sw-register.js"></script>
 </body>
 </html>

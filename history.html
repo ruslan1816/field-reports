@@ -381,11 +381,7 @@ requireAuth().catch(function(){});
   // Fetch cloud reports in background and merge
   loadCloudReports();
 })();
-
-// Service Worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(function() {});
-}
 </script>
+<script src="sw-register.js"></script>
 </body>
 </html>
