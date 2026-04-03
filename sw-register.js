@@ -24,10 +24,10 @@
 
   // Register and check for updates
   navigator.serviceWorker.register('sw.js').then(function(reg) {
-    // Check for updates every 60 seconds while page is open
+    // Check for updates every 10 seconds while page is open
     setInterval(function() {
       reg.update().catch(function() {});
-    }, 60000);
+    }, 10000);
 
     // If there's a waiting SW (installed but not yet active), activate it
     if (reg.waiting) {
