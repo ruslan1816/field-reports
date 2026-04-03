@@ -477,9 +477,9 @@ function generatePDF(){
 
   // Cooling readings — per equipment
   const coolAllReadings = collectStartupReadings('coolReadingsContainer');
-  const equipArr = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  const readingsEquipArr = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
   Object.keys(coolAllReadings).forEach(idx => {
-    const eqLabel = equipArr[idx] ? (equipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
+    const eqLabel = readingsEquipArr[idx] ? (readingsEquipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
     const coolReadings = COOL_PARAMS.map(p => [
       p.label,
       coolAllReadings[idx][p.key + '_reading'] || '',
@@ -503,7 +503,7 @@ function generatePDF(){
   // Heating readings — per equipment
   const heatAllReadings = collectStartupReadings('heatReadingsContainer');
   Object.keys(heatAllReadings).forEach(idx => {
-    const eqLabel = equipArr[idx] ? (equipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
+    const eqLabel = readingsEquipArr[idx] ? (readingsEquipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
     const heatReadings = HEAT_PARAMS.map(p => [
       p.label,
       heatAllReadings[idx][p.key + '_reading'] || '',

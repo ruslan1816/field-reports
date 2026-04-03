@@ -818,9 +818,9 @@ function generatePDF() {
 
   // READINGS TABLE — per equipment
   const allReadings = d.readings;
-  const equipArr = d.equipment || [];
+  const readingsEquipArr = d.equipment || [];
   Object.keys(allReadings).forEach((idx) => {
-    const eqLabel = equipArr[idx] ? (equipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
+    const eqLabel = readingsEquipArr[idx] ? (readingsEquipArr[idx].type || 'Equipment #' + (parseInt(idx)+1)) : 'Equipment #' + (parseInt(idx)+1);
     const readingsData = READING_PARAMS.map(p => [
       p.label,
       allReadings[idx][p.key + '_before'] || '',
