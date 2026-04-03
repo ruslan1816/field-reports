@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v56';
+const CACHE_NAME = 'nw-field-v57';
 const ASSETS = [
   './',
   './index.html',
@@ -37,6 +37,16 @@ const ASSETS = [
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'
 ];
 
+// CDN URLs — these rarely change, safe to cache-first
+const CDN_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com'];
+
+function isCDN(url) {
+  try {
+    var host = new URL(url).hostname;
+    return CDN_HOSTS.some(function(h) { return host === h; });
+  } catch(e) { return false; }
+}
+
 // Install — cache all assets
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -62,21 +72,42 @@ self.addEventListener('message', event => {
   }
 });
 
-// Fetch — serve from cache first, fall back to network
+// Fetch strategy:
+//   CDN assets → cache-first (they never change)
+//   App files  → network-first, fall back to cache (always get latest)
 self.addEventListener('fetch', event => {
+  var request = event.request;
+  if (request.method !== 'GET') return;
+
+  // CDN assets: cache-first
+  if (isCDN(request.url)) {
+    event.respondWith(
+      caches.match(request).then(cached => {
+        return cached || fetch(request).then(response => {
+          if (response.ok) {
+            var clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // App files: network-first, cache fallback (for offline)
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        // Cache successful GET responses
-        if (response.ok && event.request.method === 'GET') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => {
-        // Offline fallback for navigation
-        if (event.request.mode === 'navigate') {
+    fetch(request).then(response => {
+      if (response.ok) {
+        var clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+      }
+      return response;
+    }).catch(() => {
+      return caches.match(request).then(cached => {
+        if (cached) return cached;
+        // Offline navigation fallback
+        if (request.mode === 'navigate') {
           return caches.match('./index.html');
         }
       });
