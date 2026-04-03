@@ -9,6 +9,9 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=35"></script>
+<script src="auth.js?v=35"></script>
 <title>Report History — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="draft-utils.js"></script>
@@ -117,6 +120,7 @@
 </div>
 
 <script>
+requireAuth().catch(function(){});
 (function() {
   'use strict';
 

@@ -11,6 +11,9 @@
   <meta name="theme-color" content="#0696D7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase-config.js?v=35"></script>
+  <script src="auth.js?v=35"></script>
   <title>Northern Wolves AC — Field Reports</title>
   <style>
     /* ===== PAGE-SPECIFIC STYLES ===== */
@@ -353,70 +356,15 @@
       font-size: 11px;
     }
 
-    /* Profile Modal */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 500;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .modal-overlay.visible {
-      display: flex;
-    }
-    .modal {
-      background: #fff;
-      border-radius: 16px;
-      padding: 32px 24px;
-      max-width: 360px;
-      width: 100%;
-      text-align: center;
-    }
-    .modal h2 {
-      font-size: 20px;
-      font-weight: 800;
-      color: #1a2332;
-      margin-bottom: 6px;
-    }
-    .modal p {
-      font-size: 14px;
-      color: #64748b;
-      margin-bottom: 20px;
-    }
-    .modal input {
-      width: 100%;
-      padding: 12px 14px;
-      border: 2px solid #e2e8f0;
-      border-radius: 10px;
-      font-size: 16px;
-      outline: none;
-      margin-bottom: 16px;
-      transition: border-color 0.15s;
-    }
-    .modal input:focus {
-      border-color: #0696D7;
-    }
-    .modal .btn-save {
-      width: 100%;
-      padding: 12px;
-      background: #0696D7;
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .modal .btn-save:active {
-      opacity: 0.85;
-    }
-    .modal .btn-save:disabled {
-      background: #cbd5e1;
-      cursor: not-allowed;
-    }
+    /* Profile Dropdown */
+    .profile-dropdown{display:none;position:absolute;top:100%;right:0;margin-top:8px;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.15);padding:16px;min-width:220px;z-index:500}
+    .profile-dropdown.show{display:block}
+    .profile-dd-name{font-size:15px;font-weight:700;color:#1a2332}
+    .profile-dd-role{font-size:11px;font-weight:600;color:#0696D7;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+    .profile-dd-email{font-size:12px;color:#94a3b8;margin-top:4px}
+    .profile-dd-divider{height:1px;background:#e2e8f0;margin:12px 0}
+    .profile-dd-logout{width:100%;padding:10px;background:#fee2e2;color:#991b1b;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+    .profile-dd-logout:hover{background:#fecaca}
   </style>
 </head>
 <body style="background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;margin:0;min-height:100vh">
@@ -426,8 +374,15 @@
     <div class="dash-header-left">
       <img class="dash-header-logo" src="logo-header.png" alt="Northern Wolves Air Conditioning">
     </div>
-    <div class="profile-circle empty" id="profileCircle" title="Profile">
-      <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+    <div style="position:relative">
+      <div class="profile-circle" id="profileCircle" title="Profile" onclick="document.getElementById('profileDropdown').classList.toggle('show')">?</div>
+      <div class="profile-dropdown" id="profileDropdown">
+        <div class="profile-dd-name" id="profileName">Loading...</div>
+        <div class="profile-dd-role" id="profileRole">tech</div>
+        <div class="profile-dd-email" id="profileEmail"></div>
+        <div class="profile-dd-divider"></div>
+        <button class="profile-dd-logout" onclick="logout()">Log Out</button>
+      </div>
     </div>
   </header>
 
@@ -474,18 +429,20 @@
   <!-- Footer -->
   <div class="dash-footer">Northern Wolves Air Conditioning &mdash; NY &amp; NJ</div>
 
-  <!-- Tech Profile Modal -->
-  <div class="modal-overlay" id="profileModal">
-    <div class="modal">
-      <h2>Welcome to NW Field Reports</h2>
-      <p>Enter your name to get started</p>
-      <input type="text" id="profileNameInput" placeholder="Your full name" autocomplete="name">
-      <button class="btn-save" id="profileSaveBtn" disabled>Save</button>
-    </div>
-  </div>
-
 <script>
-(function() {
+(async function() {
+  // ===== AUTH GUARD =====
+  try { await requireAuth(); } catch(e) { return; }
+  await initAuthUI();
+
+  // Close profile dropdown on outside click
+  document.addEventListener('click', function(e) {
+    var dd = document.getElementById('profileDropdown');
+    var circle = document.getElementById('profileCircle');
+    if (dd && !dd.contains(e.target) && e.target !== circle) {
+      dd.classList.remove('show');
+    }
+  });
   // ===== CONSTANTS =====
   var DRAFTS_KEY = 'nw_drafts';
   var HISTORY_KEY = 'nw_history';
@@ -725,64 +682,7 @@
     container.innerHTML = html;
   }
 
-  // ===== PROFILE =====
-  function updateProfileCircle() {
-    var profile = getProfile();
-    var el = document.getElementById('profileCircle');
-    if (profile && profile.initials) {
-      el.className = 'profile-circle';
-      el.innerHTML = escapeHtml(profile.initials);
-      el.title = profile.name || 'Profile';
-    } else {
-      el.className = 'profile-circle empty';
-      el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>';
-    }
-  }
-
-  function checkProfile() {
-    var profile = getProfile();
-    if (!profile) {
-      document.getElementById('profileModal').classList.add('visible');
-      var input = document.getElementById('profileNameInput');
-      setTimeout(function() { input.focus(); }, 300);
-    }
-  }
-
-  function parseInitials(name) {
-    var parts = name.trim().split(/\s+/);
-    if (parts.length === 0) return '';
-    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-  }
-
-  var profileInput = document.getElementById('profileNameInput');
-  var profileSaveBtn = document.getElementById('profileSaveBtn');
-
-  profileInput.addEventListener('input', function() {
-    profileSaveBtn.disabled = profileInput.value.trim().length === 0;
-  });
-
-  profileInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && profileInput.value.trim().length > 0) {
-      saveProfile();
-    }
-  });
-
-  profileSaveBtn.addEventListener('click', saveProfile);
-
-  function saveProfile() {
-    var name = profileInput.value.trim();
-    if (!name) return;
-    var initials = parseInitials(name);
-    var profile = {
-      name: name,
-      initials: initials,
-      createdAt: new Date().toISOString()
-    };
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-    document.getElementById('profileModal').classList.remove('visible');
-    updateProfileCircle();
-  }
+  // ===== PROFILE (handled by auth.js) =====
 
   // ===== INSTALL PROMPT =====
   var deferredPrompt = null;
@@ -837,11 +737,9 @@
   }
 
   // ===== INIT =====
-  updateProfileCircle();
   renderStats();
   renderActivity();
   renderReportGrid();
-  checkProfile();
 
   // Delayed iOS check (wait for beforeinstallprompt to potentially fire)
   setTimeout(checkiOSInstall, 1000);

@@ -1,7 +1,8 @@
-const CACHE_NAME = 'nw-field-v35';
+const CACHE_NAME = 'nw-field-v36';
 const ASSETS = [
   './',
   './index.html',
+  './login.html',
   './history.html',
   './service-call-report.html',
   './startup-report.html',
@@ -17,6 +18,7 @@ const ASSETS = [
   './logo-header.png',
   './draft-utils.js',
   './email-utils.js',
+  './auth.js',
   './supabase-config.js',
   './project-utils.js',
   './equipment-utils.js',

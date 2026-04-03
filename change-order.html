@@ -7,6 +7,9 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=35"></script>
+<script src="auth.js?v=35"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Change Order — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
@@ -177,14 +180,14 @@ body{padding-bottom:100px}
 </div>
 
 <script>
+requireAuth().catch(function(){});
 // ========== DRAFT INITIALIZATION ==========
 const draftId = initializeDraftForm('change-order', 'change-order.html');
 const SAVE_KEY_DRAFT = 'nw_draft_' + draftId;
 const reportId='CO-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
 document.getElementById('reportId').textContent=reportId;
 document.getElementById('coDate').value=new Date().toISOString().slice(0,10);
-const profile = JSON.parse(localStorage.getItem('nw_tech_profile') || 'null');
-if (profile && profile.name) { const f = document.getElementById('requestedBy'); if (f && !f.value) f.value = profile.name; }
+autoFillTechName();
 
 // Project Picker
 if (typeof injectProjectPicker === 'function') {

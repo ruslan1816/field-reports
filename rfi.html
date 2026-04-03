@@ -7,6 +7,9 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=35"></script>
+<script src="auth.js?v=35"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>RFI — Northern Wolves AC</title>
 <script src="draft-utils.js"></script>
@@ -126,6 +129,7 @@ body{padding-bottom:100px}
 </div>
 
 <script>
+requireAuth().catch(function(){});
 // ========== DRAFT INITIALIZATION ==========
 const draftId = initializeDraftForm('rfi', 'rfi.html');
 const SAVE_KEY_DRAFT = 'nw_draft_' + draftId;
@@ -133,8 +137,7 @@ const reportId='RFI-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+
 document.getElementById('reportId').textContent=reportId;
 document.getElementById('rfiDate').value=new Date().toISOString().slice(0,10);
 document.getElementById('fromCompany').value='Northern Wolves Inc';
-const profile = JSON.parse(localStorage.getItem('nw_tech_profile') || 'null');
-if (profile && profile.name) { const f = document.getElementById('fromName'); if (f && !f.value) f.value = profile.name; }
+autoFillTechName();
 
 // Project Picker
 if (typeof injectProjectPicker === 'function') {

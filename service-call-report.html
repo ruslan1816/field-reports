@@ -8,6 +8,9 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=35"></script>
+<script src="auth.js?v=35"></script>
 <title>Service Call Report — Northern Wolves AC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="styles.css">
@@ -331,16 +334,13 @@ body {
 </div>
 
 <script>
+requireAuth().catch(function(){});
 // ========== DRAFT INITIALIZATION ==========
 const draftId = initializeDraftForm('service-call', 'service-call-report.html');
 const SAVE_KEY_DRAFT = 'nw_draft_' + draftId;
 
 // Auto-fill tech name from profile
-const profile = JSON.parse(localStorage.getItem('nw_tech_profile') || 'null');
-if (profile && profile.name) {
-  const techField = document.getElementById('techName');
-  if (techField && !techField.value) techField.value = profile.name;
-}
+autoFillTechName();
 
 // Project Picker
 if (typeof injectProjectPicker === 'function') {
