@@ -420,9 +420,16 @@
     var customer = (custInput ? custInput.value : '').trim();
     var address = (addrInput ? addrInput.value : '').trim();
 
-    // Create new project object
+    // Create new project object (UUID for Supabase compat)
+    var projectId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+
     var newProject = {
-      id: 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+      id: projectId,
       name: name,
       customer: customer,
       address: address,
@@ -430,7 +437,7 @@
       state: '',
       zip: '',
       projectType: '',
-      status: 'Active',
+      status: 'active',
       notes: '',
       createdAt: new Date().toISOString(),
       documents: []
@@ -445,6 +452,17 @@
       console.error('[project-utils] Failed to save quick-add project:', e);
       alert('Failed to save project. Please try again.');
       return;
+    }
+
+    // Sync to cloud (fire-and-forget)
+    if (typeof saveProject === 'function' && typeof supabaseClient !== 'undefined') {
+      saveProject({
+        id: newProject.id,
+        project_name: newProject.name,
+        address: newProject.address || '',
+        notes: customer ? 'Customer: ' + customer : '',
+        status: 'active'
+      }).catch(function(e) { console.error('[project-utils] Cloud sync error:', e); });
     }
 
     // Hide quick-add form and clear inputs

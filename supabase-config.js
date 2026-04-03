@@ -563,6 +563,74 @@ async function saveProject(projectData) {
  * @param {File}   file      - browser File object
  * @returns {Promise<{data: object|null, error: object|null}>}
  */
+/**
+ * Delete a project.
+ */
+async function deleteCloudProject(projectId) {
+    try {
+        var { error } = await supabaseClient
+            .from('projects')
+            .delete()
+            .eq('id', projectId);
+        if (error) console.error('[supabase-config] deleteCloudProject error:', error.message);
+        return { error: error };
+    } catch (err) {
+        console.error('[supabase-config] deleteCloudProject exception:', err);
+        return { error: err };
+    }
+}
+
+/**
+ * Fetch documents for a project.
+ */
+async function getProjectDocuments(projectId) {
+    try {
+        var { data, error } = await supabaseClient
+            .from('project_documents')
+            .select('*')
+            .eq('project_id', projectId)
+            .order('created_at', { ascending: false });
+        if (error) console.error('[supabase-config] getProjectDocuments error:', error.message);
+        return { data: data || [], error: error };
+    } catch (err) {
+        console.error('[supabase-config] getProjectDocuments exception:', err);
+        return { data: [], error: err };
+    }
+}
+
+/**
+ * Delete a project document (record + storage file).
+ */
+async function deleteProjectDocument(docId, storagePath) {
+    try {
+        if (storagePath) {
+            await supabaseClient.storage.from('project-documents').remove([storagePath]);
+        }
+        var { error } = await supabaseClient
+            .from('project_documents')
+            .delete()
+            .eq('id', docId);
+        if (error) console.error('[supabase-config] deleteProjectDocument error:', error.message);
+        return { error: error };
+    } catch (err) {
+        console.error('[supabase-config] deleteProjectDocument exception:', err);
+        return { error: err };
+    }
+}
+
+function guessDocType(filename) {
+    var name = (filename || '').toLowerCase();
+    if (name.match(/drawing|dwg|cad|plan/)) return 'drawing';
+    if (name.match(/submittal/)) return 'submittal';
+    if (name.match(/manual|iom/)) return 'manual';
+    if (name.match(/warranty/)) return 'warranty';
+    if (name.match(/report/)) return 'report';
+    if (name.match(/spec/)) return 'specification';
+    if (name.match(/contract|proposal/)) return 'contract';
+    if (name.match(/photo|img|jpg|jpeg|png/)) return 'photo';
+    return 'other';
+}
+
 async function uploadProjectDocument(projectId, file) {
     try {
         var filePath = projectId + '/' + file.name;
@@ -592,17 +660,19 @@ async function uploadProjectDocument(projectId, file) {
         var { data, error } = await supabaseClient
             .from('project_documents')
             .insert({
-                project_id: projectId,
-                file_name:  file.name,
-                file_path:  filePath,
-                url:        urlData.publicUrl,
-                file_size:  file.size,
-                mime_type:  file.type
+                project_id:    projectId,
+                title:         file.name,
+                file_name:     file.name,
+                storage_path:  filePath,
+                file_size:     file.size,
+                mime_type:     file.type,
+                document_type: guessDocType(file.name)
             })
             .select()
             .single();
 
         if (error) console.error('[supabase-config] uploadProjectDocument db error:', error.message);
+        if (data) data.publicUrl = urlData.publicUrl;
         return { data: data, error: error };
     } catch (err) {
         console.error('[supabase-config] uploadProjectDocument exception:', err);

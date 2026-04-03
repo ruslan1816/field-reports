@@ -456,7 +456,7 @@
     <div class="doc-upload-row">
       <button class="btn-upload" id="btnUploadDoc">+ Add Document</button>
       <input type="file" id="fileInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dwg">
-      <span class="cloud-note">Documents will sync to cloud in upcoming update</span>
+      <span class="cloud-note">Documents sync across all devices</span>
     </div>
 
     <!-- Category select (shown after file pick) -->
@@ -575,7 +575,194 @@ requireAuth().catch(function(){});
   }
 
   function genId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  // ─── Cloud sync helpers ───
+
+  function toCloudProject(p) {
+    return {
+      id: p.id,
+      project_name: p.name,
+      address: p.address || '',
+      city: p.city || '',
+      state: p.state || '',
+      zip: p.zip || '',
+      description: p.projectType || 'commercial',
+      status: p.status === 'onhold' ? 'on-hold' : (p.status || 'active'),
+      notes: [p.customer ? 'Customer: ' + p.customer : '', p.notes || ''].filter(Boolean).join('\n')
+    };
+  }
+
+  function fromCloudProject(row) {
+    var customerMatch = (row.notes || '').match(/^Customer: (.+)$/m);
+    var customer = customerMatch ? customerMatch[1] : '';
+    var notes = (row.notes || '').replace(/^Customer: .+\n?/m, '').trim();
+    return {
+      id: row.id,
+      name: row.project_name || '',
+      customer: customer,
+      address: row.address || '',
+      city: row.city || '',
+      state: row.state || '',
+      zip: row.zip || '',
+      projectType: row.description || 'commercial',
+      status: row.status === 'on-hold' ? 'onhold' : (row.status || 'active'),
+      notes: notes,
+      createdAt: row.created_at || new Date().toISOString(),
+      documents: [],
+      _cloud: true
+    };
+  }
+
+  async function syncProjectToCloud(project) {
+    try {
+      if (typeof supabaseClient === 'undefined') return;
+      var row = toCloudProject(project);
+      var result = await saveProject(row);
+      if (result.error) {
+        console.error('[projects] Cloud sync error:', result.error.message || result.error);
+      } else {
+        console.log('[projects] Synced to cloud:', project.name);
+      }
+    } catch(e) {
+      console.error('[projects] Cloud sync exception:', e);
+    }
+  }
+
+  async function deleteProjectFromCloud(projectId) {
+    try {
+      if (typeof deleteCloudProject === 'function') {
+        await deleteCloudProject(projectId);
+      }
+    } catch(e) {
+      console.error('[projects] Cloud delete exception:', e);
+    }
+  }
+
+  async function loadProjectsFromCloud() {
+    try {
+      if (typeof supabaseClient === 'undefined') return;
+      var result = await getProjects_cloud();
+      if (result.error || !result.data) return;
+
+      var localProjects = getProjects();
+      var localIds = {};
+      localProjects.forEach(function(p) { localIds[p.id] = true; });
+
+      var changed = false;
+      result.data.forEach(function(row) {
+        if (!localIds[row.id]) {
+          localProjects.unshift(fromCloudProject(row));
+          changed = true;
+        }
+      });
+
+      // Also check for cloud projects that updated
+      var cloudIds = {};
+      result.data.forEach(function(row) { cloudIds[row.id] = row; });
+
+      // Remove local projects that were deleted in cloud (only cloud-originated ones)
+      // And update local projects with cloud data
+      for (var i = 0; i < localProjects.length; i++) {
+        var lp = localProjects[i];
+        if (cloudIds[lp.id]) {
+          // Update from cloud
+          var cp = fromCloudProject(cloudIds[lp.id]);
+          lp.name = cp.name;
+          lp.customer = cp.customer;
+          lp.address = cp.address;
+          lp.city = cp.city;
+          lp.state = cp.state;
+          lp.zip = cp.zip;
+          lp.status = cp.status;
+          lp.notes = cp.notes;
+          lp.projectType = cp.projectType;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        saveProjects(localProjects);
+        renderProjectsList();
+      }
+
+      // Load documents for current project if detail is open
+      if (currentProjectId) {
+        await loadCloudDocs(currentProjectId);
+      }
+    } catch(e) {
+      console.error('[projects] Cloud load exception:', e);
+    }
+  }
+
+  // Wrapper to call supabase-config's getProjects (which was overwritten by project-utils)
+  async function getProjects_cloud() {
+    try {
+      var { data, error } = await supabaseClient
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      return { data: data, error: error };
+    } catch(e) {
+      return { data: null, error: e };
+    }
+  }
+
+  async function loadCloudDocs(projectId) {
+    try {
+      if (typeof getProjectDocuments !== 'function') return;
+      var result = await getProjectDocuments(projectId);
+      if (result.error || !result.data || result.data.length === 0) return;
+
+      var p = getProjectById(projectId);
+      if (!p) return;
+      if (!p.documents) p.documents = [];
+
+      var existingIds = {};
+      p.documents.forEach(function(d) { if (d.cloudId) existingIds[d.cloudId] = true; });
+
+      var changed = false;
+      result.data.forEach(function(doc) {
+        if (existingIds[doc.id]) return;
+        // Get public URL for the file
+        var publicUrl = '';
+        if (doc.storage_path) {
+          var urlResult = supabaseClient.storage.from('project-documents').getPublicUrl(doc.storage_path);
+          publicUrl = urlResult.data ? urlResult.data.publicUrl : '';
+        }
+        p.documents.push({
+          id: genId(),
+          cloudId: doc.id,
+          name: doc.title || doc.file_name,
+          category: doc.document_type || 'other',
+          size: doc.file_size || 0,
+          type: doc.mime_type || '',
+          addedAt: doc.created_at,
+          driveUrl: publicUrl,
+          storagePath: doc.storage_path
+        });
+        changed = true;
+      });
+
+      if (changed) {
+        var projects = getProjects();
+        for (var i = 0; i < projects.length; i++) {
+          if (projects[i].id === projectId) {
+            projects[i].documents = p.documents;
+            break;
+          }
+        }
+        saveProjects(projects);
+        renderDocList();
+      }
+    } catch(e) {
+      console.error('[projects] loadCloudDocs exception:', e);
+    }
   }
 
   // ─── CRUD ───
@@ -598,11 +785,13 @@ requireAuth().catch(function(){});
     };
     projects.unshift(project);
     saveProjects(projects);
+    syncProjectToCloud(project);
     return project;
   }
 
   function updateProject(id, data) {
     var projects = getProjects();
+    var updated = null;
     for (var i = 0; i < projects.length; i++) {
       if (projects[i].id === id) {
         projects[i].name = data.name;
@@ -614,16 +803,19 @@ requireAuth().catch(function(){});
         projects[i].projectType = data.projectType || 'commercial';
         projects[i].status = data.status || 'active';
         projects[i].notes = data.notes || '';
+        updated = projects[i];
         break;
       }
     }
     saveProjects(projects);
+    if (updated) syncProjectToCloud(updated);
   }
 
   function deleteProject(id) {
     var projects = getProjects();
     projects = projects.filter(function(p) { return p.id !== id; });
     saveProjects(projects);
+    deleteProjectFromCloud(id);
   }
 
   function getProjectById(id) {
@@ -650,15 +842,22 @@ requireAuth().catch(function(){});
 
   function removeDocument(projectId, docId) {
     var projects = getProjects();
+    var removedDoc = null;
     for (var i = 0; i < projects.length; i++) {
       if (projects[i].id === projectId) {
-        projects[i].documents = (projects[i].documents || []).filter(function(d) {
-          return d.id !== docId;
-        });
+        var docs = projects[i].documents || [];
+        for (var j = 0; j < docs.length; j++) {
+          if (docs[j].id === docId) { removedDoc = docs[j]; break; }
+        }
+        projects[i].documents = docs.filter(function(d) { return d.id !== docId; });
         break;
       }
     }
     saveProjects(projects);
+    // Also delete from cloud if it has a cloudId
+    if (removedDoc && removedDoc.cloudId && typeof deleteProjectDocument === 'function') {
+      deleteProjectDocument(removedDoc.cloudId, removedDoc.storagePath).catch(function() {});
+    }
   }
 
   // ─── Formatting helpers ───
@@ -828,6 +1027,7 @@ requireAuth().catch(function(){});
     document.getElementById('detailInfo').innerHTML = infoHtml;
 
     renderDocList();
+    loadCloudDocs(projectId);
 
     // Show detail, hide list
     document.getElementById('listView').style.display = 'none';
@@ -970,6 +1170,8 @@ requireAuth().catch(function(){});
 
   function init() {
     renderProjectsList();
+    // Load cloud projects in background
+    loadProjectsFromCloud();
 
     // New project
     document.getElementById('btnNewProject').addEventListener('click', function() {
@@ -1056,11 +1258,46 @@ requireAuth().catch(function(){});
       this.value = '';
     });
 
-    // Confirm upload — read file as base64 so it can be opened later
+    // Confirm upload — upload to Supabase Storage (fallback to base64)
     document.getElementById('btnConfirmUpload').addEventListener('click', function() {
       if (!pendingFile || !currentProjectId) return;
       var cat = document.getElementById('uploadCategory').value;
       var file = pendingFile;
+      pendingFile = null;
+      document.getElementById('uploadCategorySelect').classList.remove('active');
+      showToast('Uploading...');
+
+      // Try Supabase Storage first
+      if (typeof uploadProjectDocument === 'function' && typeof supabaseClient !== 'undefined') {
+        uploadProjectDocument(currentProjectId, file).then(function(result) {
+          if (result.data && !result.error) {
+            addDocument(currentProjectId, {
+              name: file.name,
+              category: cat,
+              size: file.size,
+              type: file.type || '',
+              cloudId: result.data.id,
+              storagePath: result.data.storage_path,
+              driveUrl: result.data.publicUrl || ''
+            });
+          } else {
+            // Storage failed — fallback to base64
+            console.warn('[projects] Storage upload failed, using base64 fallback');
+            saveBase64Doc(file, cat);
+            return;
+          }
+          renderDocList();
+          renderProjectsList();
+          showToast('Document uploaded');
+        }).catch(function() {
+          saveBase64Doc(file, cat);
+        });
+      } else {
+        saveBase64Doc(file, cat);
+      }
+    });
+
+    function saveBase64Doc(file, cat) {
       var reader = new FileReader();
       reader.onload = function() {
         addDocument(currentProjectId, {
@@ -1068,16 +1305,14 @@ requireAuth().catch(function(){});
           category: cat,
           size: file.size,
           type: file.type || '',
-          fileData: reader.result  // base64 data URL
+          fileData: reader.result
         });
         renderDocList();
         renderProjectsList();
         showToast('Document added');
       };
       reader.readAsDataURL(file);
-      pendingFile = null;
-      document.getElementById('uploadCategorySelect').classList.remove('active');
-    });
+    }
 
     // Cancel upload
     document.getElementById('btnCancelUpload').addEventListener('click', function() {
