@@ -364,6 +364,11 @@
       </select>
       <button class="btn btn-primary" id="btnSaveStatus" style="margin-left:auto; padding:8px 20px; font-size:13px;">Save</button>
     </div>
+    <div class="detail-share" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="btnShare" style="padding:8px 16px;font-size:13px;background:#0696D7;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;" onclick="shareReport()">🔗 Share Report</button>
+      <span id="shareStatus" style="font-size:12px;color:#64748b;"></span>
+      <button class="btn" id="btnRevokeShare" style="display:none;padding:6px 12px;font-size:12px;background:#fee2e2;color:#991b1b;border:none;border-radius:6px;font-weight:600;cursor:pointer;" onclick="revokeShare()">Revoke</button>
+    </div>
   </div>
 </div>
 
@@ -571,7 +576,26 @@ requireAuth().catch(function(){});
     // Status select
     document.getElementById('detailStatus').value = report.status || 'submitted';
 
+    // Share status
+    updateShareUI(report);
+
     document.getElementById('detailOverlay').classList.add('active');
+  }
+
+  function updateShareUI(report) {
+    var statusEl = document.getElementById('shareStatus');
+    var revokeBtn = document.getElementById('btnRevokeShare');
+    var shareBtn = document.getElementById('btnShare');
+    if (report.share_token) {
+      var url = window.location.origin + window.location.pathname.replace('management.html', 'report-view.html') + '?token=' + report.share_token;
+      statusEl.innerHTML = '<a href="' + url + '" target="_blank" style="color:#0696D7;font-size:12px;">View shared link</a>';
+      revokeBtn.style.display = '';
+      shareBtn.textContent = '📋 Copy Link';
+    } else {
+      statusEl.textContent = '';
+      revokeBtn.style.display = 'none';
+      shareBtn.textContent = '🔗 Share Report';
+    }
   }
 
   function closeDetail() {
@@ -623,6 +647,83 @@ requireAuth().catch(function(){});
       alert('Error: ' + e.message);
     }
   }
+
+  // --- Share report ---
+  window.shareReport = async function() {
+    if (!currentReport) return;
+
+    // If already shared, copy the link
+    if (currentReport.share_token) {
+      var url = window.location.origin + window.location.pathname.replace('management.html', 'report-view.html') + '?token=' + currentReport.share_token;
+      try {
+        await navigator.clipboard.writeText(url);
+        document.getElementById('shareStatus').textContent = 'Link copied!';
+        setTimeout(function() { updateShareUI(currentReport); }, 2000);
+      } catch(e) {
+        prompt('Copy this link:', url);
+      }
+      return;
+    }
+
+    // Generate a share token
+    var token = crypto.randomUUID();
+    var btn = document.getElementById('btnShare');
+    btn.disabled = true;
+    btn.textContent = 'Sharing...';
+
+    try {
+      var { error } = await supabaseClient
+        .from('reports')
+        .update({ share_token: token })
+        .eq('id', currentReport.id);
+
+      if (error) {
+        alert('Error sharing: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = '🔗 Share Report';
+        return;
+      }
+
+      currentReport.share_token = token;
+      updateShareUI(currentReport);
+      btn.disabled = false;
+
+      // Copy to clipboard
+      var url = window.location.origin + window.location.pathname.replace('management.html', 'report-view.html') + '?token=' + token;
+      try {
+        await navigator.clipboard.writeText(url);
+        document.getElementById('shareStatus').innerHTML += ' — Link copied!';
+      } catch(e) {
+        prompt('Share this link with the customer:', url);
+      }
+    } catch(e) {
+      alert('Error: ' + e.message);
+      btn.disabled = false;
+      btn.textContent = '🔗 Share Report';
+    }
+  };
+
+  window.revokeShare = async function() {
+    if (!currentReport) return;
+    if (!confirm('Revoke the share link? The customer will no longer be able to view this report.')) return;
+
+    try {
+      var { error } = await supabaseClient
+        .from('reports')
+        .update({ share_token: null })
+        .eq('id', currentReport.id);
+
+      if (error) {
+        alert('Error revoking: ' + error.message);
+        return;
+      }
+
+      currentReport.share_token = null;
+      updateShareUI(currentReport);
+    } catch(e) {
+      alert('Error: ' + e.message);
+    }
+  };
 
   // --- Profile circle ---
   function loadProfile() {

@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0696D7">
+<title>Service Report — Northern Wolves AC</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=52"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#f0f2f5;color:#1a2332;-webkit-font-smoothing:antialiased}
+
+/* Header */
+.rpt-header{background:#1a2332;color:#fff;padding:20px 0}
+.rpt-header-inner{max-width:900px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.rpt-logo{display:flex;align-items:center;gap:12px}
+.rpt-logo img{height:44px;width:auto;border-radius:6px}
+.rpt-logo-text{font-size:16px;font-weight:700;letter-spacing:.3px}
+.rpt-logo-sub{font-size:11px;color:#94a3b8;font-weight:500}
+.rpt-header-right{text-align:right}
+.rpt-report-num{font-size:13px;color:#94a3b8;font-weight:600}
+.rpt-report-type{font-size:18px;font-weight:800;margin-top:2px}
+
+/* Container */
+.rpt-container{max-width:900px;margin:0 auto;padding:20px}
+
+/* Info bar */
+.rpt-info-bar{display:flex;flex-wrap:wrap;gap:16px;background:#fff;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.rpt-info-block{flex:1;min-width:200px}
+.rpt-info-label{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.rpt-info-value{font-size:14px;font-weight:600;color:#1a2332}
+.rpt-info-value a{color:#0696D7;text-decoration:none}
+
+/* Cards */
+.rpt-card{background:#fff;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.rpt-card-title{font-size:14px;font-weight:800;color:#0696D7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.rpt-card-title .icon{font-size:18px}
+
+/* AI Summary */
+.rpt-summary{background:linear-gradient(135deg,#f8fafc,#eff6ff);border:1px solid #dbeafe;border-radius:12px;padding:20px;margin-bottom:16px}
+.rpt-summary-badge{display:inline-flex;align-items:center;gap:6px;background:#0696D7;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.rpt-summary p{font-size:14px;line-height:1.7;color:#334155;margin-bottom:10px}
+.rpt-summary p:last-child{margin-bottom:0}
+.rpt-summary h4{font-size:13px;font-weight:700;color:#1a2332;margin:14px 0 6px}
+.rpt-summary ul{margin:0 0 10px 20px;font-size:14px;line-height:1.7;color:#334155}
+
+/* Equipment cards */
+.rpt-equip{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:10px}
+.rpt-equip-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px}
+.rpt-equip-type{font-size:14px;font-weight:700;color:#1a2332;margin-bottom:6px}
+.rpt-equip-detail{font-size:12px;color:#64748b;margin-bottom:2px}
+
+/* Findings sections */
+.rpt-field{margin-bottom:16px}
+.rpt-field-label{font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.rpt-field-value{font-size:14px;line-height:1.6;color:#1a2332;white-space:pre-wrap}
+
+/* Readings table */
+.rpt-readings{width:100%;border-collapse:collapse;margin-top:8px}
+.rpt-readings th{background:#0696D7;color:#fff;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left}
+.rpt-readings td{padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px}
+.rpt-readings tr:nth-child(even){background:#f8fafc}
+.rpt-readings td:first-child{font-weight:600;white-space:nowrap}
+
+/* Parts table */
+.rpt-parts{width:100%;border-collapse:collapse;margin-top:8px}
+.rpt-parts th{background:#f1f5f9;padding:8px 12px;font-size:12px;font-weight:700;color:#475569;text-align:left;border-bottom:2px solid #e2e8f0}
+.rpt-parts td{padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px}
+
+/* Status badge */
+.rpt-status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.rpt-status-operational{background:#d1fae5;color:#065f46}
+.rpt-status-non-operational{background:#fee2e2;color:#991b1b}
+.rpt-status-needs-repair{background:#fef3c7;color:#92400e}
+
+/* Photos */
+.rpt-photos{margin-top:10px}
+.rpt-photo-section{margin-bottom:16px}
+.rpt-photo-section-title{font-size:13px;font-weight:700;color:#475569;margin-bottom:8px}
+.rpt-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.rpt-photo-thumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid #e2e8f0;transition:transform .15s}
+.rpt-photo-thumb:hover{transform:scale(1.03)}
+
+/* Signatures */
+.rpt-sigs{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:10px}
+.rpt-sig{text-align:center}
+.rpt-sig img{max-width:200px;max-height:80px}
+.rpt-sig-label{font-size:12px;font-weight:700;color:#64748b;margin-top:6px;text-transform:uppercase}
+.rpt-sig-name{font-size:13px;color:#1a2332;font-weight:600}
+
+/* Lightbox */
+.rpt-lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;align-items:center;justify-content:center;cursor:pointer}
+.rpt-lightbox.open{display:flex}
+.rpt-lightbox img{max-width:95vw;max-height:95vh;border-radius:8px}
+.rpt-lightbox-close{position:fixed;top:16px;right:16px;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:28px;width:44px;height:44px;border-radius:50%;cursor:pointer;z-index:10000}
+
+/* Footer */
+.rpt-footer{text-align:center;padding:24px;color:#94a3b8;font-size:12px;font-weight:500}
+.rpt-footer a{color:#0696D7;text-decoration:none;font-weight:600}
+
+/* Download bar */
+.rpt-actions{display:flex;gap:10px;justify-content:center;margin-bottom:20px}
+.rpt-btn{padding:12px 24px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px}
+.rpt-btn-primary{background:#0696D7;color:#fff}
+.rpt-btn-primary:hover{background:#0580b8}
+.rpt-btn-outline{background:#fff;color:#0696D7;border:1px solid #0696D7}
+
+/* Loading */
+.rpt-loading{text-align:center;padding:80px 20px}
+.rpt-loading .spinner{width:40px;height:40px;border:3px solid #e2e8f0;border-top-color:#0696D7;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.rpt-loading p{font-size:15px;color:#64748b}
+
+/* Error */
+.rpt-error{text-align:center;padding:80px 20px}
+.rpt-error h2{font-size:20px;color:#1a2332;margin-bottom:8px}
+.rpt-error p{font-size:14px;color:#64748b}
+
+/* Responsive */
+@media(max-width:600px){
+  .rpt-header-inner{flex-direction:column;align-items:flex-start}
+  .rpt-header-right{text-align:left}
+  .rpt-info-bar{flex-direction:column;gap:12px}
+  .rpt-equip{grid-template-columns:1fr}
+  .rpt-sigs{grid-template-columns:1fr}
+  .rpt-photo-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
+}
+
+/* Print */
+@media print{
+  body{background:#fff}
+  .rpt-actions,.rpt-lightbox,.rpt-footer{display:none!important}
+  .rpt-card,.rpt-summary,.rpt-info-bar{box-shadow:none;border:1px solid #e2e8f0}
+}
+</style>
+</head>
+<body>
+
+<div id="loadingView" class="rpt-loading">
+  <div class="spinner"></div>
+  <p>Loading report...</p>
+</div>
+
+<div id="errorView" class="rpt-error" style="display:none">
+  <h2>Report Not Found</h2>
+  <p>This report link may be invalid or the report is no longer shared.</p>
+</div>
+
+<div id="reportView" style="display:none">
+
+  <!-- Header -->
+  <div class="rpt-header">
+    <div class="rpt-header-inner">
+      <div class="rpt-logo">
+        <img src="logo-header.png" alt="Northern Wolves AC">
+        <div>
+          <div class="rpt-logo-text">Northern Wolves AC</div>
+          <div class="rpt-logo-sub">Field Service Report</div>
+        </div>
+      </div>
+      <div class="rpt-header-right">
+        <div class="rpt-report-num" id="hdrReportNum"></div>
+        <div class="rpt-report-type" id="hdrReportType"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rpt-container">
+
+    <!-- Actions -->
+    <div class="rpt-actions" style="margin-top:16px">
+      <button class="rpt-btn rpt-btn-primary" onclick="window.print()">🖨️ Print Report</button>
+    </div>
+
+    <!-- Customer & Job Info -->
+    <div class="rpt-info-bar" id="infoBar"></div>
+
+    <!-- AI Summary -->
+    <div class="rpt-summary" id="summaryCard" style="display:none">
+      <div class="rpt-summary-badge">✨ AI Summary</div>
+      <div id="summaryContent"></div>
+    </div>
+
+    <!-- Equipment -->
+    <div class="rpt-card" id="equipCard" style="display:none">
+      <div class="rpt-card-title"><span class="icon">⚙️</span> Equipment</div>
+      <div class="rpt-equip" id="equipList"></div>
+    </div>
+
+    <!-- Findings & Work -->
+    <div class="rpt-card" id="findingsCard" style="display:none">
+      <div class="rpt-card-title"><span class="icon">🔍</span> Findings & Work Performed</div>
+      <div id="findingsContent"></div>
+    </div>
+
+    <!-- Readings -->
+    <div class="rpt-card" id="readingsCard" style="display:none">
+      <div class="rpt-card-title"><span class="icon">📊</span> Readings</div>
+      <div id="readingsContent"></div>
+    </div>
+
+    <!-- Parts -->
+    <div class="rpt-card" id="partsCard" style="display:none">
+      <div class="rpt-card-title"><span class="icon">🔩</span> Parts Used</div>
+      <div id="partsContent"></div>
+    </div>
+
+    <!-- System Status -->
+    <div class="rpt-card" id="statusCard" style="display:none">
+      <div class="rpt-card-title"><span class="icon">✅</span> System Status</div>
+      <div id="statusContent"></div>
+    </div>
+
+    <!-- Photos -->
+    <div class="rpt-card" id="photosCard" style="display:none">
+      <div class="rpt-card-title"><span class="icon">📸</span> Photo Documentation</div>
+      <div class="rpt-photos" id="photosContent"></div>
+    </div>
+
+    <!-- Signatures -->
+    <div class="rpt-card" id="sigsCard" style="display:none">
+      <div class="rpt-card-title"><span class="icon">✍️</span> Signatures</div>
+      <div id="sigsContent"></div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="rpt-footer">
+    Report generated by <a href="https://ruslan1816.github.io/field-reports/" target="_blank">Northern Wolves AC</a> Field Reporting System
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="rpt-lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="rpt-lightbox-close" onclick="closeLightbox()">&times;</button>
+  <img id="lightboxImg" src="" alt="Photo">
+</div>
+
+<script>
+(async function() {
+  'use strict';
+
+  // ── Parse token from URL ──
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('token');
+
+  if (!token) {
+    showError();
+    return;
+  }
+
+  // ── Fetch report by share token ──
+  try {
+    var { data: report, error } = await supabaseClient
+      .from('reports')
+      .select('*')
+      .eq('share_token', token)
+      .single();
+
+    if (error || !report) {
+      showError();
+      return;
+    }
+
+    renderReport(report);
+  } catch (err) {
+    console.error('[report-view] Error:', err);
+    showError();
+  }
+
+  // ── Show error ──
+  function showError() {
+    document.getElementById('loadingView').style.display = 'none';
+    document.getElementById('errorView').style.display = 'block';
+  }
+
+  // ── Type map ──
+  var TYPE_MAP = {
+    'service-call': 'Service Call Report',
+    'startup': 'Start-Up Report',
+    'site-survey': 'Site Survey Report',
+    'pm-checklist': 'Maintenance Report',
+    'work-order': 'Work Order',
+    'change-order': 'Change Order',
+    'rfi': 'Request for Information'
+  };
+
+  // ── Main render ──
+  function renderReport(report) {
+    var fd = report.form_data || {};
+    var type = report.report_type || '';
+
+    // Header
+    document.getElementById('hdrReportNum').textContent = report.report_number || '';
+    document.getElementById('hdrReportType').textContent = TYPE_MAP[type] || type;
+    document.title = (TYPE_MAP[type] || 'Report') + ' — Northern Wolves AC';
+
+    // Info bar
+    renderInfoBar(report, fd);
+
+    // AI Summary
+    renderAISummary(report, fd);
+
+    // Equipment
+    renderEquipment(fd);
+
+    // Findings
+    renderFindings(fd, type);
+
+    // Readings
+    renderReadings(fd);
+
+    // Parts
+    renderParts(fd);
+
+    // Status
+    renderStatus(fd);
+
+    // Photos
+    renderPhotos(fd);
+
+    // Signatures
+    renderSignatures(fd);
+
+    // Show
+    document.getElementById('loadingView').style.display = 'none';
+    document.getElementById('reportView').style.display = 'block';
+  }
+
+  // ── Info Bar ──
+  function renderInfoBar(report, fd) {
+    var fields = [];
+
+    fields.push({ label: 'Customer', value: report.customer_name || fd.custName || fd.projectName || '' });
+
+    var addr = fd.custAddress || fd.address || fd.projAddress || '';
+    if (addr) fields.push({ label: 'Address', value: addr });
+
+    if (fd.custContact) fields.push({ label: 'Contact', value: fd.custContact });
+    if (fd.custPhone) fields.push({ label: 'Phone', value: fd.custPhone, link: 'tel:' + fd.custPhone });
+
+    fields.push({ label: 'Technician', value: report.tech_name || fd.techName || fd.fromName || '' });
+
+    var date = fd.callDate || fd.suDate || fd.pmDate || fd.woDate || fd.surveyDate || fd.coDate || report.report_date || '';
+    if (date) fields.push({ label: 'Date', value: formatDate(date) });
+
+    if (fd.workOrder) fields.push({ label: 'Work Order', value: fd.workOrder });
+    if (fd.callType) fields.push({ label: 'Call Type', value: fd.callType });
+
+    var timeStr = '';
+    if (fd.timeArrive) timeStr += fd.timeArrive;
+    if (fd.timeDepart) timeStr += ' — ' + fd.timeDepart;
+    if (timeStr) fields.push({ label: 'Time', value: timeStr.trim() });
+
+    var html = '';
+    fields.forEach(function(f) {
+      if (!f.value) return;
+      html += '<div class="rpt-info-block">' +
+        '<div class="rpt-info-label">' + f.label + '</div>' +
+        '<div class="rpt-info-value">' +
+        (f.link ? '<a href="' + f.link + '">' + esc(f.value) + '</a>' : esc(f.value)) +
+        '</div></div>';
+    });
+    document.getElementById('infoBar').innerHTML = html;
+  }
+
+  // ── AI Summary ──
+  function renderAISummary(report, fd) {
+    // If we have a pre-generated summary, use it
+    if (report.ai_summary) {
+      document.getElementById('summaryContent').innerHTML = report.ai_summary;
+      document.getElementById('summaryCard').style.display = '';
+      return;
+    }
+
+    // Generate a structured summary from form data
+    var summary = generateTemplateSummary(report, fd);
+    if (summary) {
+      document.getElementById('summaryContent').innerHTML = summary;
+      document.getElementById('summaryCard').style.display = '';
+    }
+  }
+
+  function generateTemplateSummary(report, fd) {
+    var parts = [];
+    var date = fd.callDate || fd.suDate || fd.pmDate || fd.woDate || report.report_date || '';
+    var dateStr = date ? ' on ' + formatDate(date) : '';
+    var tech = report.tech_name || fd.techName || 'A technician';
+    var cust = report.customer_name || fd.custName || 'the customer';
+    var callType = fd.callType ? ' for a ' + fd.callType.toLowerCase() : '';
+
+    // Intro
+    parts.push('<p>' + esc(tech) + ' responded' + callType + ' at <strong>' + esc(cust) + '</strong>' + dateStr + '.</p>');
+
+    // Equipment summary
+    var equips = fd.equipment || [];
+    if (equips.length > 0) {
+      var equipNames = equips.map(function(e) {
+        return [e.type, e.mfg, e.model].filter(Boolean).join(' ');
+      }).filter(Boolean);
+      if (equipNames.length > 0) {
+        parts.push('<h4>Equipment Serviced</h4><ul>' +
+          equipNames.map(function(n) { return '<li>' + esc(n) + '</li>'; }).join('') +
+          '</ul>');
+      }
+    }
+
+    // Issue / Complaint
+    if (fd.complaint) {
+      parts.push('<h4>Reported Issue</h4><p>' + esc(fd.complaint) + '</p>');
+    }
+
+    // Diagnosis
+    if (fd.diagnosis) {
+      parts.push('<h4>Diagnosis</h4><p>' + esc(fd.diagnosis) + '</p>');
+    }
+
+    // Work Performed
+    if (fd.workPerformed) {
+      parts.push('<h4>Work Performed</h4><p>' + esc(fd.workPerformed) + '</p>');
+    }
+
+    // Recommendations
+    if (fd.recommendations) {
+      parts.push('<h4>Recommendations</h4><p>' + esc(fd.recommendations) + '</p>');
+    }
+
+    // Status
+    if (fd.systemStatus) {
+      var statusText = fd.systemStatus === 'operational' ? 'The system was left in <strong>operational</strong> condition.' :
+                       fd.systemStatus === 'non-operational' ? 'The system was left in <strong>non-operational</strong> condition.' :
+                       'System status: <strong>' + esc(fd.systemStatus) + '</strong>.';
+      parts.push('<p>' + statusText + '</p>');
+    }
+
+    return parts.length > 1 ? parts.join('') : '';
+  }
+
+  // ── Equipment ──
+  function renderEquipment(fd) {
+    var equips = fd.equipment || [];
+    if (equips.length === 0) return;
+
+    var html = '';
+    equips.forEach(function(e) {
+      html += '<div class="rpt-equip-card">';
+      html += '<div class="rpt-equip-type">' + esc(e.type || e.name || 'Equipment') + '</div>';
+      if (e.mfg) html += '<div class="rpt-equip-detail"><strong>Brand:</strong> ' + esc(e.mfg) + '</div>';
+      if (e.model) html += '<div class="rpt-equip-detail"><strong>Model:</strong> ' + esc(e.model) + '</div>';
+      if (e.serial) html += '<div class="rpt-equip-detail"><strong>Serial:</strong> ' + esc(e.serial) + '</div>';
+      if (e.refrigerant) html += '<div class="rpt-equip-detail"><strong>Refrigerant:</strong> ' + esc(e.refrigerant) + '</div>';
+      if (e.location) html += '<div class="rpt-equip-detail"><strong>Location:</strong> ' + esc(e.location) + '</div>';
+      html += '</div>';
+    });
+
+    document.getElementById('equipList').innerHTML = html;
+    document.getElementById('equipCard').style.display = '';
+  }
+
+  // ── Findings ──
+  function renderFindings(fd, type) {
+    var fields = [];
+
+    // Service call fields
+    if (fd.complaint) fields.push({ label: 'Complaint / Issue', value: fd.complaint });
+    if (fd.diagnosis) fields.push({ label: 'Diagnosis', value: fd.diagnosis });
+    if (fd.workPerformed) fields.push({ label: 'Work Performed', value: fd.workPerformed });
+    if (fd.recommendations) fields.push({ label: 'Recommendations', value: fd.recommendations });
+
+    // Startup fields
+    if (fd.coolingNotes) fields.push({ label: 'Cooling Notes', value: fd.coolingNotes });
+    if (fd.heatingNotes) fields.push({ label: 'Heating Notes', value: fd.heatingNotes });
+
+    // Work order fields
+    if (fd.scopeOfWork) fields.push({ label: 'Scope of Work', value: fd.scopeOfWork });
+    if (fd.materialsUsed) fields.push({ label: 'Materials Used', value: fd.materialsUsed });
+
+    // PM fields
+    if (fd.findings) fields.push({ label: 'Findings', value: fd.findings });
+    if (fd.notes) fields.push({ label: 'Notes', value: fd.notes });
+
+    // Site survey
+    if (fd.siteConditions) fields.push({ label: 'Site Conditions', value: fd.siteConditions });
+    if (fd.accessNotes) fields.push({ label: 'Access Notes', value: fd.accessNotes });
+
+    // Change order
+    if (fd.changeDescription) fields.push({ label: 'Change Description', value: fd.changeDescription });
+    if (fd.reason) fields.push({ label: 'Reason', value: fd.reason });
+
+    // RFI
+    if (fd.question) fields.push({ label: 'Question', value: fd.question });
+    if (fd.response) fields.push({ label: 'Response', value: fd.response });
+
+    if (fields.length === 0) return;
+
+    var html = '';
+    fields.forEach(function(f) {
+      html += '<div class="rpt-field">' +
+        '<div class="rpt-field-label">' + f.label + '</div>' +
+        '<div class="rpt-field-value">' + esc(f.value) + '</div>' +
+        '</div>';
+    });
+
+    document.getElementById('findingsContent').innerHTML = html;
+    document.getElementById('findingsCard').style.display = '';
+  }
+
+  // ── Readings ──
+  function renderReadings(fd) {
+    var readings = fd.readings;
+    if (!readings || typeof readings !== 'object') return;
+
+    // Readings can be an object keyed by equipment index, each containing field arrays
+    var html = '';
+    var hasData = false;
+
+    // Handle different reading formats
+    if (Array.isArray(readings)) {
+      // Array of reading objects
+      html += buildReadingsTable(readings, '');
+      hasData = readings.length > 0;
+    } else {
+      // Object keyed by equipment index
+      var equips = fd.equipment || [];
+      Object.keys(readings).forEach(function(key) {
+        var data = readings[key];
+        if (!data || (Array.isArray(data) && data.length === 0)) return;
+        var equipName = equips[parseInt(key)] ? (equips[parseInt(key)].name || equips[parseInt(key)].type || 'Equipment ' + (parseInt(key) + 1)) : 'Equipment ' + (parseInt(key) + 1);
+        html += '<div class="rpt-photo-section-title" style="margin-top:12px">' + esc(equipName) + '</div>';
+
+        if (typeof data === 'object' && !Array.isArray(data)) {
+          // Object with named readings
+          html += '<table class="rpt-readings"><tbody>';
+          Object.keys(data).forEach(function(rKey) {
+            var val = data[rKey];
+            if (val && String(val).trim()) {
+              html += '<tr><td>' + esc(rKey) + '</td><td>' + esc(String(val)) + '</td></tr>';
+              hasData = true;
+            }
+          });
+          html += '</tbody></table>';
+        }
+      });
+    }
+
+    if (!hasData) return;
+    document.getElementById('readingsContent').innerHTML = html;
+    document.getElementById('readingsCard').style.display = '';
+  }
+
+  function buildReadingsTable(data, title) {
+    if (!data || data.length === 0) return '';
+    var html = title ? '<div class="rpt-photo-section-title">' + esc(title) + '</div>' : '';
+    html += '<table class="rpt-readings"><tbody>';
+    data.forEach(function(r) {
+      html += '<tr><td>' + esc(r.label || r.name || '') + '</td><td>' + esc(r.value || '') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
+  // ── Parts ──
+  function renderParts(fd) {
+    var parts = fd.parts;
+    if (!parts || !Array.isArray(parts) || parts.length === 0) return;
+    // Filter out empty parts
+    parts = parts.filter(function(p) { return p.desc || p.description; });
+    if (parts.length === 0) return;
+
+    var html = '<table class="rpt-parts"><thead><tr><th>Part / Description</th><th>Qty</th></tr></thead><tbody>';
+    parts.forEach(function(p) {
+      html += '<tr><td>' + esc(p.desc || p.description || '') + '</td><td>' + esc(p.qty || p.quantity || '1') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    document.getElementById('partsContent').innerHTML = html;
+    document.getElementById('partsCard').style.display = '';
+  }
+
+  // ── System Status ──
+  function renderStatus(fd) {
+    if (!fd.systemStatus && !fd.statusByEquip) return;
+
+    var html = '';
+    if (fd.systemStatus) {
+      var cls = fd.systemStatus === 'operational' ? 'rpt-status-operational' :
+                fd.systemStatus === 'non-operational' ? 'rpt-status-non-operational' : 'rpt-status-needs-repair';
+      html += '<div style="margin-bottom:12px"><span class="rpt-status-badge ' + cls + '">' +
+        esc(fd.systemStatus) + '</span></div>';
+    }
+    if (fd.statusNotes) {
+      html += '<div class="rpt-field"><div class="rpt-field-label">Status Notes</div>' +
+        '<div class="rpt-field-value">' + esc(fd.statusNotes) + '</div></div>';
+    }
+
+    // Per-equipment status
+    if (fd.statusByEquip && typeof fd.statusByEquip === 'object') {
+      var equips = fd.equipment || [];
+      Object.keys(fd.statusByEquip).forEach(function(key) {
+        var status = fd.statusByEquip[key];
+        if (!status) return;
+        var equipName = equips[parseInt(key)] ? (equips[parseInt(key)].name || equips[parseInt(key)].type || '') : '';
+        if (equipName) {
+          var sCls = status === 'operational' ? 'rpt-status-operational' :
+                     status === 'non-operational' ? 'rpt-status-non-operational' : 'rpt-status-needs-repair';
+          html += '<div style="margin-top:8px"><strong>' + esc(equipName) + ':</strong> ' +
+            '<span class="rpt-status-badge ' + sCls + '">' + esc(status) + '</span></div>';
+        }
+      });
+    }
+
+    if (html) {
+      document.getElementById('statusContent').innerHTML = html;
+      document.getElementById('statusCard').style.display = '';
+    }
+  }
+
+  // ── Photos ──
+  function renderPhotos(fd) {
+    var photosByEquip = fd.photosByEquip;
+    if (!photosByEquip || typeof photosByEquip !== 'object') return;
+
+    var equips = fd.equipment || [];
+    var html = '';
+    var hasPhotos = false;
+
+    Object.keys(photosByEquip).forEach(function(key) {
+      var photos = photosByEquip[key];
+      if (!Array.isArray(photos) || photos.length === 0) return;
+      hasPhotos = true;
+
+      var sectionTitle = key === 'general' ? 'General Photos' :
+        (equips[parseInt(key)] ? (equips[parseInt(key)].name || equips[parseInt(key)].type || 'Equipment ' + (parseInt(key) + 1)) : 'Equipment ' + (parseInt(key) + 1));
+
+      html += '<div class="rpt-photo-section">';
+      html += '<div class="rpt-photo-section-title">' + esc(sectionTitle) + '</div>';
+      html += '<div class="rpt-photo-grid">';
+      photos.forEach(function(photo) {
+        var src = photo.data || photo.url || photo;
+        if (typeof src === 'string' && src.length > 10) {
+          html += '<img class="rpt-photo-thumb" src="' + src + '" alt="' + esc(photo.name || 'Photo') + '" onclick="openLightbox(this.src)">';
+        }
+      });
+      html += '</div></div>';
+    });
+
+    if (!hasPhotos) return;
+    document.getElementById('photosContent').innerHTML = html;
+    document.getElementById('photosCard').style.display = '';
+  }
+
+  // ── Signatures ──
+  function renderSignatures(fd) {
+    var hasTech = fd.techSig && fd.techSig.length > 100;
+    var hasCust = fd.custSig && fd.custSig.length > 100;
+    if (!hasTech && !hasCust) return;
+
+    var html = '<div class="rpt-sigs">';
+    if (hasTech) {
+      html += '<div class="rpt-sig"><img src="' + fd.techSig + '" alt="Tech Signature">' +
+        '<div class="rpt-sig-label">Technician</div>' +
+        '<div class="rpt-sig-name">' + esc(fd.techName || '') + '</div></div>';
+    }
+    if (hasCust) {
+      html += '<div class="rpt-sig"><img src="' + fd.custSig + '" alt="Customer Signature">' +
+        '<div class="rpt-sig-label">Customer</div>' +
+        '<div class="rpt-sig-name">' + esc(fd.custPrintName || '') + '</div></div>';
+    }
+    html += '</div>';
+
+    document.getElementById('sigsContent').innerHTML = html;
+    document.getElementById('sigsCard').style.display = '';
+  }
+
+  // ── Helpers ──
+  function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function formatDate(str) {
+    if (!str) return '';
+    var d = new Date(str);
+    if (isNaN(d.getTime())) return str;
+    return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+})();
+
+// ── Lightbox ──
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeLightbox();
+});
+</script>
+</body>
+</html>
