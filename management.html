@@ -555,22 +555,85 @@ requireAuth().catch(function(){});
     infoHtml += field('Submitted', fmtDate(report.created_at));
     document.getElementById('detailInfo').innerHTML = infoHtml;
 
-    // Form data
+    // Form data — show meaningful fields, skip raw data
     var fd = report.form_data || {};
     var fdHtml = '';
+    // Keys to always skip (already shown above, or binary/internal data)
     var skipKeys = ['reportId', 'custName', 'customerName', 'customer', 'techName', 'fromName',
-                    'callDate', 'suDate', 'pmDate', 'coDate', 'woDate', 'surveyDate', 'rfiDate'];
+                    'callDate', 'suDate', 'pmDate', 'coDate', 'woDate', 'surveyDate', 'rfiDate',
+                    'photos', 'photosByEquip', 'techSig', 'custSig', 'readings'];
+    // Priority fields to show first in nice order
+    var priorityKeys = ['custAddress', 'address', 'custContact', 'custPhone', 'custEmail',
+                        'workOrder', 'callType', 'timeArrive', 'timeDepart',
+                        'complaint', 'diagnosis', 'workPerformed', 'recommendations',
+                        'scopeOfWork', 'materialsUsed', 'findings', 'siteConditions',
+                        'changeDescription', 'reason', 'question', 'response',
+                        'systemStatus', 'statusNotes', 'refAdded',
+                        'regHours', 'otHours', 'travelTime', 'custPrintName'];
+    var shown = {};
+
+    // Show priority fields first
+    priorityKeys.forEach(function(key) {
+      var val = fd[key];
+      if (val === null || val === undefined || val === '') return;
+      if (typeof val === 'object') return;
+      fdHtml += field(humanize(key), String(val));
+      shown[key] = true;
+    });
+
+    // Show equipment summary
+    if (fd.equipment && Array.isArray(fd.equipment) && fd.equipment.length > 0) {
+      var equipSummary = fd.equipment.map(function(e) {
+        return [e.type, e.mfg, e.model].filter(Boolean).join(' — ') +
+          (e.serial ? ' (S/N: ' + e.serial + ')' : '');
+      }).join('<br>');
+      fdHtml += field('Equipment', equipSummary);
+      shown['equipment'] = true;
+    }
+
+    // Show parts summary
+    if (fd.parts && Array.isArray(fd.parts) && fd.parts.length > 0) {
+      var partsFiltered = fd.parts.filter(function(p) { return p.desc || p.description; });
+      if (partsFiltered.length > 0) {
+        var partsSummary = partsFiltered.map(function(p) {
+          return (p.desc || p.description) + (p.qty && p.qty !== '1' ? ' (x' + p.qty + ')' : '');
+        }).join(', ');
+        fdHtml += field('Parts', partsSummary);
+      }
+      shown['parts'] = true;
+    }
+
+    // Show photo count
+    var photoCount = 0;
+    if (fd.photosByEquip) {
+      Object.keys(fd.photosByEquip).forEach(function(k) {
+        if (Array.isArray(fd.photosByEquip[k])) photoCount += fd.photosByEquip[k].length;
+      });
+    } else if (fd.photos && Array.isArray(fd.photos)) {
+      photoCount = fd.photos.length;
+    }
+    if (photoCount > 0) {
+      fdHtml += field('Photos', photoCount + ' photo' + (photoCount !== 1 ? 's' : '') + ' attached');
+    }
+
+    // Show remaining simple string fields not yet shown
     Object.keys(fd).forEach(function(key) {
-      if (skipKeys.indexOf(key) !== -1) return;
+      if (skipKeys.indexOf(key) !== -1 || shown[key]) return;
       var val = fd[key];
       if (val === null || val === undefined || val === '') return;
       if (typeof val === 'object') {
-        // Show arrays/objects as JSON
+        // Skip empty arrays/objects
+        if (Array.isArray(val) && val.length === 0) return;
+        if (Object.keys(val).length === 0) return;
+        // Skip objects with base64 data
+        var json = JSON.stringify(val);
+        if (json.indexOf('data:image') !== -1 || json.length > 500) return;
         val = JSON.stringify(val, null, 2);
         if (val.length > 200) val = val.substring(0, 200) + '...';
       }
       fdHtml += field(humanize(key), String(val));
     });
+
     document.getElementById('detailFormData').innerHTML = fdHtml || '<p style="color:var(--nw-muted);font-size:13px;">No additional data</p>';
 
     // Status select
