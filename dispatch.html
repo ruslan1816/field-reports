@@ -181,7 +181,7 @@ body { padding-bottom: 40px; }
           <option value="service-call">Service Call</option>
           <option value="startup">Start-Up</option>
           <option value="site-survey">Site Survey</option>
-          <option value="pm-checklist">PM Checklist</option>
+          <option value="pm-checklist">Maintenance</option>
           <option value="work-order">Work Order</option>
           <option value="change-order">Change Order</option>
         </select>
@@ -549,7 +549,7 @@ body { padding-bottom: 40px; }
     return h + ':' + m + ' ' + ampm;
   }
   function reportTypeLabel(t) {
-    var labels = { 'service-call':'Service Call', 'startup':'Start-Up', 'site-survey':'Site Survey', 'pm-checklist':'PM Checklist', 'work-order':'Work Order', 'change-order':'Change Order' };
+    var labels = { 'service-call':'Service Call', 'startup':'Start-Up', 'site-survey':'Site Survey', 'pm-checklist':'Maintenance', 'work-order':'Work Order', 'change-order':'Change Order' };
     return labels[t] || t;
   }
   function showToast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');}, 2000); }
