@@ -108,6 +108,7 @@ async function sendReportToManagement({ reportType, subject, bodyText, customerN
     });
 
     showToast('Report sent to management!');
+    setTimeout(function() { window.location.href = 'index.html'; }, 1500);
     return { success: true, driveUrl: driveResult.downloadUrl, viewUrl: driveResult.viewUrl, fileId: driveResult.fileId };
 
   } catch (error) {
