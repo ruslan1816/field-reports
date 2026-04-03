@@ -266,6 +266,33 @@
       background: #d1fae5;
       color: #047857;
     }
+    .activity-item-wrap {
+      position: relative;
+    }
+    .delete-draft-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: #fee2e2;
+      color: #991b1b;
+      border-radius: 50%;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+    .delete-draft-btn:hover {
+      opacity: 1;
+      background: #fecaca;
+    }
     .activity-empty {
       text-align: center;
       padding: 32px 16px;
@@ -628,7 +655,12 @@
         href = 'history.html';
       }
 
+      var deleteBtn = item.status === 'draft'
+        ? '<button class="delete-draft-btn" data-draft-id="' + escapeHtml(item.id) + '" title="Delete draft">&times;</button>'
+        : '';
+
       html +=
+        '<div class="activity-item-wrap">' +
         '<a class="activity-item" href="' + escapeHtml(href) + '">' +
           '<div class="activity-icon">' + getReportTypeIcon(item.type) + '</div>' +
           '<div class="activity-info">' +
@@ -639,10 +671,34 @@
             '<div class="activity-time">' + relativeTime(item.time) + '</div>' +
             '<div class="activity-badge ' + item.status + '">' + item.status + '</div>' +
           '</div>' +
-        '</a>';
+        '</a>' +
+        deleteBtn +
+        '</div>';
     });
 
     container.innerHTML = html;
+
+    // Attach delete handlers
+    container.querySelectorAll('.delete-draft-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var draftId = btn.getAttribute('data-draft-id');
+        if (confirm('Delete this draft?')) {
+          deleteDraft(draftId);
+          renderStats();
+          renderActivity();
+        }
+      });
+    });
+  }
+
+  function deleteDraft(draftId) {
+    var drafts = getDrafts();
+    var filtered = drafts.filter(function(d) { return d.id !== draftId; });
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(filtered));
+    // Also remove saved form data
+    localStorage.removeItem('nw_draft_' + draftId);
   }
 
   // ===== REPORT GRID =====
