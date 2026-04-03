@@ -315,6 +315,19 @@ body {
   outline: none;
 }
 
+/* ---------- Offline Banner ---------- */
+.offline-banner {
+  display: none;
+  background: #fef3c7;
+  color: #92400e;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid #fcd34d;
+}
+.offline-banner.show { display: block; }
+
 /* ---------- Photo Capture ---------- */
 .photo-area {
   border: 2px dashed var(--nw-border);

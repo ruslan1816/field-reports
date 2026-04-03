@@ -9,18 +9,18 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=35"></script>
-<script src="auth.js?v=35"></script>
-<script src="cloud-save.js?v=35"></script>
+<script src="supabase-config.js?v=52"></script>
+<script src="auth.js?v=52"></script>
+<script src="cloud-save.js?v=52"></script>
 <title>Service Call Report — Northern Wolves AC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="styles.css">
-<script src="draft-utils.js"></script>
-<script src="project-utils.js?v=35"></script>
-<script src="customer-utils.js?v=35"></script>
-<script src="equipment-utils.js?v=35"></script>
+<script src="draft-utils.js?v=52"></script>
+<script src="project-utils.js?v=52"></script>
+<script src="customer-utils.js?v=52"></script>
+<script src="equipment-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<script src="email-utils.js?v=17"></script>
+<script src="email-utils.js?v=52"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -58,6 +58,7 @@ body {
 .status-card-header { font-size:13px; font-weight:700; color:#0696D7; margin-bottom:10px; }
 .status-card .eq-status-notes { width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:6px; font-size:13px; resize:vertical; box-sizing:border-box; }
 .status-card .eq-status-notes:focus { border-color:#0696D7; outline:none; }
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -1115,6 +1116,13 @@ function generateAndDownload() {
 }
 
 async function generateAndEmailWithHistory() {
+  var sendBtn = document.querySelector('.btn-success[onclick*="generateAndEmail"]');
+  var origText = sendBtn ? sendBtn.innerHTML : '';
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px"></span>Sending\u2026';
+  }
+  try {
   const d = collectData();
   saveToHistory('service-call', d);
   // Link to project
@@ -1143,9 +1151,15 @@ async function generateAndEmailWithHistory() {
   if (result && result.driveUrl && projId) {
     updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
   }
+  } catch(err) {
+    console.error('Send error:', err);
+    alert('Failed to send report: ' + (err.message || 'Unknown error'));
+  } finally {
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = origText; }
+  }
 }
 </script>
 
-<script src="sw-register.js"></script>
+<script src="sw-register.js?v=52"></script>
 </body>
 </html>
