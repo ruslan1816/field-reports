@@ -276,6 +276,14 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    cursor: default;
+    transition: border-color 0.15s ease;
+  }
+  .doc-item[data-url] {
+    cursor: pointer;
+  }
+  .doc-item[data-url]:hover {
+    border-color: var(--nw-primary);
   }
   .doc-icon {
     width: 36px;
@@ -848,7 +856,8 @@ requireAuth().catch(function(){});
     emptyDocs.style.display = 'none';
     var html = '';
     docs.forEach(function(d) {
-      html += '<div class="doc-item" data-doc-id="' + d.id + '">';
+      var urlAttr = d.driveUrl ? ' data-url="' + escHtml(d.driveUrl) + '"' : '';
+      html += '<div class="doc-item" data-doc-id="' + d.id + '"' + urlAttr + '>';
       html += '<div class="doc-icon">' + docIcon(d.name) + '</div>';
       html += '<div class="doc-info">';
       html += '<div class="doc-name">' + escHtml(d.name) + '</div>';
@@ -1071,14 +1080,22 @@ requireAuth().catch(function(){});
 
     // Remove document
     document.getElementById('docList').addEventListener('click', function(e) {
+      // Handle remove button
       var btn = e.target.closest('.doc-remove');
-      if (!btn || !currentProjectId) return;
-      var docId = btn.getAttribute('data-doc-id');
-      if (!confirm('Remove this document?')) return;
-      removeDocument(currentProjectId, docId);
-      renderDocList();
-      renderProjectsList();
-      showToast('Document removed');
+      if (btn && currentProjectId) {
+        var docId = btn.getAttribute('data-doc-id');
+        if (!confirm('Remove this document?')) return;
+        removeDocument(currentProjectId, docId);
+        renderDocList();
+        renderProjectsList();
+        showToast('Document removed');
+        return;
+      }
+      // Handle clicking doc item to open PDF
+      var item = e.target.closest('.doc-item[data-url]');
+      if (item) {
+        window.open(item.getAttribute('data-url'), '_blank');
+      }
     });
   }
 

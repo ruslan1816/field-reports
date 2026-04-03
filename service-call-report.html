@@ -1110,7 +1110,7 @@ function generateAndDownload() {
   showToast('PDF downloaded!');
 }
 
-function generateAndEmailWithHistory() {
+async function generateAndEmailWithHistory() {
   const d = collectData();
   saveToHistory('service-call', d);
   // Link to project
@@ -1124,14 +1124,10 @@ function generateAndEmailWithHistory() {
     });
   }
   saveReportToCloud('service-call', d, { reportId: reportId, projectId: projId });
-  generateAndEmail();
-}
 
-async function generateAndEmail() {
-  const d = collectData();
   const doc = generatePDF();
   const filename = `ServiceCall_${d.custName.replace(/\s+/g,'_') || 'Report'}_${d.callDate}.pdf`;
-  await sendReportToManagement({
+  var result = await sendReportToManagement({
     reportType: 'Service Call Report',
     subject: `Service Call Report - ${d.custName} - ${d.callDate}`,
     bodyText: `Service Call Report\n\nCustomer: ${d.custName}\nDate: ${d.callDate}\nEquipment: ${d.equipType}\nTechnician: ${d.techName}\nStatus: ${d.systemStatus}`,
@@ -1140,6 +1136,9 @@ async function generateAndEmail() {
     pdfDoc: doc,
     filename: filename
   });
+  if (result && result.driveUrl && projId) {
+    updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
+  }
 }
 </script>
 

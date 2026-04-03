@@ -108,7 +108,7 @@ async function sendReportToManagement({ reportType, subject, bodyText, customerN
     });
 
     showToast('Report sent to management!');
-    return true;
+    return { success: true, driveUrl: driveResult.downloadUrl, viewUrl: driveResult.viewUrl, fileId: driveResult.fileId };
 
   } catch (error) {
     console.error('Send failed:', error);

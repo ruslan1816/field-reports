@@ -504,10 +504,44 @@
     return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  /**
+   * Update a project document's Drive URL after upload completes.
+   * @param {string} projectId
+   * @param {string} reportId - The reportId used when saveProjectRecord was called
+   * @param {string} driveUrl - The Google Drive download URL
+   * @param {string} [viewUrl] - The Google Drive view URL
+   */
+  function updateProjectDocUrl(projectId, reportId, driveUrl, viewUrl) {
+    if (!projectId || !reportId) return false;
+    try {
+      var projects = getProjects();
+      for (var i = 0; i < projects.length; i++) {
+        if (projects[i].id === projectId) {
+          var docs = projects[i].documents || [];
+          for (var j = docs.length - 1; j >= 0; j--) {
+            if (docs[j].reportId === reportId) {
+              docs[j].driveUrl = driveUrl;
+              if (viewUrl) docs[j].viewUrl = viewUrl;
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+              console.log('[project-utils] Updated doc URL for', reportId);
+              return true;
+            }
+          }
+          break;
+        }
+      }
+      return false;
+    } catch (e) {
+      console.error('[project-utils] Failed to update doc URL:', e);
+      return false;
+    }
+  }
+
   // ─── Expose as globals ────────────────────────────────────────────────
 
   window.getProjects = getProjects;
   window.saveProjectRecord = saveProjectRecord;
+  window.updateProjectDocUrl = updateProjectDocUrl;
   window.injectProjectPicker = injectProjectPicker;
   window.getSelectedProjectId = getSelectedProjectId;
   window.getSelectedProject = getSelectedProject;

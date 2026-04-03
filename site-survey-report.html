@@ -459,10 +459,9 @@ function generatePDF(){
 }
 
 function generateAndDownload(){const d=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';d.save(`SiteSurvey_${v('custName').replace(/\s+/g,'_')||'Report'}_${v('surveyDate')}.pdf`);showToast('PDF downloaded!')}
-function generateAndEmailWithHistory(){
+async function generateAndEmailWithHistory(){
   const d=collectData?collectData():{};
   if(typeof saveToHistory==='function') saveToHistory('site-survey', d);
-  // Link to project
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
     const v = id => (document.getElementById(id) || {}).value || '';
@@ -473,12 +472,9 @@ function generateAndEmailWithHistory(){
     });
   }
   saveReportToCloud('site-survey', d, { reportId: reportId, projectId: projId });
-  generateAndEmail();
-}
-async function generateAndEmail(){
   const doc=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';
   const fn=`SiteSurvey_${v('custName').replace(/\s+/g,'_')||'Report'}_${v('surveyDate')}.pdf`;
-  await sendReportToManagement({
+  var result = await sendReportToManagement({
     reportType: 'Site Survey Report',
     subject: `Site Survey - ${v('custName')} - ${v('surveyDate')}`,
     bodyText: `Site Survey Report\n\nCustomer: ${v('custName')}\nDate: ${v('surveyDate')}\nAddress: ${v('address')}`,
@@ -487,6 +483,9 @@ async function generateAndEmail(){
     pdfDoc: doc,
     filename: fn
   });
+  if (result && result.driveUrl && projId) {
+    updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
+  }
 }
 </script>
 <script>

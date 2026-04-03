@@ -418,10 +418,9 @@ function generatePDF(){
 }
 
 function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`ChangeOrder_${v('custName').replace(/\s+/g,'_')||'CO'}_${v('coDate')}.pdf`);showToast('PDF downloaded!')}
-function generateAndEmailWithHistory(){
+async function generateAndEmailWithHistory(){
   const d=collectData?collectData():{};
   if(typeof saveToHistory==='function') saveToHistory('change-order', d);
-  // Link to project
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
     const v = id => (document.getElementById(id) || {}).value || '';
@@ -432,12 +431,9 @@ function generateAndEmailWithHistory(){
     });
   }
   saveReportToCloud('change-order', d, { reportId: reportId, projectId: projId });
-  generateAndEmail();
-}
-async function generateAndEmail(){
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn=`ChangeOrder_${v('custName').replace(/\s+/g,'_')||'CO'}_${v('coDate')}.pdf`;
-  await sendReportToManagement({
+  var result = await sendReportToManagement({
     reportType: 'Change Order',
     subject: `Change Order - ${v('custName')} - ${v('coDate')}`,
     bodyText: `Change Order\n\nCustomer: ${v('custName')}\nDate: ${v('coDate')}\nProject: ${v('projectName')}\nReason: ${v('changeReason')}\nTotal: ${document.getElementById('costTotal').textContent}`,
@@ -446,6 +442,9 @@ async function generateAndEmail(){
     pdfDoc: doc,
     filename: fn
   });
+  if (result && result.driveUrl && projId) {
+    updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
+  }
 }
 </script>
 <script>

@@ -683,10 +683,9 @@ function generatePDF(){
 }
 
 function generateAndDownload(){const d=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';d.save(`StartUp_${v('projectName').replace(/\s+/g,'_')||'Report'}_${v('suDate')}.pdf`);showToast('PDF downloaded!')}
-function generateAndEmailWithHistory(){
+async function generateAndEmailWithHistory(){
   const d=collectData();
   saveToHistory('startup', d);
-  // Link to project
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
     const v = id => (document.getElementById(id) || {}).value || '';
@@ -697,12 +696,9 @@ function generateAndEmailWithHistory(){
     });
   }
   saveReportToCloud('startup', d, { reportId: reportId, projectId: projId });
-  generateAndEmail();
-}
-async function generateAndEmail(){
   const doc=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';
   const fn=`StartUp_${v('projectName').replace(/\s+/g,'_')||'Report'}_${v('suDate')}.pdf`;
-  await sendReportToManagement({
+  var result = await sendReportToManagement({
     reportType: 'Start-Up Report',
     subject: `Start-Up Report - ${v('projectName')} - ${v('suDate')}`,
     bodyText: `Start-Up Report\n\nProject: ${v('projectName')}\nDate: ${v('suDate')}\nTechnician: ${v('techName')}`,
@@ -711,6 +707,9 @@ async function generateAndEmail(){
     pdfDoc: doc,
     filename: fn
   });
+  if (result && result.driveUrl && projId) {
+    updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
+  }
 }
 </script>
 <script>

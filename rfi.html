@@ -254,10 +254,9 @@ function generatePDF(){
 }
 
 function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save('RFI_'+(v('toCompany').replace(/\s+/g,'_')||'RFI')+'_'+v('rfiDate')+'.pdf');showToast('PDF downloaded!')}
-function generateAndEmailWithHistory(){
+async function generateAndEmailWithHistory(){
   const d=collectData?collectData():{};
   if(typeof saveToHistory==='function') saveToHistory('rfi', d);
-  // Link to project
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
     const v = id => (document.getElementById(id) || {}).value || '';
@@ -268,12 +267,9 @@ function generateAndEmailWithHistory(){
     });
   }
   saveReportToCloud('rfi', d, { reportId: reportId, projectId: projId });
-  generateAndEmail();
-}
-async function generateAndEmail(){
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn='RFI_'+(v('toCompany').replace(/\s+/g,'_')||'RFI')+'_'+v('rfiDate')+'.pdf';
-  await sendReportToManagement({
+  var result = await sendReportToManagement({
     reportType: 'RFI',
     subject: 'RFI - '+v('projectName')+' - '+v('rfiSubject'),
     bodyText: 'Request for Information\nProject: '+v('projectName')+'\nSubject: '+v('rfiSubject')+'\nFrom: '+v('fromName')+' ('+v('fromCompany')+')\nTo: '+v('toName')+' ('+v('toCompany')+')\nPriority: '+v('rfiPriority')+'\nResponse Needed By: '+v('responseDate'),
@@ -282,6 +278,9 @@ async function generateAndEmail(){
     pdfDoc: doc,
     filename: fn
   });
+  if (result && result.driveUrl && projId) {
+    updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
+  }
 }
 </script>
 <script>

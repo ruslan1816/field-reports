@@ -497,10 +497,9 @@ function generatePDF(){
 }
 
 function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`WorkOrder_${v('custName').replace(/\s+/g,'_')||'WO'}_${v('woDate')}.pdf`);showToast('PDF downloaded!')}
-function generateAndEmailWithHistory(){
+async function generateAndEmailWithHistory(){
   const d=collectData?collectData():{};
   if(typeof saveToHistory==='function') saveToHistory('work-order', d);
-  // Link to project
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
     const v = id => (document.getElementById(id) || {}).value || '';
@@ -511,12 +510,9 @@ function generateAndEmailWithHistory(){
     });
   }
   saveReportToCloud('work-order', d, { reportId: reportId, projectId: projId });
-  generateAndEmail();
-}
-async function generateAndEmail(){
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn=`WorkOrder_${v('custName').replace(/\s+/g,'_')||'WO'}_${v('woDate')}.pdf`;
-  await sendReportToManagement({
+  var result = await sendReportToManagement({
     reportType: 'Work Order',
     subject: `Work Order - ${v('custName')} - ${v('woDate')}`,
     bodyText: `Work Order\n\nCustomer: ${v('custName')}\nDate: ${v('woDate')}\nTechnician: ${v('techName')}`,
@@ -525,6 +521,9 @@ async function generateAndEmail(){
     pdfDoc: doc,
     filename: fn
   });
+  if (result && result.driveUrl && projId) {
+    updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
+  }
 }
 </script>
 <script>

@@ -500,10 +500,9 @@ function generatePDF(){
 }
 
 function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`);showToast('PDF downloaded!')}
-function generateAndEmailWithHistory(){
+async function generateAndEmailWithHistory(){
   const d=collectData?collectData():{};
   if(typeof saveToHistory==='function') saveToHistory('pm-checklist', d);
-  // Link to project
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
     const v = id => (document.getElementById(id) || {}).value || '';
@@ -514,12 +513,9 @@ function generateAndEmailWithHistory(){
     });
   }
   saveReportToCloud('pm-checklist', d, { reportId: reportId, projectId: projId });
-  generateAndEmail();
-}
-async function generateAndEmail(){
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn=`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`;
-  await sendReportToManagement({
+  var result = await sendReportToManagement({
     reportType: 'PM Checklist',
     subject: `PM Report - ${v('custName')} - ${v('pmDate')}`,
     bodyText: `PM Checklist Report\n\nCustomer: ${v('custName')}\nDate: ${v('pmDate')}\nTechnician: ${v('techName')}`,
@@ -528,6 +524,9 @@ async function generateAndEmail(){
     pdfDoc: doc,
     filename: fn
   });
+  if (result && result.driveUrl && projId) {
+    updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
+  }
 }
 </script>
 <script>
