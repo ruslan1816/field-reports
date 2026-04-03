@@ -15,7 +15,8 @@
     style.textContent =
       '.equip-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; margin-bottom:10px; }' +
       '.equip-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }' +
-      '.equip-card-header span { font-size:13px; font-weight:700; color:#0696D7; }' +
+      '.equip-card-header .eq-name { font-size:13px; font-weight:700; color:#0696D7; border:none; background:transparent; outline:none; padding:0; flex:1; min-width:0; }' +
+      '.equip-card-header .eq-name:focus { border-bottom:2px solid #0696D7; }' +
       '.equip-card-header .remove-equip { background:none; border:none; color:#94a3b8; font-size:12px; cursor:pointer; padding:4px 8px; }' +
       '.equip-card-header .remove-equip:hover { color:#ef4444; }' +
       '.equip-card .field { margin-bottom:8px; }' +
@@ -123,9 +124,9 @@
     card.setAttribute('data-equip-num', num);
 
     var html = '';
-    // Header
+    // Header with editable name
     html += '<div class="equip-card-header">';
-    html += '<span>Equipment #' + num + '</span>';
+    html += '<input type="text" class="eq-name" value="Equipment #' + num + '" placeholder="Equipment name" oninput="onEquipNameChange()">';
     html += '<button type="button" class="remove-equip" onclick="removeEquipmentCard(this)">Remove</button>';
     html += '</div>';
 
@@ -201,11 +202,15 @@
   function _renumberCards() {
     var cards = document.querySelectorAll('#equipmentList .equip-card');
     cards.forEach(function(card, i) {
-      var span = card.querySelector('.equip-card-header span');
-      if (span) span.textContent = 'Equipment #' + (i + 1);
+      var nameInput = card.querySelector('.eq-name');
+      // Only rename if it still has the default "Equipment #N" pattern
+      if (nameInput && /^Equipment #\d+$/.test(nameInput.value)) {
+        nameInput.value = 'Equipment #' + (i + 1);
+      }
       card.setAttribute('data-equip-num', i + 1);
     });
     _equipCardCount = cards.length;
+    onEquipNameChange();
   }
 
   function _updateRemoveButtons() {
@@ -234,7 +239,9 @@
       var typeEl = card.querySelector('.eq-type');
       var type = typeEl ? typeEl.value : '';
       if (!type) return;
+      var nameEl = card.querySelector('.eq-name');
       var obj = {
+        name: nameEl ? nameEl.value : '',
         type: type,
         mfg: (card.querySelector('.eq-mfg') || {}).value || '',
         model: (card.querySelector('.eq-model') || {}).value || '',
@@ -255,6 +262,23 @@
     return document.querySelectorAll('#equipmentList .equip-card').length;
   }
 
+  // Get all equipment names (for labels in readings, photos, status)
+  function getEquipmentNames() {
+    var cards = document.querySelectorAll('#equipmentList .equip-card');
+    var names = [];
+    cards.forEach(function(card) {
+      var nameEl = card.querySelector('.eq-name');
+      names.push(nameEl ? nameEl.value : 'Equipment #' + (names.length + 1));
+    });
+    return names;
+  }
+
+  // Called when equipment name changes — dispatches event for other sections to listen
+  function onEquipNameChange() {
+    var evt = new CustomEvent('equipmentNamesChanged', { detail: { names: getEquipmentNames() } });
+    document.dispatchEvent(evt);
+  }
+
   // Expose on window
   window.injectEquipmentList = injectEquipmentList;
   window.addEquipmentCard = addEquipmentCard;
@@ -262,5 +286,7 @@
   window.selectEquipCondition = selectEquipCondition;
   window.collectEquipmentData = collectEquipmentData;
   window.getEquipmentCount = getEquipmentCount;
+  window.getEquipmentNames = getEquipmentNames;
+  window.onEquipNameChange = onEquipNameChange;
 
 })();

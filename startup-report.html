@@ -31,6 +31,7 @@ body{padding-bottom:100px}
 .photo-group{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}.photo-group-header{font-size:13px;font-weight:700;color:#0696D7;margin-bottom:8px}
 /* Result badge */
 .result-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}.result-pass{background:#d1fae5;color:#065f46}.result-conditional{background:#fef3c7;color:#92400e}.result-fail{background:#fee2e2;color:#991b1b}
+.status-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:10px}.status-card-header{font-size:13px;font-weight:700;color:#0696D7;margin-bottom:10px}.status-card .eq-status-notes{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical;box-sizing:border-box}.status-card .eq-status-notes:focus{border-color:#0696D7;outline:none}
 </style>
 </head>
 <body>
@@ -150,6 +151,18 @@ body{padding-bottom:100px}
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
     <div id="photosContainer"></div>
+  </div>
+</div>
+
+<!-- SYSTEM STATUS AT DEPARTURE -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)"><span class="icon">✅</span> System Status at Departure<span class="collapse-arrow">▼</span></div>
+  <div class="section-body">
+    <div id="statusContainer"></div>
+    <div class="field" style="margin-top:12px">
+      <label>General Notes</label>
+      <textarea id="statusNotes" placeholder="Additional status notes..." data-save></textarea>
+    </div>
   </div>
 </div>
 
@@ -394,11 +407,96 @@ function getAllPhotos() {
 }
 Object.defineProperty(window, 'photos', { get: function() { return getAllPhotos(); }, configurable: true });
 
+// ========== PER-EQUIPMENT STATUS ==========
+function escapeHtmlSU(str){const d=document.createElement('div');d.textContent=str||'';return d.innerHTML}
+
+function buildStatusSections() {
+  const container = document.getElementById('statusContainer');
+  if (!container) return;
+  const names = typeof getEquipmentNames === 'function' ? getEquipmentNames() : [];
+  const count = Math.max(names.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 1);
+  const savedStatus = collectStatusData();
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const equipLabel = names[i] || 'Equipment #' + (i+1);
+    const card = document.createElement('div');
+    card.className = 'status-card';
+    card.dataset.equipIdx = i;
+    const gid = 'statusGroup_' + i;
+    card.innerHTML = `
+      <div class="status-card-header">\u2699\uFE0F ${escapeHtmlSU(equipLabel)}</div>
+      <div class="check-group" id="${gid}">
+        <label class="check-item" onclick="selectRadio(this,'${gid}')" style="border-color:#10b981;">
+          <input type="radio" name="eqStatus_${i}" value="Operational">\u2705 Operational
+        </label>
+        <label class="check-item" onclick="selectRadio(this,'${gid}')" style="border-color:#f59e0b;">
+          <input type="radio" name="eqStatus_${i}" value="Needs Follow-Up">\u26A0\uFE0F Needs Follow-Up
+        </label>
+        <label class="check-item" onclick="selectRadio(this,'${gid}')" style="border-color:#ef4444;">
+          <input type="radio" name="eqStatus_${i}" value="Not Operational">\u274C Not Operational
+        </label>
+      </div>
+      <div class="field" style="margin-top:8px"><textarea class="eq-status-notes" data-equip="${i}" placeholder="Notes for this equipment..." rows="2"></textarea></div>
+    `;
+    container.appendChild(card);
+    if (savedStatus[i]) {
+      if (savedStatus[i].status) {
+        const radio = card.querySelector('input[value="' + savedStatus[i].status + '"]');
+        if (radio) { radio.checked = true; radio.closest('.check-item').classList.add('selected'); }
+      }
+      if (savedStatus[i].notes) {
+        const ta = card.querySelector('.eq-status-notes');
+        if (ta) ta.value = savedStatus[i].notes;
+      }
+    }
+  }
+}
+
+function collectStatusData() {
+  const result = {};
+  document.querySelectorAll('.status-card').forEach(card => {
+    const idx = card.dataset.equipIdx;
+    const checked = card.querySelector('input[type="radio"]:checked');
+    const notes = card.querySelector('.eq-status-notes');
+    result[idx] = {
+      status: checked ? checked.value : '',
+      notes: notes ? notes.value : ''
+    };
+  });
+  return result;
+}
+
+function updateEquipLabels() {
+  const names = typeof getEquipmentNames === 'function' ? getEquipmentNames() : [];
+  document.querySelectorAll('.readings-card-header').forEach((h, i) => {
+    const prefix = h.textContent.includes('Cooling') ? 'Cooling' : 'Heating';
+    h.textContent = '\u2699\uFE0F ' + (names[i] || 'Equipment #' + (i+1)) + ' \u2014 ' + prefix + ' Readings';
+  });
+  document.querySelectorAll('.photo-group').forEach(g => {
+    const key = g.dataset.key;
+    if (key === 'general') return;
+    const idx = parseInt(key);
+    const header = g.querySelector('.photo-group-header');
+    if (header && !isNaN(idx)) {
+      header.textContent = '\u2699\uFE0F ' + (names[idx] || 'Equipment #' + (idx+1)) + ' \u2014 Photos';
+    }
+  });
+  document.querySelectorAll('.status-card').forEach(c => {
+    const idx = parseInt(c.dataset.equipIdx);
+    const header = c.querySelector('.status-card-header');
+    if (header && !isNaN(idx)) {
+      header.textContent = '\u2699\uFE0F ' + (names[idx] || 'Equipment #' + (idx+1));
+    }
+  });
+}
+
+document.addEventListener('equipmentNamesChanged', updateEquipLabels);
+
 // Watch for equipment changes
-const equipObserver = new MutationObserver(() => { setTimeout(() => { rebuildAllStartupReadings(); buildPhotoSections(); }, 100); });
+const equipObserver = new MutationObserver(() => { setTimeout(() => { rebuildAllStartupReadings(); buildPhotoSections(); buildStatusSections(); }, 100); });
 const equipListEl = document.getElementById('equipmentContainer');
 if (equipListEl) equipObserver.observe(equipListEl, { childList: true, subtree: true });
-setTimeout(() => { rebuildAllStartupReadings(); buildPhotoSections(); }, 200);
+setTimeout(() => { rebuildAllStartupReadings(); buildPhotoSections(); buildStatusSections(); }, 200);
 
 // Signatures
 class SigPad{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');this.drawing=false;this.has=false;this.resize();window.addEventListener('resize',()=>this.resize());this.canvas.addEventListener('pointerdown',e=>this.start(e));this.canvas.addEventListener('pointermove',e=>this.draw(e));this.canvas.addEventListener('pointerup',()=>this.stop());this.canvas.addEventListener('pointerleave',()=>this.stop())}resize(){const r=this.canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.scale(d,d);this.ctx.strokeStyle='#1e293b';this.ctx.lineWidth=2;this.ctx.lineCap='round';this.ctx.lineJoin='round'}getPos(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}start(e){e.preventDefault();this.drawing=true;this.has=true;const p=this.getPos(e);this.ctx.beginPath();this.ctx.moveTo(p.x,p.y)}draw(e){if(!this.drawing)return;e.preventDefault();const p=this.getPos(e);this.ctx.lineTo(p.x,p.y);this.ctx.stroke()}stop(){this.drawing=false}clear(){this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);this.has=false}toDataURL(){return this.has?this.canvas.toDataURL():null}}
@@ -406,7 +504,7 @@ const techSigPad=new SigPad('techSig'),custSigPad=new SigPad('custSig');
 function clearSig(id){id==='techSig'?techSigPad.clear():custSigPad.clear()}
 
 // Autosave
-function autoSave(){const d={};document.querySelectorAll('[data-save]').forEach(el=>{if(el.type==='radio'){if(el.checked)d[el.name+'_radio']=el.value}else d[el.id||el.className]=el.value});d._equipment=typeof collectEquipmentData==='function'?collectEquipmentData():[];d._startupReadings=collectAllStartupReadings();d._photosByEquip=photosByEquip;try{localStorage.setItem(SAVE_KEY_DRAFT,JSON.stringify(d))}catch(e){}document.getElementById('autosaveIndicator').classList.add('show');setTimeout(()=>document.getElementById('autosaveIndicator').classList.remove('show'),1500)}
+function autoSave(){const d={};document.querySelectorAll('[data-save]').forEach(el=>{if(el.type==='radio'){if(el.checked)d[el.name+'_radio']=el.value}else d[el.id||el.className]=el.value});d._equipment=typeof collectEquipmentData==='function'?collectEquipmentData():[];d._startupReadings=collectAllStartupReadings();d._photosByEquip=photosByEquip;d._statusByEquip=collectStatusData();try{localStorage.setItem(SAVE_KEY_DRAFT,JSON.stringify(d))}catch(e){}document.getElementById('autosaveIndicator').classList.add('show');setTimeout(()=>document.getElementById('autosaveIndicator').classList.remove('show'),1500)}
 document.addEventListener('input',()=>{clearTimeout(window._st);window._st=setTimeout(autoSave,1000)});
 function saveDraftAndClose(){
   autoSave();
@@ -428,7 +526,9 @@ function collectData(){
     result: radioVal('result'), resultNotes: v('resultNotes'),
     custPrintName: v('custPrintName'),
     photos: getAllPhotos(),
-    photosByEquip: photosByEquip
+    photosByEquip: photosByEquip,
+    statusByEquip: collectStatusData(),
+    statusNotes: v('statusNotes')
   };
 }
 
@@ -523,6 +623,32 @@ function generatePDF(){
     doc.autoTable({startY:y,margin:{left:mx,right:15},head:[['Item','Status']],body:ctrlItems.map(i=>[i.label,i.status]),theme:'grid',headStyles:{fillColor:dk,fontSize:8},bodyStyles:{fontSize:8,cellPadding:2},columnStyles:{1:{halign:'center',cellWidth:20,fontStyle:'bold'}}});
     y=doc.lastAutoTable.finalY+4;
   }
+
+  // Per-Equipment Status
+  if(y>230){doc.addPage();y=15}
+  sH('System Status at Departure');
+  const sbd = collectStatusData();
+  const pdfEquipNames = typeof collectEquipmentData === 'function' ? collectEquipmentData().map(e => e.name || e.type || '') : [];
+  Object.keys(sbd).forEach(idx => {
+    const s = sbd[idx];
+    if (!s.status && !s.notes) return;
+    const eLabel = pdfEquipNames[parseInt(idx)] || 'Equipment #' + (parseInt(idx)+1);
+    if (y > 260) { doc.addPage(); y = 15; }
+    doc.setFont('helvetica', 'bold');doc.setFontSize(8);doc.setTextColor(49, 149, 202);
+    doc.text(eLabel, mx + 3, y); y += 4;
+    if (s.status) {
+      const sc = s.status === 'Operational' ? [16, 185, 129] : s.status === 'Not Operational' ? [239, 68, 68] : [245, 158, 11];
+      doc.setFillColor(...sc);doc.roundedRect(mx + 3, y - 1, 50, 7, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');doc.setFontSize(8);doc.setTextColor(255, 255, 255);
+      doc.text(s.status, mx + 6, y + 4); y += 10;
+    }
+    if (s.notes) {
+      doc.setFont('helvetica', 'normal');doc.setFontSize(8);doc.setTextColor(...txt);
+      doc.text(doc.splitTextToSize(s.notes, mxr - mx - 6), mx + 3, y); y += 6;
+    }
+  });
+  if(v('statusNotes')){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...txt);const snl=doc.splitTextToSize('General Notes: '+v('statusNotes'),mxr-mx-6);doc.text(snl,mx+3,y);y+=snl.length*4.5+4}
+  y += 4;
 
   // Result
   if(y>230){doc.addPage();y=15}
