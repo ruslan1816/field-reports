@@ -853,4 +853,23 @@ async function getAllProfiles() {
     }
 }
 
+/**
+ * Delete equipment by ID.
+ * @param {string} equipmentId - UUID
+ * @returns {Promise<{error: object|null}>}
+ */
+async function deleteEquipment(equipmentId) {
+    try {
+        var { error } = await supabaseClient
+            .from('equipment')
+            .delete()
+            .eq('id', equipmentId);
+        if (error) console.error('[supabase-config] deleteEquipment error:', error.message);
+        return { error: error };
+    } catch (err) {
+        console.error('[supabase-config] deleteEquipment exception:', err);
+        return { error: err };
+    }
+}
+
 console.log('[supabase-config] All helper functions loaded.');

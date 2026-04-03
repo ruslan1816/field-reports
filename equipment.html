@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=35"></script>
+<script src="auth.js?v=35"></script>
+<title>Equipment — Northern Wolves AC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="styles.css">
+<style>
+body { padding-bottom: 40px; }
+.page-title { font-size: 18px; font-weight: 800; color: #1a2332; }
+
+/* Top bar */
+.top-bar {
+  display: flex; gap: 10px; padding: 16px;
+  max-width: 700px; margin: 0 auto;
+}
+.search-input {
+  flex: 1; padding: 10px 14px; border: 1px solid #e2e8f0;
+  border-radius: 8px; font-size: 14px; background: #fff; font-family: inherit;
+}
+.search-input:focus { border-color: #0696D7; outline: none; }
+.btn-add {
+  background: #0696D7; color: #fff; border: none; border-radius: 8px;
+  padding: 10px 18px; font-size: 14px; font-weight: 700; cursor: pointer;
+  white-space: nowrap; font-family: inherit;
+}
+.btn-add:active { opacity: 0.85; }
+
+/* Filter tabs */
+.filter-bar {
+  display: flex; gap: 8px; padding: 0 16px 12px;
+  max-width: 700px; margin: 0 auto; overflow-x: auto;
+}
+.filter-chip {
+  padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  border: 1px solid #e2e8f0; background: #fff; color: #64748b;
+  cursor: pointer; white-space: nowrap; font-family: inherit;
+}
+.filter-chip.active { background: #0696D7; color: #fff; border-color: #0696D7; }
+
+/* Stats */
+.eq-stats {
+  display: flex; gap: 10px; padding: 0 16px 12px;
+  max-width: 700px; margin: 0 auto;
+}
+.eq-stat {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 10px 14px; flex: 1; text-align: center;
+}
+.eq-stat-val { font-size: 22px; font-weight: 800; color: #0696D7; }
+.eq-stat-lbl { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+
+/* Equipment list */
+.eq-list {
+  max-width: 700px; margin: 0 auto; padding: 0 16px;
+}
+.eq-card {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
+  transition: border-color 0.15s;
+}
+.eq-card:hover { border-color: #0696D7; }
+.eq-card-top {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.eq-card-type {
+  font-size: 15px; font-weight: 700; color: #1a2332;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.eq-card-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.eq-badge-cooling { color: #0696D7; background: #eff6ff; }
+.eq-badge-heating { color: #dc6803; background: #fef3c7; }
+.eq-badge-vent { color: #059669; background: #d1fae5; }
+.eq-badge-controls { color: #7c3aed; background: #ede9fe; }
+.eq-badge-other { color: #64748b; background: #f1f5f9; }
+.eq-card-details {
+  font-size: 13px; color: #64748b; margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.eq-card-customer {
+  font-size: 12px; color: #94a3b8; margin-top: 2px;
+  display: flex; align-items: center; gap: 4px;
+}
+.eq-card-customer .cust-dot { width: 6px; height: 6px; border-radius: 50%; background: #0696D7; flex-shrink: 0; }
+.eq-card-loc {
+  font-size: 12px; color: #94a3b8; margin-top: 2px;
+}
+.eq-empty {
+  text-align: center; padding: 40px 16px; color: #94a3b8; font-size: 14px;
+}
+
+/* Modal overlay */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 1000; align-items: flex-end; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet {
+  background: #fff; border-radius: 16px 16px 0 0; width: 100%;
+  max-width: 600px; max-height: 90vh; overflow-y: auto;
+  padding: 20px 16px 32px; animation: slideUp 0.2s ease-out;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-title { font-size: 18px; font-weight: 800; color: #1a2332; }
+.modal-close {
+  background: none; border: none; font-size: 24px; color: #94a3b8;
+  cursor: pointer; padding: 4px; line-height: 1;
+}
+.modal-close:hover { color: #ef4444; }
+
+/* Form fields */
+.form-field { margin-bottom: 14px; }
+.form-field label {
+  display: block; font-size: 12px; font-weight: 700; color: #475569;
+  margin-bottom: 4px; text-transform: uppercase; letter-spacing: .3px;
+}
+.form-field input, .form-field select, .form-field textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0;
+  border-radius: 8px; font-size: 14px; font-family: inherit; background: #f8fafc;
+  box-sizing: border-box;
+}
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+  border-color: #0696D7; background: #fff; outline: none;
+}
+.form-field textarea { resize: vertical; min-height: 60px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+/* Warranty badge */
+.warranty-info {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; padding: 4px 10px;
+  border-radius: 8px; margin-top: 4px;
+}
+.warranty-active { background: #d1fae5; color: #065f46; }
+.warranty-expired { background: #fee2e2; color: #991b1b; }
+.warranty-unknown { background: #f1f5f9; color: #64748b; }
+
+.btn-save {
+  width: 100%; padding: 14px; background: #0696D7; color: #fff;
+  border: none; border-radius: 10px; font-size: 15px; font-weight: 700;
+  cursor: pointer; font-family: inherit; margin-top: 8px;
+}
+.btn-save:active { opacity: 0.85; }
+.btn-delete {
+  width: 100%; padding: 12px; background: #fee2e2; color: #991b1b;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 600;
+  cursor: pointer; font-family: inherit; margin-top: 8px;
+}
+.btn-delete:hover { background: #fecaca; }
+
+/* Detail view */
+.detail-section { margin-bottom: 16px; }
+.detail-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
+.detail-value { font-size: 14px; color: #1a2332; margin-top: 2px; }
+.detail-value a { color: #0696D7; text-decoration: none; }
+.detail-actions { display: flex; gap: 10px; margin-top: 16px; }
+.btn-edit {
+  flex: 1; padding: 12px; background: #eff6ff; color: #0696D7;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+.btn-edit:hover { background: #dbeafe; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1a2332; color: #fff; padding: 10px 20px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; z-index: 2000;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="index.html" class="back-btn">&larr;</a>
+  <img src="logo-header.png" alt="Northern Wolves AC" style="height:32px;width:auto;">
+  <div class="header-content">
+    <div class="subtitle">EQUIPMENT</div>
+  </div>
+</header>
+
+<div class="toast" id="toast"></div>
+
+<!-- Top bar -->
+<div class="top-bar">
+  <input type="text" class="search-input" id="searchInput" placeholder="Search equipment..." autocomplete="off">
+  <button class="btn-add" id="btnAdd">+ Add</button>
+</div>
+
+<!-- Customer filter chips -->
+<div class="filter-bar" id="filterBar">
+  <button class="filter-chip active" data-filter="all">All</button>
+</div>
+
+<!-- Stats -->
+<div class="eq-stats">
+  <div class="eq-stat">
+    <div class="eq-stat-val" id="statTotal">0</div>
+    <div class="eq-stat-lbl">Total</div>
+  </div>
+  <div class="eq-stat">
+    <div class="eq-stat-val" id="statCooling">0</div>
+    <div class="eq-stat-lbl">Cooling</div>
+  </div>
+  <div class="eq-stat">
+    <div class="eq-stat-val" id="statHeating">0</div>
+    <div class="eq-stat-lbl">Heating</div>
+  </div>
+</div>
+
+<!-- Equipment list -->
+<div class="eq-list" id="eqList"></div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="formModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title" id="formModalTitle">Add Equipment</div>
+      <button class="modal-close" onclick="closeFormModal()">&times;</button>
+    </div>
+    <form id="eqForm" onsubmit="return false;">
+      <input type="hidden" id="fmId" value="">
+
+      <div class="form-field">
+        <label>Customer *</label>
+        <select id="fmCustomer" required>
+          <option value="">Select customer...</option>
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label>Equipment Type *</label>
+        <select id="fmType" required>
+          <option value="">Select type...</option>
+          <optgroup label="Residential">
+            <option>Split System (AC)</option>
+            <option>Split System (Heat Pump)</option>
+            <option>Mini-Split / Ductless</option>
+            <option>Furnace (Gas)</option>
+            <option>Furnace (Oil)</option>
+            <option>Boiler (Residential)</option>
+          </optgroup>
+          <optgroup label="Commercial - Cooling">
+            <option>RTU (Rooftop Unit)</option>
+            <option>AHU (Air Handling Unit)</option>
+            <option>Chiller (Air-Cooled)</option>
+            <option>Chiller (Water-Cooled)</option>
+            <option>Cooling Tower</option>
+            <option>VRF System</option>
+            <option>WSHP (Water Source Heat Pump)</option>
+          </optgroup>
+          <optgroup label="Commercial - Heating">
+            <option>Boiler (Fire-Tube)</option>
+            <option>Boiler (Water-Tube)</option>
+            <option>Boiler (Condensing)</option>
+            <option>Unit Heater</option>
+            <option>Hydronic System</option>
+          </optgroup>
+          <optgroup label="Ventilation &amp; Exhaust">
+            <option>DOAS Unit</option>
+            <option>ERV / HRV</option>
+            <option>Exhaust Fan</option>
+            <option>MAU (Make-Up Air)</option>
+            <option>Kitchen Hood System</option>
+            <option>Garage Ventilation</option>
+          </optgroup>
+          <optgroup label="Controls &amp; Terminal">
+            <option>VAV Box</option>
+            <option>Fan Powered Box (FPB)</option>
+            <option>VFD</option>
+            <option>BMS / BAS Controls</option>
+            <option>Thermostat / Controller</option>
+          </optgroup>
+          <optgroup label="Other">
+            <option>Other</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label>Brand / Manufacturer</label>
+          <input type="text" id="fmBrand" placeholder="e.g. Carrier, Trane">
+        </div>
+        <div class="form-field">
+          <label>Model #</label>
+          <input type="text" id="fmModel">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label>Serial #</label>
+          <input type="text" id="fmSerial">
+        </div>
+        <div class="form-field">
+          <label>Refrigerant</label>
+          <select id="fmRefrigerant">
+            <option value="">N/A</option>
+            <option>R-410A</option>
+            <option>R-22</option>
+            <option>R-407C</option>
+            <option>R-134a</option>
+            <option>R-404A</option>
+            <option>R-32</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label>Location / Tag</label>
+          <input type="text" id="fmLocation" placeholder="Roof, mech room, etc.">
+        </div>
+        <div class="form-field">
+          <label>Capacity</label>
+          <input type="text" id="fmCapacity" placeholder="e.g. 5 Ton, 100 MBH">
+        </div>
+      </div>
+
+      <div class="form-row-3">
+        <div class="form-field">
+          <label>Install Date</label>
+          <input type="date" id="fmInstallDate">
+        </div>
+        <div class="form-field">
+          <label>Warranty Exp.</label>
+          <input type="date" id="fmWarrantyExp">
+        </div>
+        <div class="form-field">
+          <label>Condition</label>
+          <select id="fmCondition">
+            <option value="">Select...</option>
+            <option value="good">Good</option>
+            <option value="fair">Fair</option>
+            <option value="poor">Poor</option>
+            <option value="end-of-life">End of Life</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label>Notes</label>
+        <textarea id="fmNotes" rows="3" placeholder="Access info, filter size, belt size, special instructions..."></textarea>
+      </div>
+
+      <button type="button" class="btn-save" id="btnSave" onclick="handleSave()">Save Equipment</button>
+      <button type="button" class="btn-delete" id="btnDelete" style="display:none" onclick="handleDelete()">Delete Equipment</button>
+    </form>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title" id="detailTitle">Equipment</div>
+      <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+    </div>
+    <div id="detailBody"></div>
+    <div class="detail-actions">
+      <button class="btn-edit" onclick="editFromDetail()">Edit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function() {
+  try { await requireAuth(); } catch(e) { return; }
+
+  var equipment = [];
+  var customers = [];
+  var currentDetailId = null;
+  var activeFilter = 'all';
+
+  // ── Load data ──
+  async function loadData() {
+    var eqResult = getEquipment();
+    var custResult = getCustomers();
+    var results = await Promise.all([eqResult, custResult]);
+
+    if (results[0].error) {
+      console.error('[equipment] Load error:', results[0].error);
+      showToast('Failed to load equipment');
+    }
+    equipment = results[0].data || [];
+
+    if (results[1].error) {
+      console.error('[equipment] Customer load error:', results[1].error);
+    }
+    customers = results[1].data || [];
+
+    buildFilterChips();
+    populateCustomerDropdown();
+    renderAll();
+  }
+
+  // ── Customer filter chips ──
+  function buildFilterChips() {
+    var custIds = {};
+    equipment.forEach(function(e) {
+      if (e.customer_id) custIds[e.customer_id] = true;
+    });
+
+    var bar = document.getElementById('filterBar');
+    var html = '<button class="filter-chip' + (activeFilter === 'all' ? ' active' : '') + '" data-filter="all">All</button>';
+
+    customers.forEach(function(c) {
+      if (!custIds[c.id]) return;
+      var count = equipment.filter(function(e) { return e.customer_id === c.id; }).length;
+      html += '<button class="filter-chip' + (activeFilter === c.id ? ' active' : '') + '" data-filter="' + c.id + '">' +
+        escapeHtml(c.name) + ' (' + count + ')</button>';
+    });
+    bar.innerHTML = html;
+
+    bar.querySelectorAll('.filter-chip').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        activeFilter = chip.getAttribute('data-filter');
+        bar.querySelectorAll('.filter-chip').forEach(function(c) { c.classList.remove('active'); });
+        chip.classList.add('active');
+        renderAll();
+      });
+    });
+  }
+
+  // ── Populate customer dropdown ──
+  function populateCustomerDropdown() {
+    var sel = document.getElementById('fmCustomer');
+    var html = '<option value="">Select customer...</option>';
+    customers.forEach(function(c) {
+      html += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+    });
+    sel.innerHTML = html;
+  }
+
+  // ── Category helpers ──
+  function getCategory(unitType) {
+    var t = (unitType || '').toLowerCase();
+    if (t.match(/ac|cool|split|mini|rtu|ahu|chiller|tower|vrf|wshp/)) return 'cooling';
+    if (t.match(/heat|furnace|boiler|hydronic|unit heater/)) return 'heating';
+    if (t.match(/doas|erv|hrv|exhaust|mau|make-up|kitchen|garage|vent/)) return 'ventilation';
+    if (t.match(/vav|fpb|vfd|bms|bas|thermostat|control/)) return 'controls';
+    return 'other';
+  }
+
+  function getBadgeClass(cat) {
+    var map = { cooling: 'eq-badge-cooling', heating: 'eq-badge-heating', ventilation: 'eq-badge-vent', controls: 'eq-badge-controls' };
+    return map[cat] || 'eq-badge-other';
+  }
+
+  function getCategoryLabel(cat) {
+    return cat.charAt(0).toUpperCase() + cat.slice(1);
+  }
+
+  function getCustomerName(custId) {
+    var c = customers.find(function(x) { return x.id === custId; });
+    return c ? c.name : '';
+  }
+
+  // ── Render ──
+  function renderAll() {
+    var q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+    var filtered = equipment;
+
+    if (activeFilter !== 'all') {
+      filtered = filtered.filter(function(e) { return e.customer_id === activeFilter; });
+    }
+
+    if (q) {
+      filtered = filtered.filter(function(e) {
+        var s = ((e.unit_type || '') + ' ' + (e.brand || '') + ' ' + (e.model || '') + ' ' +
+          (e.serial_number || '') + ' ' + (e.location || '') + ' ' + getCustomerName(e.customer_id)).toLowerCase();
+        return s.indexOf(q) !== -1;
+      });
+    }
+
+    // Sort: newest first
+    filtered.sort(function(a, b) {
+      return (b.created_at || '').localeCompare(a.created_at || '');
+    });
+
+    // Stats
+    document.getElementById('statTotal').textContent = equipment.length;
+    var cooling = 0, heating = 0;
+    equipment.forEach(function(e) {
+      var cat = getCategory(e.unit_type);
+      if (cat === 'cooling') cooling++;
+      else if (cat === 'heating') heating++;
+    });
+    document.getElementById('statCooling').textContent = cooling;
+    document.getElementById('statHeating').textContent = heating;
+
+    // List
+    var container = document.getElementById('eqList');
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="eq-empty">' +
+        (q || activeFilter !== 'all' ? 'No equipment matches your search' : 'No equipment yet — tap + Add to register one') +
+        '</div>';
+      return;
+    }
+
+    var html = '';
+    filtered.forEach(function(e) {
+      var cat = getCategory(e.unit_type);
+      var brandModel = [e.brand, e.model].filter(Boolean).join(' ');
+      var custName = getCustomerName(e.customer_id);
+
+      html += '<div class="eq-card" data-id="' + e.id + '">' +
+        '<div class="eq-card-top">' +
+          '<div class="eq-card-type">' + escapeHtml(e.unit_type || 'Unknown') + '</div>' +
+          '<div class="eq-card-badge ' + getBadgeClass(cat) + '">' + getCategoryLabel(cat) + '</div>' +
+        '</div>' +
+        (brandModel ? '<div class="eq-card-details">' + escapeHtml(brandModel) +
+          (e.serial_number ? ' &middot; S/N: ' + escapeHtml(e.serial_number) : '') + '</div>' : '') +
+        (custName ? '<div class="eq-card-customer"><span class="cust-dot"></span>' + escapeHtml(custName) + '</div>' : '') +
+        (e.location ? '<div class="eq-card-loc">' + escapeHtml(e.location) + '</div>' : '') +
+        '</div>';
+    });
+    container.innerHTML = html;
+
+    container.querySelectorAll('.eq-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        openDetail(card.getAttribute('data-id'));
+      });
+    });
+  }
+
+  // ── Detail modal ──
+  function openDetail(id) {
+    var e = equipment.find(function(x) { return x.id === id; });
+    if (!e) return;
+    currentDetailId = id;
+    document.getElementById('detailTitle').textContent = e.unit_type || 'Equipment';
+
+    var custName = getCustomerName(e.customer_id);
+    var warrantyHtml = '';
+    if (e.warranty_expiration) {
+      var exp = new Date(e.warranty_expiration);
+      var now = new Date();
+      if (exp > now) {
+        warrantyHtml = '<div class="warranty-info warranty-active">Under Warranty (exp ' + e.warranty_expiration + ')</div>';
+      } else {
+        warrantyHtml = '<div class="warranty-info warranty-expired">Warranty Expired (' + e.warranty_expiration + ')</div>';
+      }
+    }
+
+    var condMap = { 'good': 'Good', 'fair': 'Fair', 'poor': 'Poor', 'end-of-life': 'End of Life' };
+
+    var fields = [
+      { label: 'Customer', value: custName },
+      { label: 'Brand / Manufacturer', value: e.brand },
+      { label: 'Model #', value: e.model },
+      { label: 'Serial #', value: e.serial_number },
+      { label: 'Refrigerant', value: e.refrigerant },
+      { label: 'Location / Tag', value: e.location },
+      { label: 'Capacity', value: e.capacity },
+      { label: 'Install Date', value: e.install_date },
+      { label: 'Condition', value: condMap[e.condition] || e.condition },
+      { label: 'Notes', value: e.notes }
+    ];
+
+    var html = '';
+    fields.forEach(function(f) {
+      if (!f.value) return;
+      html += '<div class="detail-section">' +
+        '<div class="detail-label">' + f.label + '</div>' +
+        '<div class="detail-value">' + escapeHtml(f.value) + '</div></div>';
+    });
+
+    if (warrantyHtml) html += warrantyHtml;
+
+    document.getElementById('detailBody').innerHTML = html;
+    document.getElementById('detailModal').classList.add('open');
+  }
+
+  window.closeDetailModal = function() {
+    document.getElementById('detailModal').classList.remove('open');
+  };
+
+  window.editFromDetail = function() {
+    var id = currentDetailId;
+    closeDetailModal();
+    openFormModal(id);
+  };
+
+  // ── Form modal ──
+  function openFormModal(id) {
+    var isEdit = !!id;
+    document.getElementById('formModalTitle').textContent = isEdit ? 'Edit Equipment' : 'Add Equipment';
+    document.getElementById('btnDelete').style.display = isEdit ? 'block' : 'none';
+
+    if (isEdit) {
+      var e = equipment.find(function(x) { return x.id === id; });
+      if (!e) return;
+      document.getElementById('fmId').value = e.id;
+      document.getElementById('fmCustomer').value = e.customer_id || '';
+      document.getElementById('fmType').value = e.unit_type || '';
+      document.getElementById('fmBrand').value = e.brand || '';
+      document.getElementById('fmModel').value = e.model || '';
+      document.getElementById('fmSerial').value = e.serial_number || '';
+      document.getElementById('fmRefrigerant').value = e.refrigerant || '';
+      document.getElementById('fmLocation').value = e.location || '';
+      document.getElementById('fmCapacity').value = e.capacity || '';
+      document.getElementById('fmInstallDate').value = e.install_date || '';
+      document.getElementById('fmWarrantyExp').value = e.warranty_expiration || '';
+      document.getElementById('fmCondition').value = e.condition || '';
+      document.getElementById('fmNotes').value = e.notes || '';
+    } else {
+      document.getElementById('fmId').value = '';
+      document.getElementById('eqForm').reset();
+      // Pre-select customer if filtering by one
+      if (activeFilter !== 'all') {
+        document.getElementById('fmCustomer').value = activeFilter;
+      }
+    }
+
+    document.getElementById('formModal').classList.add('open');
+  }
+
+  window.closeFormModal = function() {
+    document.getElementById('formModal').classList.remove('open');
+  };
+
+  // ── Save ──
+  window.handleSave = async function() {
+    var custId = document.getElementById('fmCustomer').value;
+    var type = document.getElementById('fmType').value;
+    if (!custId) { alert('Please select a customer.'); return; }
+    if (!type) { alert('Please select an equipment type.'); return; }
+
+    var btn = document.getElementById('btnSave');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    var id = document.getElementById('fmId').value;
+    var row = {
+      customer_id: custId,
+      unit_type: type,
+      brand: document.getElementById('fmBrand').value.trim(),
+      model: document.getElementById('fmModel').value.trim(),
+      serial_number: document.getElementById('fmSerial').value.trim(),
+      refrigerant: document.getElementById('fmRefrigerant').value,
+      location: document.getElementById('fmLocation').value.trim(),
+      capacity: document.getElementById('fmCapacity').value.trim(),
+      install_date: document.getElementById('fmInstallDate').value || null,
+      warranty_expiration: document.getElementById('fmWarrantyExp').value || null,
+      condition: document.getElementById('fmCondition').value,
+      notes: document.getElementById('fmNotes').value.trim()
+    };
+
+    if (id) row.id = id;
+
+    var result = await saveEquipment(row);
+    btn.disabled = false;
+    btn.textContent = 'Save Equipment';
+
+    if (result.error) {
+      alert('Save failed: ' + result.error.message);
+      return;
+    }
+
+    showToast(id ? 'Equipment updated' : 'Equipment added');
+    closeFormModal();
+    await loadData();
+  };
+
+  // ── Delete ──
+  window.handleDelete = async function() {
+    var id = document.getElementById('fmId').value;
+    if (!id) return;
+    if (!confirm('Delete this equipment? This cannot be undone.')) return;
+
+    try {
+      var result = await deleteEquipment(id);
+      if (result.error) { alert('Delete failed: ' + result.error.message); return; }
+      showToast('Equipment deleted');
+      closeFormModal();
+      await loadData();
+    } catch (e) {
+      alert('Delete failed: ' + e.message);
+    }
+  };
+
+  // ── Helpers ──
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 2000);
+  }
+
+  // ── Events ──
+  document.getElementById('searchInput').addEventListener('input', renderAll);
+  document.getElementById('btnAdd').addEventListener('click', function() { openFormModal(null); });
+
+  ['formModal', 'detailModal'].forEach(function(id) {
+    document.getElementById(id).addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('open');
+    });
+  });
+
+  // ── Init ──
+  await loadData();
+
+})();
+</script>
+<script src="sw-register.js"></script>
+</body>
+</html>
