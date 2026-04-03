@@ -25,6 +25,7 @@
     style.id = STYLE_ID;
     style.textContent =
       '.project-picker { margin-bottom: 8px; }' +
+      '.section:has(.project-picker) { overflow: visible; }' + +
       '.project-picker label { display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:6px; }' +
       '.project-search-wrap { position: relative; }' +
       '.project-search { width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; background:#f8fafc; box-sizing:border-box; }' +
@@ -142,6 +143,11 @@
     }
 
     _pickerContainer = container;
+
+    // Ensure parent .section allows dropdown to overflow
+    var parentSection = container.closest('.section');
+    if (parentSection) parentSection.style.overflow = 'visible';
+
     _pickerOptions = Object.assign({
       autoFillCustomer: true,
       customerFieldId: 'custName',
