@@ -251,6 +251,175 @@
     color: var(--nw-muted);
     font-size: 14px;
   }
+
+  /* ===== Tab Navigation ===== */
+  .mgmt-tabs {
+    display: flex;
+    padding: 0 16px;
+    gap: 0;
+    border-bottom: 2px solid var(--nw-border);
+    margin-bottom: 0;
+  }
+  .mgmt-tab {
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nw-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+    user-select: none;
+  }
+  .mgmt-tab:hover { color: var(--nw-text); }
+  .mgmt-tab.active {
+    color: var(--nw-primary);
+    border-bottom-color: var(--nw-primary);
+  }
+  .mgmt-tab-panel { display: none; }
+  .mgmt-tab-panel.active { display: block; }
+
+  /* ===== Team Section ===== */
+  .team-list { padding: 16px; }
+  .team-card {
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color 0.15s;
+  }
+  .team-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--nw-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .team-avatar.inactive { background: #cbd5e1; }
+  .team-info { flex: 1; min-width: 0; }
+  .team-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nw-text);
+  }
+  .team-meta {
+    font-size: 12px;
+    color: var(--nw-muted);
+    margin-top: 2px;
+  }
+  .team-stats-col {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .team-report-count {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--nw-primary);
+    line-height: 1;
+  }
+  .team-report-label {
+    font-size: 10px;
+    color: var(--nw-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+  .role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .role-badge.admin { background: #ede9fe; color: #7c3aed; }
+  .role-badge.manager { background: #dbeafe; color: #2563eb; }
+  .role-badge.pm { background: #d1fae5; color: #047857; }
+  .role-badge.foreman { background: #fef3c7; color: #b45309; }
+  .role-badge.tech { background: #f1f5f9; color: #64748b; }
+
+  /* ===== Activity Timeline ===== */
+  .activity-timeline { padding: 16px; }
+  .timeline-item {
+    display: flex;
+    gap: 12px;
+    padding-bottom: 16px;
+    position: relative;
+  }
+  .timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 40px;
+    bottom: 0;
+    width: 2px;
+    background: var(--nw-border);
+  }
+  .timeline-dot {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+  .timeline-dot.submitted { background: #fef3c7; }
+  .timeline-dot.reviewed { background: #ede9fe; }
+  .timeline-dot.approved { background: #d1fae5; }
+  .timeline-dot.rejected { background: #fee2e2; }
+  .timeline-dot.default { background: #f1f5f9; }
+  .timeline-content { flex: 1; min-width: 0; }
+  .timeline-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--nw-text);
+    line-height: 1.4;
+  }
+  .timeline-title strong { color: var(--nw-primary); }
+  .timeline-meta {
+    font-size: 11px;
+    color: var(--nw-muted);
+    margin-top: 2px;
+  }
+  .timeline-report-link {
+    font-size: 12px;
+    color: var(--nw-primary);
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .timeline-report-link:hover { text-decoration: underline; }
+
+  /* ===== Date filter for activity ===== */
+  .activity-filters {
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .activity-filters select {
+    padding: 8px 10px;
+    border: 1px solid var(--nw-border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--nw-card);
+    color: var(--nw-text);
+    font-family: inherit;
+  }
 </style>
 </head>
 <body>
@@ -264,6 +433,16 @@
     </div>
     <div class="profile-circle" id="profileCircle">--</div>
   </div>
+
+  <!-- Tabs -->
+  <div class="mgmt-tabs">
+    <div class="mgmt-tab active" data-tab="reports">Reports</div>
+    <div class="mgmt-tab" data-tab="team">Team</div>
+    <div class="mgmt-tab" data-tab="activity">Activity</div>
+  </div>
+
+  <!-- ========== REPORTS TAB ========== -->
+  <div class="mgmt-tab-panel active" id="panelReports">
 
   <!-- Stats -->
   <div class="mgmt-stats">
@@ -338,6 +517,34 @@
 
   <div class="summary-text" id="summaryText"></div>
 
+  </div><!-- /panelReports -->
+
+  <!-- ========== TEAM TAB ========== -->
+  <div class="mgmt-tab-panel" id="panelTeam">
+    <div class="team-list" id="teamList">
+      <div class="loading-text">Loading team...</div>
+    </div>
+  </div>
+
+  <!-- ========== ACTIVITY TAB ========== -->
+  <div class="mgmt-tab-panel" id="panelActivity">
+    <div class="activity-filters">
+      <select id="activityPeriod">
+        <option value="7">Last 7 days</option>
+        <option value="14">Last 14 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="all">All time</option>
+      </select>
+      <select id="activityTech">
+        <option value="">All Techs</option>
+      </select>
+    </div>
+    <div class="activity-timeline" id="activityTimeline">
+      <div class="loading-text">Loading activity...</div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Detail Modal -->
@@ -373,7 +580,11 @@
 </div>
 
 <script>
-requireAuth().catch(function(){});
+requireAuth().then(function() {
+  return requireRole(['admin', 'manager', 'pm']);
+}).catch(function(){
+  // redirect handled by requireRole
+});
 (function() {
   'use strict';
 
@@ -802,6 +1013,257 @@ requireAuth().catch(function(){});
       }
     } catch(e) {}
   }
+
+  // --- Tabs ---
+  var tabsContainer = document.querySelector('.mgmt-tabs');
+  tabsContainer.addEventListener('click', function(e) {
+    var tab = e.target.closest('.mgmt-tab');
+    if (!tab) return;
+    var target = tab.getAttribute('data-tab');
+
+    // Update tab active state
+    tabsContainer.querySelectorAll('.mgmt-tab').forEach(function(t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+
+    // Show correct panel
+    document.querySelectorAll('.mgmt-tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    var panel = document.getElementById('panel' + target.charAt(0).toUpperCase() + target.slice(1));
+    if (panel) panel.classList.add('active');
+
+    // Lazy load
+    if (target === 'team' && !teamLoaded) loadTeam();
+    if (target === 'activity' && !activityLoaded) loadActivity();
+  });
+
+  // --- Team ---
+  var teamLoaded = false;
+  var allProfiles = [];
+
+  async function loadTeam() {
+    try {
+      var { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .order('full_name', { ascending: true });
+
+      if (error) {
+        document.getElementById('teamList').innerHTML = '<div class="loading-text">Error loading team.</div>';
+        return;
+      }
+
+      allProfiles = data || [];
+      teamLoaded = true;
+      renderTeam();
+    } catch(e) {
+      document.getElementById('teamList').innerHTML = '<div class="loading-text">Error loading team.</div>';
+    }
+  }
+
+  function renderTeam() {
+    var container = document.getElementById('teamList');
+    if (allProfiles.length === 0) {
+      container.innerHTML = '<div class="loading-text">No team members found.</div>';
+      return;
+    }
+
+    // Count reports per tech
+    var reportCounts = {};
+    allReports.forEach(function(r) {
+      var techId = r.tech_id || '';
+      if (techId) {
+        reportCounts[techId] = (reportCounts[techId] || 0) + 1;
+      }
+      // Also count by name for matching
+      var techName = r.tech_name || '';
+      if (techName) {
+        if (!reportCounts['name_' + techName]) reportCounts['name_' + techName] = 0;
+        reportCounts['name_' + techName]++;
+      }
+    });
+
+    var html = '';
+    allProfiles.forEach(function(p) {
+      var name = p.full_name || p.email || 'Unknown';
+      var initials = name.split(' ').map(function(w) { return w.charAt(0); }).join('').toUpperCase().substring(0, 2);
+      var role = p.role || 'tech';
+      var isActive = p.is_active !== false;
+      var count = reportCounts[p.id] || reportCounts['name_' + name] || 0;
+
+      // Last report date
+      var lastReport = null;
+      allReports.forEach(function(r) {
+        if ((r.tech_id === p.id || r.tech_name === name) && r.created_at) {
+          if (!lastReport || r.created_at > lastReport) lastReport = r.created_at;
+        }
+      });
+
+      html += '<div class="team-card">';
+      html += '<div class="team-avatar' + (isActive ? '' : ' inactive') + '">' + initials + '</div>';
+      html += '<div class="team-info">';
+      html += '<div class="team-name">' + escHtml(name) + (!isActive ? ' <span style="color:#94a3b8;font-weight:400;font-size:12px">(inactive)</span>' : '') + '</div>';
+      html += '<div class="team-meta">';
+      html += '<span class="role-badge ' + role + '">' + role + '</span>';
+      if (p.email) html += ' &nbsp;' + escHtml(p.email);
+      html += '</div>';
+      if (lastReport) {
+        html += '<div class="team-meta">Last report: ' + fmtDate(lastReport) + '</div>';
+      }
+      html += '</div>';
+      html += '<div class="team-stats-col">';
+      html += '<div class="team-report-count">' + count + '</div>';
+      html += '<div class="team-report-label">Reports</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
+  // --- Activity Timeline ---
+  var activityLoaded = false;
+
+  async function loadActivity() {
+    activityLoaded = true;
+    renderActivity();
+
+    // Populate activity tech filter
+    var select = document.getElementById('activityTech');
+    if (select.options.length <= 1) {
+      var techs = {};
+      allReports.forEach(function(r) { if (r.tech_name) techs[r.tech_name] = true; });
+      Object.keys(techs).sort().forEach(function(name) {
+        var opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    }
+  }
+
+  function renderActivity() {
+    var container = document.getElementById('activityTimeline');
+    var periodVal = document.getElementById('activityPeriod').value;
+    var techVal = document.getElementById('activityTech').value;
+
+    // Filter reports by period
+    var cutoff = null;
+    if (periodVal !== 'all') {
+      cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - parseInt(periodVal));
+    }
+
+    var filtered = allReports.filter(function(r) {
+      if (techVal && r.tech_name !== techVal) return false;
+      if (cutoff && r.created_at) {
+        var d = new Date(r.created_at);
+        if (d < cutoff) return false;
+      }
+      return true;
+    });
+
+    // Sort by created_at descending
+    filtered.sort(function(a, b) {
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
+    // Limit to 50 most recent
+    filtered = filtered.slice(0, 50);
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="loading-text">No activity in this period.</div>';
+      return;
+    }
+
+    var statusIcons = {
+      submitted: '📤',
+      reviewed: '👀',
+      approved: '✅',
+      rejected: '❌'
+    };
+    var statusVerbs = {
+      submitted: 'submitted',
+      reviewed: 'reviewed',
+      approved: 'approved',
+      rejected: 'rejected'
+    };
+
+    var html = '';
+    var lastDate = '';
+
+    filtered.forEach(function(r) {
+      var typeLabel = TYPE_MAP[r.report_type] || r.report_type || 'Report';
+      var status = r.status || 'submitted';
+      var icon = statusIcons[status] || '📋';
+      var dotClass = statusIcons[status] ? status : 'default';
+      var verb = statusVerbs[status] || 'created';
+
+      // Date separator
+      var dateStr = fmtDate(r.created_at);
+      if (dateStr !== lastDate) {
+        html += '<div style="font-size:11px;font-weight:700;color:var(--nw-muted);text-transform:uppercase;letter-spacing:0.8px;padding:8px 0 4px;margin-top:' + (lastDate ? '8px' : '0') + '">' + dateStr + '</div>';
+        lastDate = dateStr;
+      }
+
+      html += '<div class="timeline-item">';
+      html += '<div class="timeline-dot ' + dotClass + '">' + icon + '</div>';
+      html += '<div class="timeline-content">';
+      html += '<div class="timeline-title"><strong>' + escHtml(r.tech_name || 'Unknown') + '</strong> ' + verb + ' a ' + typeLabel + '</div>';
+      html += '<div class="timeline-meta">';
+      if (r.customer_name) html += escHtml(r.customer_name) + ' &middot; ';
+      if (r.report_number) html += r.report_number + ' &middot; ';
+      html += timeAgo(r.created_at);
+      html += '</div>';
+      html += '<span class="timeline-report-link" data-report-id="' + r.id + '">View Report →</span>';
+      html += '</div>';
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    var now = Date.now();
+    var then = new Date(iso).getTime();
+    var diff = now - then;
+    if (isNaN(diff) || diff < 0) return '';
+    var mins = Math.floor(diff / 60000);
+    var hrs = Math.floor(mins / 60);
+    var days = Math.floor(hrs / 24);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    if (hrs < 24) return hrs + 'h ago';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return days + 'd ago';
+    return fmtDate(iso);
+  }
+
+  // Activity filter events
+  document.getElementById('activityPeriod').addEventListener('change', function() {
+    if (activityLoaded) renderActivity();
+  });
+  document.getElementById('activityTech').addEventListener('change', function() {
+    if (activityLoaded) renderActivity();
+  });
+
+  // Activity timeline click → open report detail
+  document.getElementById('activityTimeline').addEventListener('click', function(e) {
+    var link = e.target.closest('.timeline-report-link');
+    if (link) {
+      var reportId = link.getAttribute('data-report-id');
+      if (reportId) {
+        // Switch to reports tab and open detail
+        tabsContainer.querySelector('[data-tab="reports"]').click();
+        setTimeout(function() { openDetail(reportId); }, 100);
+      }
+    }
+  });
 
   // --- Events ---
   // Filter changes

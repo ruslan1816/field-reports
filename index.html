@@ -971,6 +971,14 @@
   renderReportGrid();
   renderDispatches();
 
+  // Hide management card for techs
+  getAuthProfile().then(function(profile) {
+    if (profile && profile.role === 'tech') {
+      var mgmtLink = document.querySelector('a[href="management.html"]');
+      if (mgmtLink) mgmtLink.style.display = 'none';
+    }
+  }).catch(function(){});
+
   // Update hero once profile loads (auth.js sets profileName async)
   var heroObserver = new MutationObserver(function() { renderHero(); });
   var pnEl = document.getElementById('profileName');

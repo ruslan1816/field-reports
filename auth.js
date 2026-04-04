@@ -181,6 +181,23 @@
     if (emailEl) emailEl.textContent = profile.email || '';
   }
 
+  // ─── Role Gate ────────────────────────────────────────────────────
+
+  /**
+   * Require the authenticated user to have one of the allowed roles.
+   * Redirects to index.html if the user's role is not in the list.
+   * @param {string[]} allowedRoles - e.g. ['admin', 'manager']
+   * @returns {Promise<object>} profile
+   */
+  async function requireRole(allowedRoles) {
+    var profile = await getAuthProfile();
+    if (!profile || allowedRoles.indexOf(profile.role) === -1) {
+      window.location.href = 'index.html';
+      throw new Error('Not authorized');
+    }
+    return profile;
+  }
+
   // ─── Expose on window ─────────────────────────────────────────────
 
   window.requireAuth = requireAuth;
@@ -191,6 +208,7 @@
   window.isAdmin = isAdmin;
   window.autoFillTechName = autoFillTechName;
   window.logout = logout;
+  window.requireRole = requireRole;
   window.initAuthUI = initAuthUI;
 
 })();
