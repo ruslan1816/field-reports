@@ -29,7 +29,7 @@ body{padding-bottom:100px}
 </head>
 <body>
 <header class="header">
-  <a href="index.html" class="back-btn">←</a>
+  <a href="#" class="back-btn" onclick="event.preventDefault(); if(window.history.length>1){history.back()}else{location.href='index.html'}">←</a>
   <img src="logo-header.png" alt="Northern Wolves AC" style="height:32px;width:auto;">
   <div class="header-content">
     <div class="subtitle">REQUEST FOR INFORMATION</div>
@@ -157,6 +157,17 @@ document.getElementById('rfiDate').value=new Date().toISOString().slice(0,10);
 document.getElementById('fromCompany').value='Northern Wolves Inc';
 autoFillTechName();
 
+// ========== REQUIRE PROJECT ==========
+var _urlProjectId = new URLSearchParams(window.location.search).get('project');
+var _urlEditId = new URLSearchParams(window.location.search).get('edit');
+if (!_urlProjectId && !_urlEditId) {
+  document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;padding:24px;text-align:center;"><div style="font-size:40px;margin-bottom:16px;">📁</div><h2 style="font-size:18px;color:#1e293b;margin:0 0 8px;">Project Required</h2><p style="color:#64748b;font-size:14px;margin:0 0 20px;">RFIs must be created from within a project folder.</p><a href="projects.html" style="background:#0696D7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">Go to Projects</a></div>';
+  throw new Error('No project specified');
+}
+if (_urlProjectId && typeof selectProjectById === 'function') {
+  setTimeout(function() { selectProjectById(_urlProjectId); }, 300);
+}
+
 // Project Picker
 if (typeof injectProjectPicker === 'function') {
   injectProjectPicker('projectPickerContainer', { autoFillCustomer: false });
@@ -196,7 +207,7 @@ function saveDraftAndClose(){
 function collectData(){
   const v=id=>(document.getElementById(id)||{}).value||'';
   const radioVal=n=>{const r=document.querySelector('input[name="'+n+'"]:checked');return r?r.value:''};
-  return{reportId,rfiDate:v('rfiDate'),rfiNumber:v('rfiNumber'),projectName:v('projectName'),rfiSubject:v('rfiSubject'),fromCompany:v('fromCompany'),fromName:v('fromName'),fromEmail:v('fromEmail'),fromPhone:v('fromPhone'),toCompany:v('toCompany'),toName:v('toName'),toEmail:v('toEmail'),rfiPriority:v('rfiPriority'),responseDate:v('responseDate'),specSection:v('specSection'),drawingRef:v('drawingRef'),question:v('question'),suggestion:v('suggestion'),responseText:v('responseText'),responseReceivedDate:v('responseReceivedDate'),respondedBy:v('respondedBy'),rfiStatus:radioVal('rfiStatus'),submitterName:v('submitterName'),aiSummary:typeof getAISummary==='function'?getAISummary():''};
+  return{reportId,rfiDate:v('rfiDate'),rfiNumber:v('rfiNumber'),projectName:v('projectName'),rfiSubject:v('rfiSubject'),fromCompany:v('fromCompany'),fromName:v('fromName'),fromEmail:v('fromEmail'),fromPhone:v('fromPhone'),toCompany:v('toCompany'),toName:v('toName'),toEmail:v('toEmail'),rfiPriority:v('rfiPriority'),responseDate:v('responseDate'),specSection:v('specSection'),drawingRef:v('drawingRef'),question:v('question'),suggestion:v('suggestion'),responseText:v('responseText'),responseReceivedDate:v('responseReceivedDate'),respondedBy:v('respondedBy'),rfiStatus:radioVal('rfiStatus'),submitterName:v('submitterName'),aiSummary:typeof getAISummary==='function'?getAISummary():'',_projectId:typeof getSelectedProjectId==='function'?getSelectedProjectId():null,_rfiStatus:'open'};
 }
 
 function generatePDF(){

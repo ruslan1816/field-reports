@@ -456,6 +456,47 @@
   }
   .co-status-option:hover { background: #f1f5f9; }
   .co-status-option.active { background: #f0f9ff; color: var(--nw-primary); }
+
+  /* Main detail tabs */
+  .detail-tabs {
+    display: flex;
+    background: var(--nw-card);
+    border-bottom: var(--nw-border-width) solid var(--nw-border);
+  }
+  .detail-tab {
+    flex: 1;
+    text-align: center;
+    padding: 12px 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--nw-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    user-select: none;
+  }
+  .detail-tab:hover { color: var(--nw-text); }
+  .detail-tab.active {
+    color: var(--nw-primary);
+    border-bottom-color: var(--nw-primary);
+  }
+  .detail-tab-content { display: none; }
+  .detail-tab-content.active { display: block; }
+
+  /* RFI card styles */
+  .rfi-card {
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .rfi-card:hover { border-color: var(--nw-primary); }
+  .rfi-badge-open { background: #dbeafe; color: #1e40af; }
+  .rfi-badge-answered { background: #d1fae5; color: #065f46; }
+  .rfi-badge-closed { background: #f1f5f9; color: #64748b; }
 </style>
 </head>
 <body>
@@ -516,54 +557,56 @@
 
     <div class="detail-info" id="detailInfo"></div>
 
-    <!-- Document Tabs -->
-    <div class="doc-tabs" id="docTabs">
-      <div class="tab active" data-cat="all">All</div>
-      <div class="tab" data-cat="drawings">Drawings</div>
-      <div class="tab" data-cat="submittals">Submittals</div>
-      <div class="tab" data-cat="manuals">Manuals</div>
-      <div class="tab" data-cat="warranties">Warranties</div>
-      <div class="tab" data-cat="reports">Reports</div>
-      <div class="tab" data-cat="other">Other</div>
+    <!-- Main Tabs -->
+    <div class="detail-tabs" id="detailTabs">
+      <div class="detail-tab active" data-dtab="documents">Documents</div>
+      <div class="detail-tab" data-dtab="change-orders">Change Orders</div>
+      <div class="detail-tab" data-dtab="rfis">RFIs</div>
     </div>
 
-    <!-- Upload -->
-    <div class="doc-upload-row">
-      <button class="btn-upload" id="btnUploadDoc">+ Add Document</button>
-      <input type="file" id="fileInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip,.csv,.txt,.ppt,.pptx">
-      <span class="cloud-note">Saved to Google Drive</span>
-    </div>
-
-    <!-- Category select (shown after file pick) -->
-    <div class="upload-category-select" id="uploadCategorySelect">
-      <label for="uploadCategory">Document Category</label>
-      <select id="uploadCategory">
-        <option value="drawings">Drawings</option>
-        <option value="submittals">Submittals</option>
-        <option value="manuals">Manuals</option>
-        <option value="warranties">Warranties</option>
-        <option value="reports">Reports</option>
-        <option value="other">Other</option>
-      </select>
-      <div style="display:flex;gap:10px;margin-top:10px;">
-        <button class="btn btn-primary" id="btnConfirmUpload" style="flex:1;">Save</button>
-        <button class="btn btn-secondary" id="btnCancelUpload" style="flex:1;">Cancel</button>
+    <!-- DOCUMENTS TAB -->
+    <div class="detail-tab-content active" id="tabDocuments" data-dtab="documents">
+      <div class="doc-tabs" id="docTabs">
+        <div class="tab active" data-cat="all">All</div>
+        <div class="tab" data-cat="drawings">Drawings</div>
+        <div class="tab" data-cat="submittals">Submittals</div>
+        <div class="tab" data-cat="manuals">Manuals</div>
+        <div class="tab" data-cat="warranties">Warranties</div>
+        <div class="tab" data-cat="reports">Reports</div>
+        <div class="tab" data-cat="other">Other</div>
+      </div>
+      <div class="doc-upload-row">
+        <button class="btn-upload" id="btnUploadDoc">+ Add Document</button>
+        <input type="file" id="fileInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip,.csv,.txt,.ppt,.pptx">
+        <span class="cloud-note">Saved to Google Drive</span>
+      </div>
+      <div class="upload-category-select" id="uploadCategorySelect">
+        <label for="uploadCategory">Document Category</label>
+        <select id="uploadCategory">
+          <option value="drawings">Drawings</option>
+          <option value="submittals">Submittals</option>
+          <option value="manuals">Manuals</option>
+          <option value="warranties">Warranties</option>
+          <option value="reports">Reports</option>
+          <option value="other">Other</option>
+        </select>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <button class="btn btn-primary" id="btnConfirmUpload" style="flex:1;">Save</button>
+          <button class="btn btn-secondary" id="btnCancelUpload" style="flex:1;">Cancel</button>
+        </div>
+      </div>
+      <div class="doc-list" id="docList"></div>
+      <div class="empty-state" id="emptyDocs" style="display:none;">
+        <div class="icon" style="font-size:32px;margin-bottom:8px;">&#128196;</div>
+        <p>No documents yet.<br>Tap <strong>+ Add Document</strong> to upload.</p>
       </div>
     </div>
 
-    <!-- Document List -->
-    <div class="doc-list" id="docList"></div>
-
-    <div class="empty-state" id="emptyDocs" style="display:none;">
-      <div class="icon" style="font-size:32px;margin-bottom:8px;">&#128196;</div>
-      <p>No documents yet.<br>Tap <strong>+ Add Document</strong> to upload.</p>
-    </div>
-
-    <!-- Change Orders Section -->
-    <div id="coSection" style="display:none;">
-      <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between;">
-        <h3 style="font-size:15px;font-weight:700;color:var(--nw-text);margin:0;">Change Orders</h3>
-        <a id="btnNewCO" href="#" style="font-size:13px;font-weight:700;color:var(--nw-primary);text-decoration:none;">+ New CO</a>
+    <!-- CHANGE ORDERS TAB -->
+    <div class="detail-tab-content" id="tabChangeOrders" data-dtab="change-orders">
+      <div style="padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:13px;color:var(--nw-muted);" id="coCount"></span>
+        <a id="btnNewCO" href="#" style="font-size:13px;font-weight:700;color:var(--nw-primary);text-decoration:none;">+ New Change Order</a>
       </div>
       <div id="coStatusTabs" style="display:flex;padding:0 16px;overflow-x:auto;gap:6px;margin-bottom:8px;">
         <div class="co-tab active" data-costatus="all" onclick="filterCOStatus('all',this)">All</div>
@@ -574,7 +617,25 @@
       </div>
       <div id="coList" style="padding:0 16px 24px;"></div>
       <div id="coEmpty" style="display:none;text-align:center;padding:20px;color:var(--nw-muted);font-size:13px;">
-        No change orders yet for this project.
+        No change orders for this project.<br>Tap <strong>+ New Change Order</strong> to create one.
+      </div>
+    </div>
+
+    <!-- RFIs TAB -->
+    <div class="detail-tab-content" id="tabRFIs" data-dtab="rfis">
+      <div style="padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:13px;color:var(--nw-muted);" id="rfiCount"></span>
+        <a id="btnNewRFI" href="#" style="font-size:13px;font-weight:700;color:var(--nw-primary);text-decoration:none;">+ New RFI</a>
+      </div>
+      <div id="rfiStatusTabs" style="display:flex;padding:0 16px;overflow-x:auto;gap:6px;margin-bottom:8px;">
+        <div class="co-tab active" data-rfistatus="all" onclick="filterRFIStatus('all',this)">All</div>
+        <div class="co-tab" data-rfistatus="open" onclick="filterRFIStatus('open',this)">📋 Open</div>
+        <div class="co-tab" data-rfistatus="answered" onclick="filterRFIStatus('answered',this)">✅ Answered</div>
+        <div class="co-tab" data-rfistatus="closed" onclick="filterRFIStatus('closed',this)">🔒 Closed</div>
+      </div>
+      <div id="rfiList" style="padding:0 16px 24px;"></div>
+      <div id="rfiEmpty" style="display:none;text-align:center;padding:20px;color:var(--nw-muted);font-size:13px;">
+        No RFIs for this project.<br>Tap <strong>+ New RFI</strong> to create one.
       </div>
     </div>
   </div>
@@ -1144,6 +1205,7 @@ requireAuth().catch(function(){});
     renderDocList();
     loadDriveFiles(projectId);
     loadChangeOrders(projectId);
+    loadRFIs(projectId);
 
     // Show detail, hide list
     document.getElementById('listView').style.display = 'none';
@@ -1275,7 +1337,11 @@ requireAuth().catch(function(){});
     currentProjectId = null;
     pendingFile = null;
     activeDocCat = 'all';
-    document.getElementById('coSection').style.display = 'none';
+    // Reset detail tabs to Documents
+    document.querySelectorAll('#detailTabs .detail-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelector('#detailTabs .detail-tab[data-dtab="documents"]').classList.add('active');
+    document.querySelectorAll('.detail-tab-content').forEach(function(c) { c.classList.remove('active'); });
+    document.getElementById('tabDocuments').classList.add('active');
     // Reset doc tab
     var docTabEls = document.querySelectorAll('#docTabs .tab');
     docTabEls.forEach(function(t) { t.classList.remove('active'); });
@@ -1288,18 +1354,11 @@ requireAuth().catch(function(){});
   var _activeCOFilter = 'all';
 
   async function loadChangeOrders(projectId) {
-    var section = document.getElementById('coSection');
-    if (!section) return;
-
-    if (typeof getProjectChangeOrders !== 'function') {
-      section.style.display = 'none';
-      return;
-    }
+    if (typeof getProjectChangeOrders !== 'function') return;
 
     try {
       var result = await getProjectChangeOrders(projectId);
       _allCOs = result.data || [];
-      section.style.display = 'block';
 
       // Set new CO link
       document.getElementById('btnNewCO').href = 'change-order.html?project=' + projectId;
@@ -1307,7 +1366,6 @@ requireAuth().catch(function(){});
       renderCOList();
     } catch(e) {
       console.error('[projects] loadChangeOrders error:', e);
-      section.style.display = 'none';
     }
   }
 
@@ -1322,6 +1380,8 @@ requireAuth().catch(function(){});
 
     var container = document.getElementById('coList');
     var empty = document.getElementById('coEmpty');
+    var countEl = document.getElementById('coCount');
+    if (countEl) countEl.textContent = _allCOs.length + ' Change Order' + (_allCOs.length !== 1 ? 's' : '');
 
     if (filtered.length === 0) {
       container.innerHTML = '';
@@ -1426,6 +1486,108 @@ requireAuth().catch(function(){});
     document.querySelectorAll('.co-status-menu.open').forEach(function(m) { m.classList.remove('open'); });
   });
 
+  // ─── RFIs ───
+  var _allRFIs = [];
+  var _activeRFIFilter = 'all';
+
+  async function loadRFIs(projectId) {
+    if (typeof getProjectRFIs !== 'function') return;
+    try {
+      var result = await getProjectRFIs(projectId);
+      _allRFIs = result.data || [];
+      document.getElementById('btnNewRFI').href = 'rfi.html?project=' + projectId;
+      renderRFIList();
+    } catch(e) {
+      console.error('[projects] loadRFIs error:', e);
+    }
+  }
+
+  function renderRFIList() {
+    var filtered = _allRFIs;
+    if (_activeRFIFilter !== 'all') {
+      filtered = _allRFIs.filter(function(r) {
+        var status = (r.form_data && r.form_data._rfiStatus) || r.status || 'open';
+        return status === _activeRFIFilter;
+      });
+    }
+
+    var container = document.getElementById('rfiList');
+    var empty = document.getElementById('rfiEmpty');
+    var countEl = document.getElementById('rfiCount');
+    if (countEl) countEl.textContent = _allRFIs.length + ' RFI' + (_allRFIs.length !== 1 ? 's' : '');
+
+    if (filtered.length === 0) {
+      container.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+
+    empty.style.display = 'none';
+    var html = '';
+    filtered.forEach(function(r) {
+      var fd = r.form_data || {};
+      var rfiNum = fd.rfiNumber || r.report_number || '—';
+      var rfiStatus = fd._rfiStatus || r.status || 'open';
+      var subject = fd.rfiSubject || fd.question || 'RFI';
+      var date = fd.rfiDate || (r.created_at ? r.created_at.split('T')[0] : '');
+      var badgeClass = 'co-badge rfi-badge-' + rfiStatus;
+
+      if (subject.length > 60) subject = subject.substring(0, 57) + '...';
+
+      html += '<div class="rfi-card" data-rfiid="' + r.id + '">';
+      html += '<div class="co-card-top">';
+      html += '<div class="co-card-number">RFI #' + escHtml(String(rfiNum)) + '</div>';
+      html += '<div style="position:relative;">';
+      html += '<span class="' + badgeClass + '" data-rfi-status-toggle="' + r.id + '">' + rfiStatus + '</span>';
+      html += '<div class="co-status-menu" id="rfiMenu_' + r.id + '">';
+      html += '<button class="co-status-option' + (rfiStatus === 'open' ? ' active' : '') + '" onclick="quickRFIStatusChange(\'' + r.id + '\',\'open\',event)">📋 Open</button>';
+      html += '<button class="co-status-option' + (rfiStatus === 'answered' ? ' active' : '') + '" onclick="quickRFIStatusChange(\'' + r.id + '\',\'answered\',event)">✅ Answered</button>';
+      html += '<button class="co-status-option' + (rfiStatus === 'closed' ? ' active' : '') + '" onclick="quickRFIStatusChange(\'' + r.id + '\',\'closed\',event)">🔒 Closed</button>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '<div class="co-card-desc">' + escHtml(subject) + '</div>';
+      html += '<div class="co-card-footer">';
+      html += '<span>' + date + '</span>';
+      html += '<span style="font-weight:600;">' + escHtml(fd.fromName || '') + '</span>';
+      html += '</div>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  window.filterRFIStatus = function(status, tabEl) {
+    _activeRFIFilter = status;
+    document.querySelectorAll('#rfiStatusTabs .co-tab').forEach(function(t) { t.classList.remove('active'); });
+    if (tabEl) tabEl.classList.add('active');
+    renderRFIList();
+  };
+
+  window.quickRFIStatusChange = async function(rfiId, newStatus, e) {
+    e.stopPropagation();
+    var menu = document.getElementById('rfiMenu_' + rfiId);
+    if (menu) menu.classList.remove('open');
+
+    var rfi = null;
+    for (var i = 0; i < _allRFIs.length; i++) {
+      if (_allRFIs[i].id === rfiId) { rfi = _allRFIs[i]; break; }
+    }
+    if (!rfi) return;
+
+    try {
+      var fd = rfi.form_data || {};
+      fd._rfiStatus = newStatus;
+      await updateReportInCloud(rfiId, { form_data: fd, status: newStatus });
+      rfi.form_data = fd;
+      rfi.status = newStatus;
+      showToast('RFI #' + (fd.rfiNumber || rfi.report_number || '') + ' → ' + newStatus.charAt(0).toUpperCase() + newStatus.slice(1));
+      renderRFIList();
+    } catch(err) {
+      console.error('[projects] RFI status change error:', err);
+      showToast('Error updating status');
+    }
+  };
+
   // ─── Event binding ───
 
   function init() {
@@ -1433,11 +1595,26 @@ requireAuth().catch(function(){});
     // Load cloud projects in background
     loadProjectsFromCloud();
 
-    // Refresh COs when navigating back (bfcache restore)
+    // Refresh COs and RFIs when navigating back (bfcache restore)
     window.addEventListener('pageshow', function(e) {
       if (e.persisted && currentProjectId) {
         loadChangeOrders(currentProjectId);
+        loadRFIs(currentProjectId);
       }
+    });
+
+    // Detail tab switching
+    document.getElementById('detailTabs').addEventListener('click', function(e) {
+      var tab = e.target.closest('.detail-tab');
+      if (!tab) return;
+      var tabName = tab.getAttribute('data-dtab');
+      // Update tab active state
+      this.querySelectorAll('.detail-tab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      // Show/hide content
+      document.querySelectorAll('.detail-tab-content').forEach(function(c) { c.classList.remove('active'); });
+      var content = document.querySelector('.detail-tab-content[data-dtab="' + tabName + '"]');
+      if (content) content.classList.add('active');
     });
 
     // New project
@@ -1628,6 +1805,26 @@ requireAuth().catch(function(){});
       if (card) {
         var id = card.getAttribute('data-coid');
         if (id) window.location.href = 'change-order.html?edit=' + id;
+      }
+    });
+
+    // RFI list — badge click opens status menu, card click opens RFI for editing
+    document.getElementById('rfiList').addEventListener('click', function(e) {
+      var badge = e.target.closest('[data-rfi-status-toggle]');
+      if (badge) {
+        e.stopPropagation();
+        var rfiId = badge.getAttribute('data-rfi-status-toggle');
+        // Close all menus first
+        document.querySelectorAll('.co-status-menu.open').forEach(function(m) { m.classList.remove('open'); });
+        var menu = document.getElementById('rfiMenu_' + rfiId);
+        if (menu) menu.classList.toggle('open');
+        return;
+      }
+      if (e.target.closest('.co-status-option') || e.target.closest('.co-status-menu')) return;
+      var card = e.target.closest('.rfi-card');
+      if (card) {
+        var id = card.getAttribute('data-rfiid');
+        if (id) window.location.href = 'rfi.html?edit=' + id;
       }
     });
   }

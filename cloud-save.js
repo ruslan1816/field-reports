@@ -174,11 +174,32 @@
     }
   }
 
+  /**
+   * Get all RFIs for a project.
+   */
+  async function getProjectRFIs(projectId) {
+    try {
+      var result = await supabaseClient
+        .from('reports')
+        .select('*')
+        .eq('report_type', 'rfi')
+        .order('created_at', { ascending: false });
+      if (result.error) return { data: [], error: result.error };
+      var filtered = (result.data || []).filter(function(r) {
+        return r.form_data && r.form_data._projectId === projectId;
+      });
+      return { data: filtered, error: null };
+    } catch (err) {
+      return { data: [], error: err };
+    }
+  }
+
   // Expose on window
   window.saveReportToCloud = saveReportToCloud;
   window.getCloudReports = getCloudReports;
   window.updateReportInCloud = updateReportInCloud;
   window.getReportById = getReportById;
   window.getProjectChangeOrders = getProjectChangeOrders;
+  window.getProjectRFIs = getProjectRFIs;
 
 })();

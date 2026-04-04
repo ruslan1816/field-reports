@@ -275,6 +275,18 @@ document.getElementById('reportId').textContent=reportId;
 document.getElementById('coDate').value=new Date().toISOString().slice(0,10);
 autoFillTechName();
 
+// ========== REQUIRE PROJECT ==========
+var _urlProjectId = new URLSearchParams(window.location.search).get('project');
+var _urlEditId = new URLSearchParams(window.location.search).get('edit');
+if (!_urlProjectId && !_urlEditId) {
+  document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;padding:24px;text-align:center;"><div style="font-size:40px;margin-bottom:16px;">📁</div><h2 style="font-size:18px;color:#1e293b;margin:0 0 8px;">Project Required</h2><p style="color:#64748b;font-size:14px;margin:0 0 20px;">Change Orders must be created from within a project folder.</p><a href="projects.html" style="background:#0696D7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">Go to Projects</a></div>';
+  throw new Error('No project specified');
+}
+// Auto-select project if coming from project page
+if (_urlProjectId && typeof selectProjectById === 'function') {
+  setTimeout(function() { selectProjectById(_urlProjectId); }, 300);
+}
+
 // ========== EDIT MODE ==========
 var _editCloudId = null;
 var _revisionNumber = 1;
