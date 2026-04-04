@@ -455,8 +455,8 @@
     <!-- Upload -->
     <div class="doc-upload-row">
       <button class="btn-upload" id="btnUploadDoc">+ Add Document</button>
-      <input type="file" id="fileInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dwg">
-      <span class="cloud-note">Documents sync across all devices</span>
+      <input type="file" id="fileInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip,.csv,.txt,.ppt,.pptx">
+      <span class="cloud-note">Saved to Google Drive</span>
     </div>
 
     <!-- Category select (shown after file pick) -->
@@ -555,6 +555,7 @@ requireAuth().catch(function(){});
   'use strict';
 
   var STORAGE_KEY = 'nw_projects';
+  var DRIVE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxPvr8QooEcdcxt937V49-Y_o9lz5-qQUQqjnaGr5mcabxOr9iZbkP3yxN9O2T09NoW/exec';
   var activeFilter = 'all';
   var searchTerm = '';
   var debounceTimer = null;
@@ -582,7 +583,55 @@ requireAuth().catch(function(){});
     });
   }
 
-  // ─── Cloud sync helpers ───
+  // ─── Google Drive helpers ───
+
+  async function driveRequest(body) {
+    try {
+      var resp = await fetch(DRIVE_PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(body)
+      });
+      return await resp.json();
+    } catch(e) {
+      console.error('[drive] request error:', e);
+      return { success: false, error: e.message };
+    }
+  }
+
+  async function driveListFiles(projectName, projectId) {
+    return driveRequest({ action: 'list_files', projectName: projectName, projectId: projectId });
+  }
+
+  async function driveUploadFile(projectName, projectId, fileName, base64Data, mimeType, category) {
+    return driveRequest({
+      action: 'upload_file',
+      projectName: projectName,
+      projectId: projectId,
+      fileName: fileName,
+      fileData: base64Data,
+      mimeType: mimeType,
+      category: category
+    });
+  }
+
+  async function driveDeleteFile(fileId) {
+    return driveRequest({ action: 'delete_file', fileId: fileId });
+  }
+
+  async function driveCreateProject(projectName, projectId) {
+    return driveRequest({ action: 'create_project', projectName: projectName, projectId: projectId });
+  }
+
+  async function driveRenameProject(projectId, newName) {
+    return driveRequest({ action: 'rename_project', projectId: projectId, newName: newName });
+  }
+
+  async function driveDeleteProject(projectId) {
+    return driveRequest({ action: 'delete_project', projectId: projectId });
+  }
+
+  // ─── Cloud sync helpers (Supabase for project metadata) ───
 
   function toCloudProject(p) {
     return {
@@ -629,6 +678,8 @@ requireAuth().catch(function(){});
       } else {
         console.log('[projects] Synced to cloud:', project.name);
       }
+      // Also create Google Drive folder
+      driveCreateProject(project.name, project.id);
     } catch(e) {
       console.error('[projects] Cloud sync exception:', e);
     }
@@ -639,6 +690,8 @@ requireAuth().catch(function(){});
       if (typeof deleteCloudProject === 'function') {
         await deleteCloudProject(projectId);
       }
+      // Also delete Google Drive folder
+      driveDeleteProject(projectId);
     } catch(e) {
       console.error('[projects] Cloud delete exception:', e);
     }
@@ -662,16 +715,12 @@ requireAuth().catch(function(){});
         }
       });
 
-      // Also check for cloud projects that updated
       var cloudIds = {};
       result.data.forEach(function(row) { cloudIds[row.id] = row; });
 
-      // Remove local projects that were deleted in cloud (only cloud-originated ones)
-      // And update local projects with cloud data
       for (var i = 0; i < localProjects.length; i++) {
         var lp = localProjects[i];
         if (cloudIds[lp.id]) {
-          // Update from cloud
           var cp = fromCloudProject(cloudIds[lp.id]);
           lp.name = cp.name;
           lp.customer = cp.customer;
@@ -690,17 +739,11 @@ requireAuth().catch(function(){});
         saveProjects(localProjects);
         renderProjectsList();
       }
-
-      // Load documents for current project if detail is open
-      if (currentProjectId) {
-        await loadCloudDocs(currentProjectId);
-      }
     } catch(e) {
       console.error('[projects] Cloud load exception:', e);
     }
   }
 
-  // Wrapper to call supabase-config's getProjects (which was overwritten by project-utils)
   async function getProjects_cloud() {
     try {
       var { data, error } = await supabaseClient
@@ -713,55 +756,40 @@ requireAuth().catch(function(){});
     }
   }
 
-  async function loadCloudDocs(projectId) {
+  // Load documents from Google Drive
+  async function loadDriveFiles(projectId) {
+    var p = getProjectById(projectId);
+    if (!p) return;
     try {
-      if (typeof getProjectDocuments !== 'function') return;
-      var result = await getProjectDocuments(projectId);
-      if (result.error || !result.data || result.data.length === 0) return;
+      var result = await driveListFiles(p.name, projectId);
+      if (!result.success) return;
 
-      var p = getProjectById(projectId);
-      if (!p) return;
-      if (!p.documents) p.documents = [];
-
-      var existingIds = {};
-      p.documents.forEach(function(d) { if (d.cloudId) existingIds[d.cloudId] = true; });
-
-      var changed = false;
-      result.data.forEach(function(doc) {
-        if (existingIds[doc.id]) return;
-        // Get public URL for the file
-        var publicUrl = '';
-        if (doc.storage_path) {
-          var urlResult = supabaseClient.storage.from('project-documents').getPublicUrl(doc.storage_path);
-          publicUrl = urlResult.data ? urlResult.data.publicUrl : '';
-        }
-        p.documents.push({
-          id: genId(),
-          cloudId: doc.id,
-          name: doc.title || doc.file_name,
-          category: doc.document_type || 'other',
-          size: doc.file_size || 0,
-          type: doc.mime_type || '',
-          addedAt: doc.created_at,
-          driveUrl: publicUrl,
-          storagePath: doc.storage_path
-        });
-        changed = true;
+      // Replace local doc list with Drive files
+      p.documents = (result.files || []).map(function(f) {
+        return {
+          id: f.id,
+          driveId: f.id,
+          name: f.name,
+          category: f.category || 'other',
+          size: f.size || 0,
+          type: f.mimeType || '',
+          addedAt: f.createdAt,
+          driveUrl: f.viewUrl || f.url,
+          downloadUrl: f.downloadUrl
+        };
       });
 
-      if (changed) {
-        var projects = getProjects();
-        for (var i = 0; i < projects.length; i++) {
-          if (projects[i].id === projectId) {
-            projects[i].documents = p.documents;
-            break;
-          }
+      var projects = getProjects();
+      for (var i = 0; i < projects.length; i++) {
+        if (projects[i].id === projectId) {
+          projects[i].documents = p.documents;
+          break;
         }
-        saveProjects(projects);
-        renderDocList();
       }
+      saveProjects(projects);
+      renderDocList();
     } catch(e) {
-      console.error('[projects] loadCloudDocs exception:', e);
+      console.error('[projects] loadDriveFiles exception:', e);
     }
   }
 
@@ -808,7 +836,10 @@ requireAuth().catch(function(){});
       }
     }
     saveProjects(projects);
-    if (updated) syncProjectToCloud(updated);
+    if (updated) {
+      syncProjectToCloud(updated);
+      driveRenameProject(id, data.name);
+    }
   }
 
   function deleteProject(id) {
@@ -826,12 +857,11 @@ requireAuth().catch(function(){});
     return null;
   }
 
-  function addDocument(projectId, docMeta) {
+  function addDocumentLocal(projectId, docMeta) {
     var projects = getProjects();
     for (var i = 0; i < projects.length; i++) {
       if (projects[i].id === projectId) {
         if (!projects[i].documents) projects[i].documents = [];
-        docMeta.id = genId();
         docMeta.addedAt = new Date().toISOString();
         projects[i].documents.push(docMeta);
         break;
@@ -840,24 +870,15 @@ requireAuth().catch(function(){});
     saveProjects(projects);
   }
 
-  function removeDocument(projectId, docId) {
+  function removeDocumentLocal(projectId, docId) {
     var projects = getProjects();
-    var removedDoc = null;
     for (var i = 0; i < projects.length; i++) {
       if (projects[i].id === projectId) {
-        var docs = projects[i].documents || [];
-        for (var j = 0; j < docs.length; j++) {
-          if (docs[j].id === docId) { removedDoc = docs[j]; break; }
-        }
-        projects[i].documents = docs.filter(function(d) { return d.id !== docId; });
+        projects[i].documents = (projects[i].documents || []).filter(function(d) { return d.id !== docId; });
         break;
       }
     }
     saveProjects(projects);
-    // Also delete from cloud if it has a cloudId
-    if (removedDoc && removedDoc.cloudId && typeof deleteProjectDocument === 'function') {
-      deleteProjectDocument(removedDoc.cloudId, removedDoc.storagePath).catch(function() {});
-    }
   }
 
   // ─── Formatting helpers ───
@@ -1027,7 +1048,7 @@ requireAuth().catch(function(){});
     document.getElementById('detailInfo').innerHTML = infoHtml;
 
     renderDocList();
-    loadCloudDocs(projectId);
+    loadDriveFiles(projectId);
 
     // Show detail, hide list
     document.getElementById('listView').style.display = 'none';
@@ -1056,8 +1077,7 @@ requireAuth().catch(function(){});
     emptyDocs.style.display = 'none';
     var html = '';
     docs.forEach(function(d) {
-      var hasLink = d.driveUrl || d.fileData;
-      var urlAttr = hasLink ? ' data-url="' + (d.driveUrl ? escHtml(d.driveUrl) : 'local') + '"' : '';
+      var urlAttr = d.driveUrl ? ' data-url="' + escHtml(d.driveUrl) + '"' : '';
       html += '<div class="doc-item" data-doc-id="' + d.id + '"' + urlAttr + '>';
       html += '<div class="doc-icon">' + docIcon(d.name) + '</div>';
       html += '<div class="doc-info">';
@@ -1066,6 +1086,7 @@ requireAuth().catch(function(){});
       html += '<span class="doc-badge">' + escHtml(d.category || 'other') + '</span>';
       html += ' &middot; ' + fmtDate(d.addedAt);
       if (d.size) html += ' &middot; ' + fmtSize(d.size);
+      if (d.driveId) html += ' &middot; <span style="color:#0696D7">Google Drive</span>';
       html += '</div>';
       html += '</div>';
       html += '<button class="doc-remove" data-doc-id="' + d.id + '" title="Remove">&#10005;</button>';
@@ -1258,61 +1279,55 @@ requireAuth().catch(function(){});
       this.value = '';
     });
 
-    // Confirm upload — upload to Supabase Storage (fallback to base64)
+    // Confirm upload — upload to Google Drive
     document.getElementById('btnConfirmUpload').addEventListener('click', function() {
       if (!pendingFile || !currentProjectId) return;
       var cat = document.getElementById('uploadCategory').value;
       var file = pendingFile;
+      var project = getProjectById(currentProjectId);
       pendingFile = null;
       document.getElementById('uploadCategorySelect').classList.remove('active');
-      showToast('Uploading...');
+      showToast('Uploading to Google Drive...');
 
-      // Try Supabase Storage first
-      if (typeof uploadProjectDocument === 'function' && typeof supabaseClient !== 'undefined') {
-        uploadProjectDocument(currentProjectId, file).then(function(result) {
-          if (result.data && !result.error) {
-            addDocument(currentProjectId, {
-              name: file.name,
-              category: cat,
-              size: file.size,
-              type: file.type || '',
-              cloudId: result.data.id,
-              storagePath: result.data.storage_path,
-              driveUrl: result.data.publicUrl || ''
-            });
-          } else {
-            // Storage failed — fallback to base64
-            console.warn('[projects] Storage upload failed, using base64 fallback');
-            saveBase64Doc(file, cat);
-            return;
-          }
-          renderDocList();
-          renderProjectsList();
-          showToast('Document uploaded');
-        }).catch(function() {
-          saveBase64Doc(file, cat);
-        });
-      } else {
-        saveBase64Doc(file, cat);
-      }
-    });
-
-    function saveBase64Doc(file, cat) {
       var reader = new FileReader();
-      reader.onload = function() {
-        addDocument(currentProjectId, {
-          name: file.name,
-          category: cat,
-          size: file.size,
-          type: file.type || '',
-          fileData: reader.result
-        });
-        renderDocList();
-        renderProjectsList();
-        showToast('Document added');
+      reader.onload = async function() {
+        try {
+          // Strip data URL prefix to get pure base64
+          var base64 = reader.result.split(',')[1];
+          var result = await driveUploadFile(
+            project ? project.name : 'Unknown',
+            currentProjectId,
+            file.name,
+            base64,
+            file.type || 'application/octet-stream',
+            cat
+          );
+
+          if (result.success && result.file) {
+            addDocumentLocal(currentProjectId, {
+              id: result.file.id,
+              driveId: result.file.id,
+              name: result.file.name,
+              category: result.file.category || cat,
+              size: result.file.size || file.size,
+              type: result.file.mimeType || file.type,
+              driveUrl: result.file.viewUrl || result.file.url,
+              downloadUrl: result.file.downloadUrl
+            });
+            renderDocList();
+            renderProjectsList();
+            showToast('Uploaded to Google Drive');
+          } else {
+            showToast('Upload failed: ' + (result.error || 'Unknown error'));
+            console.error('[projects] Drive upload failed:', result);
+          }
+        } catch(e) {
+          showToast('Upload error');
+          console.error('[projects] Upload exception:', e);
+        }
       };
       reader.readAsDataURL(file);
-    }
+    });
 
     // Cancel upload
     document.getElementById('btnCancelUpload').addEventListener('click', function() {
@@ -1320,35 +1335,32 @@ requireAuth().catch(function(){});
       document.getElementById('uploadCategorySelect').classList.remove('active');
     });
 
-    // Remove document
+    // Remove document (from Google Drive + local)
     document.getElementById('docList').addEventListener('click', function(e) {
       // Handle remove button
       var btn = e.target.closest('.doc-remove');
       if (btn && currentProjectId) {
         var docId = btn.getAttribute('data-doc-id');
-        if (!confirm('Remove this document?')) return;
-        removeDocument(currentProjectId, docId);
+        if (!confirm('Remove this document from Google Drive?')) return;
+        // Delete from Drive
+        driveDeleteFile(docId).then(function(result) {
+          if (result.success) {
+            showToast('Removed from Google Drive');
+          } else {
+            showToast('Drive delete failed');
+          }
+        });
+        removeDocumentLocal(currentProjectId, docId);
         renderDocList();
         renderProjectsList();
-        showToast('Document removed');
         return;
       }
-      // Handle clicking doc item to open PDF
+      // Handle clicking doc item to open in Google Drive
       var item = e.target.closest('.doc-item[data-url]');
       if (item) {
         var url = item.getAttribute('data-url');
-        if (url && url !== 'local') {
+        if (url) {
           window.open(url, '_blank');
-        } else {
-          // Open from stored fileData
-          var docId = item.getAttribute('data-doc-id');
-          var p = getProjectById(currentProjectId);
-          if (p && p.documents) {
-            var doc = p.documents.find(function(d) { return d.id === docId; });
-            if (doc && doc.fileData) {
-              window.open(doc.fileData, '_blank');
-            }
-          }
         }
       }
     });
