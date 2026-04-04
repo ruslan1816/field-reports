@@ -35,7 +35,7 @@ body{padding-bottom:100px}
 </head>
 <body>
 <header class="header">
-  <a href="index.html" class="back-btn">←</a>
+  <a href="#" class="back-btn" onclick="event.preventDefault(); if(window.history.length>1){history.back()}else{location.href='index.html'}">←</a>
   <img src="logo-header.png" alt="Northern Wolves AC" style="height:32px;width:auto;">
   <div class="header-content">
     <div class="subtitle">CHANGE ORDER</div>
@@ -215,19 +215,28 @@ body{padding-bottom:100px}
   </div>
 </div>
 
-<div class="bottom-bar">
+<!-- Bottom bar: New CO mode -->
+<div class="bottom-bar" id="newModeBar">
   <button class="btn btn-secondary" onclick="saveDraftAndClose()">💾 Draft</button>
   <button class="btn btn-primary" onclick="generateAndDownload()">📄 PDF</button>
   <button class="btn btn-success" onclick="openEmailPreview()">📧 Send</button>
 </div>
 
+<!-- Bottom bar: Edit CO mode (hidden by default) -->
+<div class="bottom-bar" id="editModeBar" style="display:none;">
+  <button class="btn btn-secondary" onclick="saveAndGoBack()">💾 Save</button>
+  <button class="btn btn-primary" onclick="generateAndDownload()">📄 PDF</button>
+  <button class="btn btn-success" onclick="openEmailPreview()">📧 Send</button>
+</div>
+
 <!-- Status bar for edit mode (hidden by default) -->
-<div id="editModeBar" style="display:none;position:fixed;bottom:60px;left:0;right:0;background:#f8fafc;border-top:1px solid #e2e8f0;padding:8px 16px;z-index:99;text-align:center;">
-  <div style="max-width:500px;margin:0 auto;display:flex;gap:8px;align-items:center;justify-content:center;">
-    <span style="font-size:12px;font-weight:700;color:#64748b;margin-right:4px;">Status:</span>
-    <button class="btn btn-small" onclick="updateCOStatus('approved')" style="background:#16a34a;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">✅ Approve</button>
-    <button class="btn btn-small" onclick="updateCOStatus('voided')" style="background:#dc2626;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">🚫 Void</button>
-    <button class="btn btn-small" onclick="updateCOStatus('submitted')" style="background:#0696D7;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">📋 Resubmit</button>
+<div id="editStatusBar" style="display:none;position:fixed;bottom:60px;left:0;right:0;background:#f8fafc;border-top:1px solid #e2e8f0;padding:8px 16px;z-index:99;text-align:center;">
+  <div style="max-width:500px;margin:0 auto;display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;">
+    <span style="font-size:12px;font-weight:700;color:#64748b;margin-right:2px;">Status:</span>
+    <button class="btn btn-small" onclick="updateCOStatus('submitted')" style="background:#0696D7;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">📋 Submitted</button>
+    <button class="btn btn-small" onclick="updateCOStatus('revised')" style="background:#f59e0b;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">📝 Revised</button>
+    <button class="btn btn-small" onclick="updateCOStatus('approved')" style="background:#16a34a;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">✅ Approved</button>
+    <button class="btn btn-small" onclick="updateCOStatus('voided')" style="background:#dc2626;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">🚫 Voided</button>
   </div>
 </div>
 
@@ -397,8 +406,10 @@ var _coStatus = 'submitted';
       }, 200);
     }
 
-    // Show edit mode status bar
-    document.getElementById('editModeBar').style.display = 'block';
+    // Show edit mode bars, hide new mode bar
+    document.getElementById('newModeBar').style.display = 'none';
+    document.getElementById('editModeBar').style.display = 'flex';
+    document.getElementById('editStatusBar').style.display = 'block';
     showToast('Change order loaded' + (_revisionNumber > 1 ? ' — Rev ' + _revisionNumber : ''));
 
   } catch(e) {
@@ -709,7 +720,7 @@ function saveDraftAndClose(){
   autoSave();
   saveDraftEntry('change-order','change-order.html');
   showToast('Draft saved!');
-  setTimeout(()=>{window.location.href='index.html'},600);
+  setTimeout(function(){if(window.history.length>1){history.back()}else{location.href='index.html'}},600);
 }
 
 function collectData(){
@@ -945,13 +956,34 @@ async function confirmSendEmail(){
     }
     document.getElementById('emailModal').style.display='none';
     showToast('Change Order sent!');
-    setTimeout(function(){window.location.href='index.html'},1500);
+    setTimeout(function(){if(window.history.length>1){history.back()}else{location.href='index.html'}},1500);
   }catch(err){
     console.error('Send error:',err);
     alert('Failed to send: '+(err.text||err.message||'Unknown error'));
   }finally{
     btn.disabled=false;
     btn.innerHTML=origText;
+  }
+}
+
+async function saveAndGoBack() {
+  if (!_editCloudId) {
+    // New CO — save as draft
+    saveDraftAndClose();
+    return;
+  }
+  try {
+    showToast('Saving...');
+    var d = collectData();
+    await updateReportInCloud(_editCloudId, { form_data: d });
+    showToast('Changes saved!');
+    setTimeout(function() {
+      if (window.history.length > 1) { history.back(); }
+      else { location.href = 'index.html'; }
+    }, 600);
+  } catch(e) {
+    console.error('[CO] Save error:', e);
+    showToast('Error saving — try again');
   }
 }
 
