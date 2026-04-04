@@ -523,7 +523,7 @@ function openEmailPreview(){
   // Pre-fill CC with client email if entered
   document.getElementById('emailCc').value=v('clientEmail');
   // Pre-fill subject
-  document.getElementById('emailSubject').value='Change Order - '+v('custName')+' - '+v('coDate');
+  document.getElementById('emailSubject').value='Change Order - '+(v('projectName')||v('custName'))+' - '+v('custName')+' - '+v('coDate');
   // Pre-fill professional message body
   const msg=[
     'Dear '+( v('contact') || v('custName') || 'Client')+',',
