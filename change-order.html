@@ -358,14 +358,23 @@ var _coStatus = 'submitted';
     }
 
     // Set project picker if project ID stored
-    if (fd._projectId && typeof setSelectedProjectId === 'function') {
-      setSelectedProjectId(fd._projectId);
+    if (fd._projectId && typeof selectProjectById === 'function') {
+      selectProjectById(fd._projectId);
     }
 
     calcCosts();
+
+    // Restore photos after photo sections are built
+    if (fd._photos) {
+      setTimeout(function() {
+        buildPhotoSections();
+        restorePhotosData(fd._photos);
+      }, 200);
+    }
+
     // Show edit mode status bar
     document.getElementById('editModeBar').style.display = 'block';
-    showToast('Change order loaded — Rev ' + _revisionNumber);
+    showToast('Change order loaded' + (_revisionNumber > 1 ? ' — Rev ' + _revisionNumber : ''));
 
   } catch(e) {
     console.error('[CO] Edit mode error:', e);
@@ -425,6 +434,27 @@ function collectLaborData() {
     });
   });
   return labor;
+}
+
+function collectPhotosData() {
+  var result = {};
+  Object.keys(photosByEquip).forEach(function(key) {
+    if (photosByEquip[key] && photosByEquip[key].length > 0) {
+      result[key] = photosByEquip[key].map(function(p) { return { data: p.data }; });
+    }
+  });
+  return result;
+}
+
+function restorePhotosData(photosObj) {
+  if (!photosObj || typeof photosObj !== 'object') return;
+  Object.keys(photosObj).forEach(function(key) {
+    if (!photosByEquip[key]) photosByEquip[key] = [];
+    (photosObj[key] || []).forEach(function(p) {
+      if (p.data) photosByEquip[key].push({ data: p.data });
+    });
+    renderEquipPhotos(key);
+  });
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
@@ -576,7 +606,8 @@ _cloudId: _editCloudId || null,
 _revisionNumber: _revisionNumber || 1,
 _coStatus: _coStatus || 'submitted',
 _parts: collectPartsData(),
-_labor: collectLaborData()
+_labor: collectLaborData(),
+_photos: collectPhotosData()
 };
 }
 

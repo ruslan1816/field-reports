@@ -564,6 +564,7 @@
   window.getSelectedProjectId = getSelectedProjectId;
   window.getSelectedProject = getSelectedProject;
   window.clearProjectSelection = clearProjectSelection;
+  window.selectProjectById = selectProject;
 
   // Legacy globals for inline onclick handlers (if any forms still use them)
   window.saveQuickProject = saveQuickProject;
