@@ -13,8 +13,7 @@
   'use strict';
 
   // Google Apps Script proxy URL — handles Claude API calls server-side
-  // SET THIS after deploying the Apps Script
-  var AI_PROXY_URL = '';
+  var AI_PROXY_URL = 'https://script.google.com/macros/s/AKfycbyliO2PnVCaDfFYsA3hZZOwQYP3ElniEx7YHhM7ZkMXcMo0Fly3R-IQjLQXXbpuM6Rv9w/exec';
 
   // Report-type-specific prompt context
   var REPORT_PROMPTS = {
