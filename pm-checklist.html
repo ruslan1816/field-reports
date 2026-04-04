@@ -137,6 +137,18 @@ body{padding-bottom:100px}
   </div>
 </div>
 
+<!-- ADDITIONAL PHOTOS -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">📷</span> Additional Photos
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <p style="font-size:12px;color:#94a3b8;margin-bottom:8px">Any other photos not covered by sections above.</p>
+    <div id="additionalPhotosContainer"></div>
+  </div>
+</div>
+
 <!-- AI SUMMARY (optional) -->
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)">
@@ -250,7 +262,7 @@ function getChecklistResults(){
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { before: [], after: [], deficiencies: [] };
+let photosByEquip = { before: [], after: [], deficiencies: [], additional: [] };
 
 function buildPhotoSections() {
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
@@ -278,6 +290,11 @@ function buildPhotoSections() {
   const defContainer = document.getElementById('deficienciesPhotos');
   if (defContainer && !defContainer.hasChildNodes()) {
     defContainer.appendChild(createPhotoGroup('deficiencies', '\uD83D\uDCF8 Deficiencies Found'));
+  }
+
+  const addlContainer = document.getElementById('additionalPhotosContainer');
+  if (addlContainer && !addlContainer.hasChildNodes()) {
+    addlContainer.appendChild(createPhotoGroup('additional', '\uD83D\uDCF8 Additional Photos'));
   }
 
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
