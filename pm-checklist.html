@@ -71,14 +71,14 @@ body{padding-bottom:100px}
 <div class="section">
   <div class="section-header"><span class="icon">⚙️</span> Select Equipment Type</div>
   <div class="section-body" style="text-align:center">
-    <div class="equip-chip active" onclick="loadChecklist('split')">Split System</div>
-    <div class="equip-chip" onclick="loadChecklist('rtu')">RTU</div>
-    <div class="equip-chip" onclick="loadChecklist('ahu')">AHU</div>
-    <div class="equip-chip" onclick="loadChecklist('boiler')">Boiler</div>
-    <div class="equip-chip" onclick="loadChecklist('vrf')">VRF</div>
-    <div class="equip-chip" onclick="loadChecklist('exhaust')">Exhaust Fan</div>
-    <div class="equip-chip" onclick="loadChecklist('minisplit')">Mini-Split</div>
-    <div class="equip-chip" onclick="loadChecklist('chiller')">Chiller</div>
+    <div class="equip-chip active" onclick="loadChecklist('split',event)">Split System</div>
+    <div class="equip-chip" onclick="loadChecklist('rtu',event)">RTU</div>
+    <div class="equip-chip" onclick="loadChecklist('ahu',event)">AHU</div>
+    <div class="equip-chip" onclick="loadChecklist('boiler',event)">Boiler</div>
+    <div class="equip-chip" onclick="loadChecklist('vrf',event)">VRF</div>
+    <div class="equip-chip" onclick="loadChecklist('exhaust',event)">Exhaust Fan</div>
+    <div class="equip-chip" onclick="loadChecklist('minisplit',event)">Mini-Split</div>
+    <div class="equip-chip" onclick="loadChecklist('chiller',event)">Chiller</div>
   </div>
 </div>
 
@@ -209,10 +209,11 @@ const checklists={
 };
 
 let currentEquip='split';
-function loadChecklist(type){
+function loadChecklist(type, clickEvent){
   currentEquip=type;
   document.querySelectorAll('.equip-chip').forEach(c=>c.classList.remove('active'));
-  event.target.classList.add('active');
+  if(clickEvent&&clickEvent.target){clickEvent.target.classList.add('active')}
+  else{var chip=document.querySelector('.equip-chip');if(chip)chip.classList.add('active')}
   const list=document.getElementById('checklistItems');
   list.innerHTML='';
   (checklists[type]||[]).forEach(item=>{
