@@ -61,6 +61,9 @@
       // Skip binary data
       if (typeof val === 'string' && (val.startsWith('data:image') || val.length > 5000)) continue;
       if (key === 'photos' || key === 'photosByEquip' || key === 'techSig' || key === 'custSig') continue;
+      // Skip internal tracking fields and large objects (photos, parts, labor arrays)
+      if (key.charAt(0) === '_') continue;
+      if (typeof val === 'object' && val !== null) continue;
       cleanData[key] = val;
     }
 

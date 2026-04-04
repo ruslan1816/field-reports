@@ -196,7 +196,7 @@ body{padding-bottom:100px}
     <button onclick="document.getElementById('emailModal').style.display='none'" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8">&times;</button>
     <h3 style="font-size:16px;font-weight:800;margin:0 0 16px;color:#1e293b">Review & Send</h3>
     <div class="field"><label style="font-size:12px;font-weight:700;color:#64748b">To (Management)</label>
-      <input type="text" id="emailTo" value="jonathan@northernwolvesac.com, andrei@northernwolvesac.com, ruslan@northernwolvesac.com" style="font-size:12px;background:#f8fafc;color:#64748b" readonly>
+      <input type="text" id="emailTo" value="jonathan@northernwolvesac.com, andrei@northernwolvesac.com, ruslan@northernwolvesac.com" style="font-size:13px">
     </div>
     <div class="field"><label style="font-size:12px;font-weight:700;color:#64748b">CC Client <span style="font-weight:400">(optional)</span></label>
       <input type="email" id="emailCc" placeholder="client@company.com" style="font-size:13px">
@@ -925,8 +925,8 @@ async function confirmSendEmail(){
 
     emailjs.init(EMAIL_CONFIG.EMAILJS_PUBLIC_KEY);
 
-    // Build recipients — management + optional CC
-    var toEmails=EMAIL_CONFIG.MANAGEMENT_EMAILS.join(', ');
+    // Build recipients — use editable To field + optional CC
+    var toEmails=document.getElementById('emailTo').value.trim() || EMAIL_CONFIG.MANAGEMENT_EMAILS.join(', ');
     if(ccEmail) toEmails+=', '+ccEmail;
 
     const fullBody=bodyText+'\n\n--- PDF Report ---\nDownload: '+driveResult.downloadUrl+'\nView: '+driveResult.viewUrl+'\n\n-- Northern Wolves Air Conditioning';
