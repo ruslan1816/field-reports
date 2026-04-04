@@ -123,8 +123,8 @@ body{padding-bottom:100px}
     <!-- COST SUMMARY -->
     <div class="cost-summary">
       <div class="cost-row"><span>Materials</span><span id="costParts">$0.00</span></div>
-      <div class="cost-row" style="font-size:12px;color:#94a3b8"><span>&nbsp;&nbsp;OH (12%)</span><span id="costOH">$0.00</span></div>
-      <div class="cost-row" style="font-size:12px;color:#94a3b8"><span>&nbsp;&nbsp;Profit (10%)</span><span id="costProfit">$0.00</span></div>
+      <div class="cost-row" style="font-size:12px;color:#94a3b8"><span>&nbsp;&nbsp;OH (13%)</span><span id="costOH">$0.00</span></div>
+      <div class="cost-row" style="font-size:12px;color:#94a3b8"><span>&nbsp;&nbsp;Profit (12%)</span><span id="costProfit">$0.00</span></div>
       <div class="cost-row"><span>Materials Total</span><span id="costMaterialsTotal">$0.00</span></div>
       <div class="cost-row"><span>Labor</span><span id="costLabor">$0.00</span></div>
       <div class="cost-row total"><span>TOTAL</span><span id="costTotal">$0.00</span></div>
@@ -223,8 +223,8 @@ function addLabor(){const r=document.createElement('div');r.className='labor-row
 
 function calcCosts(){
   let matRaw=0;document.querySelectorAll('.parts-row').forEach(r=>{const q=parseFloat(r.querySelector('.part-qty')?.value)||1;const c=parseFloat(r.querySelector('.part-cost')?.value)||0;matRaw+=q*c});
-  const oh=matRaw*0.12;
-  const profit=matRaw*0.10;
+  const oh=matRaw*0.13;
+  const profit=matRaw*0.12;
   const matTotal=matRaw+oh+profit;
   let labor=0;document.querySelectorAll('.labor-row').forEach(r=>{const h=parseFloat(r.querySelector('.labor-hrs')?.value)||0;const rt=parseFloat(r.querySelector('.labor-rate')?.value)||0;labor+=h*rt});
   document.getElementById('costParts').textContent='$'+matRaw.toFixed(2);
@@ -437,7 +437,7 @@ function generatePDF(){
   const matTotalVal=document.getElementById('costMaterialsTotal').textContent;
   const lTotal=document.getElementById('costLabor').textContent;
   const gTotal=document.getElementById('costTotal').textContent;
-  doc.autoTable({startY:y,margin:{left:mx,right:15},body:[['Materials',pTotal],['   OH (12%)',ohTotal],['   Profit (10%)',profitTotal],['Materials Total',matTotalVal],['Labor',lTotal],['TOTAL',gTotal]],theme:'plain',bodyStyles:{fontSize:10,cellPadding:3},columnStyles:{0:{fontStyle:'bold'},1:{halign:'right',fontStyle:'bold'}},didParseCell:function(data){if(data.row.index===5){data.cell.styles.fillColor=[49,149,202];data.cell.styles.textColor=[255,255,255];data.cell.styles.fontSize=12}if(data.row.index===1||data.row.index===2){data.cell.styles.fontSize=8;data.cell.styles.textColor=[148,163,184]}}});
+  doc.autoTable({startY:y,margin:{left:mx,right:15},body:[['Materials',pTotal],['   OH (13%)',ohTotal],['   Profit (12%)',profitTotal],['Materials Total',matTotalVal],['Labor',lTotal],['TOTAL',gTotal]],theme:'plain',bodyStyles:{fontSize:10,cellPadding:3},columnStyles:{0:{fontStyle:'bold'},1:{halign:'right',fontStyle:'bold'}},didParseCell:function(data){if(data.row.index===5){data.cell.styles.fillColor=[49,149,202];data.cell.styles.textColor=[255,255,255];data.cell.styles.fontSize=12}if(data.row.index===1||data.row.index===2){data.cell.styles.fontSize=8;data.cell.styles.textColor=[148,163,184]}}});
   y=doc.lastAutoTable.finalY+4;
 
   // Schedule Impact
