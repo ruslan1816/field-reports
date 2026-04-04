@@ -418,6 +418,44 @@
   .co-badge-revised { background: #fef3c7; color: #92400e; }
   .co-badge-approved { background: #d1fae5; color: #065f46; }
   .co-badge-voided { background: #fee2e2; color: #991b1b; }
+
+  .co-badge { cursor: pointer; position: relative; }
+  .co-badge:hover { opacity: 0.8; }
+
+  .co-status-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: #fff;
+    border: 1px solid var(--nw-border);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    z-index: 200;
+    min-width: 150px;
+    padding: 6px 0;
+    overflow: hidden;
+  }
+  .co-status-menu.open { display: block; }
+  .co-status-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    color: var(--nw-text);
+    transition: background 0.1s;
+  }
+  .co-status-option:hover { background: #f1f5f9; }
+  .co-status-option.active { background: #f0f9ff; color: var(--nw-primary); }
 </style>
 </head>
 <body>
@@ -1306,10 +1344,18 @@ requireAuth().catch(function(){});
       // Truncate description
       if (desc.length > 60) desc = desc.substring(0, 57) + '...';
 
-      html += '<div class="co-card" onclick="window.location.href=\'change-order.html?edit=' + co.id + '\'">';
+      html += '<div class="co-card" data-coid="' + co.id + '">';
       html += '<div class="co-card-top">';
       html += '<div class="co-card-number">CO #' + escHtml(String(coNum)) + (rev > 1 ? ' <span style="font-size:11px;color:#94a3b8;font-weight:400">Rev ' + rev + '</span>' : '') + '</div>';
-      html += '<span class="' + badgeClass + '">' + coStatus + '</span>';
+      html += '<div style="position:relative;">';
+      html += '<span class="' + badgeClass + '" data-status-toggle="' + co.id + '">' + coStatus + '</span>';
+      html += '<div class="co-status-menu" id="coMenu_' + co.id + '">';
+      html += '<button class="co-status-option' + (coStatus === 'submitted' ? ' active' : '') + '" onclick="quickStatusChange(\'' + co.id + '\',\'submitted\',event)">📋 Submitted</button>';
+      html += '<button class="co-status-option' + (coStatus === 'revised' ? ' active' : '') + '" onclick="quickStatusChange(\'' + co.id + '\',\'revised\',event)">📝 Revised</button>';
+      html += '<button class="co-status-option' + (coStatus === 'approved' ? ' active' : '') + '" onclick="quickStatusChange(\'' + co.id + '\',\'approved\',event)">✅ Approved</button>';
+      html += '<button class="co-status-option' + (coStatus === 'voided' ? ' active' : '') + '" onclick="quickStatusChange(\'' + co.id + '\',\'voided\',event)">🚫 Voided</button>';
+      html += '</div>';
+      html += '</div>';
       html += '</div>';
       html += '<div class="co-card-desc">' + escHtml(desc) + '</div>';
       html += '<div class="co-card-footer">';
@@ -1327,6 +1373,58 @@ requireAuth().catch(function(){});
     if (tabEl) tabEl.classList.add('active');
     renderCOList();
   };
+
+  // Toggle status dropdown on badge click
+  window.toggleCOStatusMenu = function(coId, e) {
+    e.stopPropagation();
+    // Close any open menus first
+    document.querySelectorAll('.co-status-menu.open').forEach(function(m) {
+      if (m.id !== 'coMenu_' + coId) m.classList.remove('open');
+    });
+    var menu = document.getElementById('coMenu_' + coId);
+    if (menu) menu.classList.toggle('open');
+  };
+
+  // Quick status change from dropdown
+  window.quickStatusChange = async function(coId, newStatus, e) {
+    e.stopPropagation();
+    // Close menu
+    var menu = document.getElementById('coMenu_' + coId);
+    if (menu) menu.classList.remove('open');
+
+    // Find the CO in our list
+    var co = null;
+    for (var i = 0; i < _allCOs.length; i++) {
+      if (_allCOs[i].id === coId) { co = _allCOs[i]; break; }
+    }
+    if (!co) return;
+
+    var oldStatus = (co.form_data && co.form_data._coStatus) || co.status || 'submitted';
+    if (oldStatus === newStatus) return;
+
+    try {
+      // Update form_data with new status
+      var fd = co.form_data || {};
+      fd._coStatus = newStatus;
+
+      await updateReportInCloud(coId, { form_data: fd, status: newStatus });
+
+      // Update local data
+      co.form_data = fd;
+      co.status = newStatus;
+
+      showToast('CO #' + (fd.coNumber || co.report_number || '') + ' → ' + newStatus.charAt(0).toUpperCase() + newStatus.slice(1));
+      renderCOList();
+    } catch(err) {
+      console.error('[projects] Quick status change error:', err);
+      showToast('Error updating status');
+    }
+  };
+
+  // Close menus when clicking elsewhere
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.co-status-menu.open').forEach(function(m) { m.classList.remove('open'); });
+  });
 
   // ─── Event binding ───
 
@@ -1510,6 +1608,26 @@ requireAuth().catch(function(){});
         if (url) {
           window.open(url, '_blank');
         }
+      }
+    });
+
+    // CO list — badge click opens status menu, card click opens CO for editing
+    document.getElementById('coList').addEventListener('click', function(e) {
+      // Badge click �� toggle status menu
+      var badge = e.target.closest('[data-status-toggle]');
+      if (badge) {
+        e.stopPropagation();
+        var coId = badge.getAttribute('data-status-toggle');
+        toggleCOStatusMenu(coId, e);
+        return;
+      }
+      // Status option buttons are handled by their own onclick
+      if (e.target.closest('.co-status-option') || e.target.closest('.co-status-menu')) return;
+      // Card click — open CO for editing
+      var card = e.target.closest('.co-card');
+      if (card) {
+        var id = card.getAttribute('data-coid');
+        if (id) window.location.href = 'change-order.html?edit=' + id;
       }
     });
   }
