@@ -221,6 +221,16 @@ body{padding-bottom:100px}
   <button class="btn btn-success" onclick="openEmailPreview()">📧 Send</button>
 </div>
 
+<!-- Status bar for edit mode (hidden by default) -->
+<div id="editModeBar" style="display:none;position:fixed;bottom:60px;left:0;right:0;background:#f8fafc;border-top:1px solid #e2e8f0;padding:8px 16px;z-index:99;text-align:center;">
+  <div style="max-width:500px;margin:0 auto;display:flex;gap:8px;align-items:center;justify-content:center;">
+    <span style="font-size:12px;font-weight:700;color:#64748b;margin-right:4px;">Status:</span>
+    <button class="btn btn-small" onclick="updateCOStatus('approved')" style="background:#16a34a;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">✅ Approve</button>
+    <button class="btn btn-small" onclick="updateCOStatus('voided')" style="background:#dc2626;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">🚫 Void</button>
+    <button class="btn btn-small" onclick="updateCOStatus('submitted')" style="background:#0696D7;color:#fff;border:none;font-size:12px;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer">📋 Resubmit</button>
+  </div>
+</div>
+
 <script>
 requireAuth().catch(function(){});
 // ========== DRAFT INITIALIZATION ==========
@@ -230,6 +240,135 @@ const reportId='CO-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+M
 document.getElementById('reportId').textContent=reportId;
 document.getElementById('coDate').value=new Date().toISOString().slice(0,10);
 autoFillTechName();
+
+// ========== EDIT MODE ==========
+var _editCloudId = null;
+var _revisionNumber = 1;
+var _coStatus = 'submitted';
+
+(async function checkEditMode() {
+  var params = new URLSearchParams(window.location.search);
+  var editId = params.get('edit');
+  if (!editId) return;
+
+  try {
+    showToast('Loading change order...');
+    var result = await getReportById(editId);
+    if (result.error || !result.data) {
+      showToast('Could not load change order');
+      return;
+    }
+
+    var report = result.data;
+    var fd = report.form_data || {};
+
+    _editCloudId = editId;
+    _revisionNumber = (fd._revisionNumber || 1) + 1;
+    _coStatus = fd._coStatus || 'submitted';
+
+    // Use same report ID (CO number)
+    reportId = report.report_number || fd.reportId || reportId;
+    document.getElementById('reportId').textContent = reportId;
+
+    // Update header to show "REVISION"
+    document.querySelector('.subtitle').textContent = 'CHANGE ORDER — REVISION ' + _revisionNumber;
+
+    // Fill all form fields
+    var fields = {
+      coDate: fd.coDate,
+      coNumber: fd.coNumber,
+      projectName: fd.projectName,
+      originalRef: fd.originalRef,
+      custName: fd.custName,
+      address: fd.address,
+      contact: fd.contact,
+      phone: fd.phone,
+      clientEmail: fd.clientEmail,
+      changeReason: fd.changeReason,
+      changeDesc: fd.changeDesc,
+      impactDesc: fd.impactDesc,
+      addDays: fd.addDays,
+      newTarget: fd.newTarget,
+      scheduleNotes: fd.scheduleNotes,
+      requestedBy: fd.requestedBy,
+      approvedBy: fd.approvedBy,
+      custPrintName: fd.custPrintName,
+      aiSummaryText: fd.aiSummary
+    };
+
+    Object.keys(fields).forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el && fields[id]) el.value = fields[id];
+    });
+
+    // Set priority radio
+    if (fd.priority) {
+      var radio = document.querySelector('input[name="priority"][value="' + fd.priority + '"]');
+      if (radio) {
+        radio.checked = true;
+        var chip = radio.closest('.priority-chip');
+        if (chip) selectPriority(chip, fd.priority.toLowerCase());
+      }
+    }
+
+    // Set status radio
+    if (fd.coStatus) {
+      var sRadio = document.querySelector('input[name="coStatus"][value="' + fd.coStatus + '"]');
+      if (sRadio) {
+        sRadio.checked = true;
+        var item = sRadio.closest('.check-item');
+        if (item) {
+          document.querySelectorAll('#statusGroup .check-item').forEach(function(e){e.classList.remove('selected')});
+          item.classList.add('selected');
+        }
+      }
+    }
+
+    // Restore parts/materials
+    if (fd._parts && fd._parts.length > 0) {
+      var partsList = document.getElementById('partsList');
+      partsList.innerHTML = '';
+      fd._parts.forEach(function(part, i) {
+        var row = document.createElement('div');
+        row.className = 'parts-row';
+        var removeBtn = i > 0 ? '<button class="btn btn-danger btn-small" onclick="this.parentElement.remove();calcCosts()" style="width:32px;padding:6px;flex:none">✕</button>' : '';
+        row.innerHTML = '<input type="text" placeholder="Part description" class="part-desc" value="' + (part.desc || '').replace(/"/g, '&quot;') + '">' +
+          '<input type="text" placeholder="Qty" class="qty part-qty" value="' + (part.qty || '') + '">' +
+          '<input type="text" placeholder="$ Cost" class="cost part-cost" oninput="calcCosts()" value="' + (part.cost || '') + '">' + removeBtn;
+        partsList.appendChild(row);
+      });
+    }
+
+    // Restore labor
+    if (fd._labor && fd._labor.length > 0) {
+      var laborList = document.getElementById('laborList');
+      laborList.innerHTML = '';
+      fd._labor.forEach(function(lab, i) {
+        var row = document.createElement('div');
+        row.className = 'labor-row';
+        var removeBtn = i > 0 ? '<button class="btn btn-danger btn-small" onclick="this.parentElement.remove();calcCosts()" style="width:32px;padding:6px;flex:none">✕</button>' : '';
+        row.innerHTML = '<input type="text" placeholder="Technician" class="labor-tech" value="' + (lab.tech || '').replace(/"/g, '&quot;') + '">' +
+          '<input type="number" step="0.25" placeholder="Hrs" class="labor-hrs" style="width:60px" oninput="calcCosts()" value="' + (lab.hrs || '') + '">' +
+          '<input type="text" placeholder="$/hr" class="labor-rate" style="width:70px" oninput="calcCosts()" value="' + (lab.rate || '') + '">' + removeBtn;
+        laborList.appendChild(row);
+      });
+    }
+
+    // Set project picker if project ID stored
+    if (fd._projectId && typeof setSelectedProjectId === 'function') {
+      setSelectedProjectId(fd._projectId);
+    }
+
+    calcCosts();
+    // Show edit mode status bar
+    document.getElementById('editModeBar').style.display = 'block';
+    showToast('Change order loaded — Rev ' + _revisionNumber);
+
+  } catch(e) {
+    console.error('[CO] Edit mode error:', e);
+    showToast('Error loading change order');
+  }
+})();
 
 // Project Picker
 if (typeof injectProjectPicker === 'function') {
@@ -259,6 +398,30 @@ function calcCosts(){
   document.getElementById('costMaterialsTotal').textContent='$'+matTotal.toFixed(2);
   document.getElementById('costLabor').textContent='$'+labor.toFixed(2);
   document.getElementById('costTotal').textContent='$'+(matTotal+labor).toFixed(2);
+}
+
+function collectPartsData() {
+  var parts = [];
+  document.querySelectorAll('.parts-row').forEach(function(r) {
+    parts.push({
+      desc: (r.querySelector('.part-desc') || {}).value || '',
+      qty: (r.querySelector('.part-qty') || {}).value || '',
+      cost: (r.querySelector('.part-cost') || {}).value || ''
+    });
+  });
+  return parts;
+}
+
+function collectLaborData() {
+  var labor = [];
+  document.querySelectorAll('.labor-row').forEach(function(r) {
+    labor.push({
+      tech: (r.querySelector('.labor-tech') || {}).value || '',
+      hrs: (r.querySelector('.labor-hrs') || {}).value || '',
+      rate: (r.querySelector('.labor-rate') || {}).value || ''
+    });
+  });
+  return labor;
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
@@ -403,7 +566,15 @@ function saveDraftAndClose(){
 function collectData(){
   const v=id=>(document.getElementById(id)||{}).value||'';
   const radioVal=n=>{const r=document.querySelector(`input[name="${n}"]:checked`);return r?r.value:''};
-  return{reportId,coDate:v('coDate'),coNumber:v('coNumber'),projectName:v('projectName'),originalRef:v('originalRef'),custName:v('custName'),address:v('address'),contact:v('contact'),phone:v('phone'),changeReason:v('changeReason'),changeDesc:v('changeDesc'),impactDesc:v('impactDesc'),addDays:v('addDays'),newTarget:v('newTarget'),scheduleNotes:v('scheduleNotes'),priority:radioVal('priority'),coStatus:radioVal('coStatus'),requestedBy:v('requestedBy'),approvedBy:v('approvedBy'),custPrintName:v('custPrintName'),costTotal:document.getElementById('costTotal').textContent,aiSummary: typeof getAISummary === 'function' ? getAISummary() : ''};
+  return{reportId,coDate:v('coDate'),coNumber:v('coNumber'),projectName:v('projectName'),originalRef:v('originalRef'),custName:v('custName'),address:v('address'),contact:v('contact'),phone:v('phone'),changeReason:v('changeReason'),changeDesc:v('changeDesc'),impactDesc:v('impactDesc'),addDays:v('addDays'),newTarget:v('newTarget'),scheduleNotes:v('scheduleNotes'),priority:radioVal('priority'),coStatus:radioVal('coStatus'),requestedBy:v('requestedBy'),approvedBy:v('approvedBy'),custPrintName:v('custPrintName'),costTotal:document.getElementById('costTotal').textContent,aiSummary: typeof getAISummary === 'function' ? getAISummary() : '',
+clientEmail:v('clientEmail'),
+_projectId: typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null,
+_cloudId: _editCloudId || null,
+_revisionNumber: _revisionNumber || 1,
+_coStatus: _coStatus || 'submitted',
+_parts: collectPartsData(),
+_labor: collectLaborData()
+};
 }
 
 function generatePDF(){
@@ -566,7 +737,17 @@ async function confirmSendEmail(){
       const v=id=>(document.getElementById(id)||{}).value||'';
       saveProjectRecord(projId,{name:'Change Order - '+v('custName')+' - '+v('coDate'),reportType:'change-order',reportId:reportId});
     }
-    saveReportToCloud('change-order',d,{reportId:reportId,projectId:projId});
+    // Save or update in cloud
+    if (_editCloudId) {
+      // Update existing CO (revision)
+      d._coStatus = 'revised';
+      _coStatus = 'revised';
+      updateReportInCloud(_editCloudId, { form_data: d, status: 'revised' });
+      console.log('[CO] Updated existing CO:', _editCloudId, 'Rev:', _revisionNumber);
+    } else {
+      d._coStatus = 'submitted';
+      saveReportToCloud('change-order', d, { reportId: reportId, projectId: projId });
+    }
     const v=id=>(document.getElementById(id)||{}).value||'';
     const doc=generatePDF();
     const fn=`ChangeOrder_${v('custName').replace(/\s+/g,'_')||'CO'}_${v('coDate')}.pdf`;
@@ -610,6 +791,23 @@ async function confirmSendEmail(){
   }finally{
     btn.disabled=false;
     btn.innerHTML=origText;
+  }
+}
+
+async function updateCOStatus(newStatus) {
+  if (!_editCloudId) return;
+  try {
+    var d = collectData();
+    d._coStatus = newStatus;
+    _coStatus = newStatus;
+    await updateReportInCloud(_editCloudId, { form_data: d, status: newStatus });
+    showToast('Status updated: ' + newStatus.charAt(0).toUpperCase() + newStatus.slice(1));
+    // Update subtitle
+    var label = newStatus === 'approved' ? '✅ APPROVED' : newStatus === 'voided' ? '🚫 VOIDED' : newStatus === 'revised' ? '📝 REVISED' : '📋 SUBMITTED';
+    document.querySelector('.subtitle').textContent = 'CHANGE ORDER — ' + label;
+  } catch(e) {
+    console.error('[CO] Status update error:', e);
+    showToast('Error updating status');
   }
 }
 

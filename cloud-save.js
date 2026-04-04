@@ -114,8 +114,71 @@
     }
   }
 
+  /**
+   * Update an existing report in Supabase (for revisions).
+   * @param {string} cloudId - the Supabase row ID
+   * @param {object} updates - fields to update (form_data, status, etc.)
+   */
+  async function updateReportInCloud(cloudId, updates) {
+    try {
+      var result = await supabaseClient
+        .from('reports')
+        .update(updates)
+        .eq('id', cloudId)
+        .select()
+        .single();
+      if (result.error) {
+        console.error('[cloud-save] Update error:', result.error.message);
+      }
+      return { data: result.data || null, error: result.error || null };
+    } catch (err) {
+      console.error('[cloud-save] Update exception:', err);
+      return { data: null, error: err };
+    }
+  }
+
+  /**
+   * Get a single report by its Supabase row ID.
+   */
+  async function getReportById(cloudId) {
+    try {
+      var result = await supabaseClient
+        .from('reports')
+        .select('*')
+        .eq('id', cloudId)
+        .single();
+      return { data: result.data || null, error: result.error || null };
+    } catch (err) {
+      return { data: null, error: err };
+    }
+  }
+
+  /**
+   * Get all change orders for a project.
+   */
+  async function getProjectChangeOrders(projectId) {
+    try {
+      var result = await supabaseClient
+        .from('reports')
+        .select('*')
+        .eq('report_type', 'change-order')
+        .order('created_at', { ascending: false });
+      if (result.error) return { data: [], error: result.error };
+      // Filter by project_id in form_data (since we store it there)
+      var filtered = (result.data || []).filter(function(r) {
+        return r.form_data && r.form_data._projectId === projectId;
+      });
+      return { data: filtered, error: null };
+    } catch (err) {
+      return { data: [], error: err };
+    }
+  }
+
   // Expose on window
   window.saveReportToCloud = saveReportToCloud;
   window.getCloudReports = getCloudReports;
+  window.updateReportInCloud = updateReportInCloud;
+  window.getReportById = getReportById;
+  window.getProjectChangeOrders = getProjectChangeOrders;
 
 })();

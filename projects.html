@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=52"></script>
 <script src="auth.js?v=52"></script>
+<script src="cloud-save.js?v=52"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Projects — Northern Wolves AC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -381,6 +382,42 @@
     font-size: 12px;
     color: var(--nw-muted);
   }
+
+  /* Change Order styles */
+  .co-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nw-muted);
+    cursor: pointer;
+    border-radius: 20px;
+    border: 1px solid var(--nw-border);
+    white-space: nowrap;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .co-tab:hover { border-color: var(--nw-primary); color: var(--nw-text); }
+  .co-tab.active { background: var(--nw-primary); color: #fff; border-color: var(--nw-primary); }
+
+  .co-card {
+    background: var(--nw-card);
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .co-card:hover { border-color: var(--nw-primary); }
+  .co-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .co-card-number { font-weight: 700; font-size: 14px; color: var(--nw-text); }
+  .co-card-desc { font-size: 13px; color: var(--nw-muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .co-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--nw-muted); }
+  .co-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: capitalize; }
+  .co-badge-submitted { background: #dbeafe; color: #1e40af; }
+  .co-badge-revised { background: #fef3c7; color: #92400e; }
+  .co-badge-approved { background: #d1fae5; color: #065f46; }
+  .co-badge-voided { background: #fee2e2; color: #991b1b; }
 </style>
 </head>
 <body>
@@ -482,6 +519,25 @@
     <div class="empty-state" id="emptyDocs" style="display:none;">
       <div class="icon" style="font-size:32px;margin-bottom:8px;">&#128196;</div>
       <p>No documents yet.<br>Tap <strong>+ Add Document</strong> to upload.</p>
+    </div>
+
+    <!-- Change Orders Section -->
+    <div id="coSection" style="display:none;">
+      <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between;">
+        <h3 style="font-size:15px;font-weight:700;color:var(--nw-text);margin:0;">Change Orders</h3>
+        <a id="btnNewCO" href="#" style="font-size:13px;font-weight:700;color:var(--nw-primary);text-decoration:none;">+ New CO</a>
+      </div>
+      <div id="coStatusTabs" style="display:flex;padding:0 16px;overflow-x:auto;gap:6px;margin-bottom:8px;">
+        <div class="co-tab active" data-costatus="all" onclick="filterCOStatus('all',this)">All</div>
+        <div class="co-tab" data-costatus="submitted" onclick="filterCOStatus('submitted',this)">📋 Submitted</div>
+        <div class="co-tab" data-costatus="revised" onclick="filterCOStatus('revised',this)">📝 Revised</div>
+        <div class="co-tab" data-costatus="approved" onclick="filterCOStatus('approved',this)">✅ Approved</div>
+        <div class="co-tab" data-costatus="voided" onclick="filterCOStatus('voided',this)">🚫 Voided</div>
+      </div>
+      <div id="coList" style="padding:0 16px 24px;"></div>
+      <div id="coEmpty" style="display:none;text-align:center;padding:20px;color:var(--nw-muted);font-size:13px;">
+        No change orders yet for this project.
+      </div>
     </div>
   </div>
 
@@ -1049,6 +1105,7 @@ requireAuth().catch(function(){});
 
     renderDocList();
     loadDriveFiles(projectId);
+    loadChangeOrders(projectId);
 
     // Show detail, hide list
     document.getElementById('listView').style.display = 'none';
@@ -1180,12 +1237,96 @@ requireAuth().catch(function(){});
     currentProjectId = null;
     pendingFile = null;
     activeDocCat = 'all';
+    document.getElementById('coSection').style.display = 'none';
     // Reset doc tab
     var docTabEls = document.querySelectorAll('#docTabs .tab');
     docTabEls.forEach(function(t) { t.classList.remove('active'); });
     if (docTabEls[0]) docTabEls[0].classList.add('active');
     renderProjectsList();
   }
+
+  // ─── Change Orders ───
+  var _allCOs = [];
+  var _activeCOFilter = 'all';
+
+  async function loadChangeOrders(projectId) {
+    var section = document.getElementById('coSection');
+    if (!section) return;
+
+    if (typeof getProjectChangeOrders !== 'function') {
+      section.style.display = 'none';
+      return;
+    }
+
+    try {
+      var result = await getProjectChangeOrders(projectId);
+      _allCOs = result.data || [];
+      section.style.display = 'block';
+
+      // Set new CO link
+      document.getElementById('btnNewCO').href = 'change-order.html?project=' + projectId;
+
+      renderCOList();
+    } catch(e) {
+      console.error('[projects] loadChangeOrders error:', e);
+      section.style.display = 'none';
+    }
+  }
+
+  function renderCOList() {
+    var filtered = _allCOs;
+    if (_activeCOFilter !== 'all') {
+      filtered = _allCOs.filter(function(co) {
+        var status = (co.form_data && co.form_data._coStatus) || co.status || 'submitted';
+        return status === _activeCOFilter;
+      });
+    }
+
+    var container = document.getElementById('coList');
+    var empty = document.getElementById('coEmpty');
+
+    if (filtered.length === 0) {
+      container.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+
+    empty.style.display = 'none';
+    var html = '';
+    filtered.forEach(function(co) {
+      var fd = co.form_data || {};
+      var coNum = fd.coNumber || co.report_number || '—';
+      var coStatus = fd._coStatus || co.status || 'submitted';
+      var desc = fd.changeDesc || fd.projectName || 'Change Order';
+      var total = fd.costTotal || '$0.00';
+      var date = fd.coDate || (co.created_at ? co.created_at.split('T')[0] : '');
+      var rev = fd._revisionNumber || 1;
+      var badgeClass = 'co-badge co-badge-' + coStatus;
+
+      // Truncate description
+      if (desc.length > 60) desc = desc.substring(0, 57) + '...';
+
+      html += '<div class="co-card" onclick="window.location.href=\'change-order.html?edit=' + co.id + '\'">';
+      html += '<div class="co-card-top">';
+      html += '<div class="co-card-number">CO #' + escHtml(String(coNum)) + (rev > 1 ? ' <span style="font-size:11px;color:#94a3b8;font-weight:400">Rev ' + rev + '</span>' : '') + '</div>';
+      html += '<span class="' + badgeClass + '">' + coStatus + '</span>';
+      html += '</div>';
+      html += '<div class="co-card-desc">' + escHtml(desc) + '</div>';
+      html += '<div class="co-card-footer">';
+      html += '<span>' + date + '</span>';
+      html += '<span style="font-weight:600;">' + escHtml(total) + '</span>';
+      html += '</div>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  window.filterCOStatus = function(status, tabEl) {
+    _activeCOFilter = status;
+    document.querySelectorAll('#coStatusTabs .co-tab').forEach(function(t) { t.classList.remove('active'); });
+    if (tabEl) tabEl.classList.add('active');
+    renderCOList();
+  };
 
   // ─── Event binding ───
 
