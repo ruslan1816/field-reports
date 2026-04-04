@@ -72,6 +72,7 @@ body{padding-bottom:100px}
       <div class="field"><label>WO #</label><input type="text" id="workOrder" placeholder="WO-" data-save></div>
     </div>
     <div id="equipmentContainer"></div>
+    <div id="equipmentPhotosContainer" style="margin-top:10px;"></div>
   </div>
 </div>
 
@@ -99,6 +100,7 @@ body{padding-bottom:100px}
         <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Service valves open</span></li>
         <li onclick="cycleCheck(this)"><div class="check-box"></div><span class="check-label">Proper clearances maintained</span></li>
       </ul>
+      <div id="beforePhotos" style="margin-top:8px;"></div>
     </div>
   </div>
 
@@ -106,6 +108,7 @@ body{padding-bottom:100px}
     <div class="section-header" onclick="toggleSection(this)"><span class="icon">📊</span> Operational Readings<span class="collapse-arrow">▼</span></div>
     <div class="section-body">
       <div id="coolReadingsContainer"></div>
+      <div id="readingsPhotos" style="margin-top:8px;"></div>
     </div>
   </div>
 </div>
@@ -153,14 +156,6 @@ body{padding-bottom:100px}
   </div>
 </div>
 
-<!-- PHOTOS -->
-<div class="section">
-  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
-  <div class="section-body">
-    <div id="photosContainer"></div>
-  </div>
-</div>
-
 <!-- SYSTEM STATUS AT DEPARTURE -->
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">✅</span> System Status at Departure<span class="collapse-arrow">▼</span></div>
@@ -170,6 +165,7 @@ body{padding-bottom:100px}
       <label>General Notes</label>
       <textarea id="statusNotes" placeholder="Additional status notes..." data-save></textarea>
     </div>
+    <div id="afterPhotos" style="margin-top:8px;"></div>
   </div>
 </div>
 
@@ -365,18 +361,33 @@ function rebuildAllStartupReadings() {
 let photosByEquip = { before: [], after: [], readings: [] };
 
 function buildPhotoSections() {
-  const container = document.getElementById('photosContainer');
-  if (!container) return;
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
   const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
-  container.innerHTML = '';
-  for (let i = 0; i < count; i++) {
-    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
-    container.appendChild(createPhotoGroup('equip_' + i, '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+
+  const equipContainer = document.getElementById('equipmentPhotosContainer');
+  if (equipContainer) {
+    equipContainer.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+      equipContainer.appendChild(createPhotoGroup('equip_' + i, '\uD83D\uDCF8 ' + equipLabel + ' \u2014 Photos'));
+    }
   }
-  container.appendChild(createPhotoGroup('before', '\uD83D\uDCCB Before Start-Up'));
-  container.appendChild(createPhotoGroup('after', '\u2705 After Start-Up'));
-  container.appendChild(createPhotoGroup('readings', '\uD83C\uDF21\uFE0F Readings & Measurements'));
+
+  const beforeContainer = document.getElementById('beforePhotos');
+  if (beforeContainer && !beforeContainer.hasChildNodes()) {
+    beforeContainer.appendChild(createPhotoGroup('before', '\uD83D\uDCF8 Before Start-Up'));
+  }
+
+  const afterContainer = document.getElementById('afterPhotos');
+  if (afterContainer && !afterContainer.hasChildNodes()) {
+    afterContainer.appendChild(createPhotoGroup('after', '\uD83D\uDCF8 After Start-Up'));
+  }
+
+  const readingsContainer = document.getElementById('readingsPhotos');
+  if (readingsContainer && !readingsContainer.hasChildNodes()) {
+    readingsContainer.appendChild(createPhotoGroup('readings', '\uD83D\uDCF8 Readings & Measurements'));
+  }
+
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
 }
 

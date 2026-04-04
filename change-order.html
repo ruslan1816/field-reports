@@ -90,7 +90,10 @@ body{padding-bottom:100px}
       </select>
     </div>
     <div class="field"><label>Description of Proposed Change</label><textarea id="changeDesc" data-save placeholder="Describe in detail what needs to change..."></textarea></div>
+    <div id="existingPhotos" style="margin-top:8px;"></div>
     <div class="field"><label>Impact on Existing Work</label><textarea id="impactDesc" data-save placeholder="How does this affect work already done or in progress..."></textarea></div>
+    <div id="proposedPhotos" style="margin-top:8px;"></div>
+    <div id="equipmentPhotosContainer" style="margin-top:10px;"></div>
   </div>
 </div>
 
@@ -150,14 +153,6 @@ body{padding-bottom:100px}
   </div>
 </div>
 
-<!-- PHOTOS -->
-<div class="section">
-  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
-  <div class="section-body">
-    <div id="photosContainer"></div>
-  </div>
-</div>
-
 <!-- APPROVAL & SIGN-OFF -->
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">✅</span> Approval &amp; Sign-Off<span class="collapse-arrow">▼</span></div>
@@ -170,6 +165,7 @@ body{padding-bottom:100px}
         <label class="check-item" onclick="selectRadio(this,'statusGroup')"><input type="radio" name="coStatus" value="On Hold" data-save>⏸️ On Hold</label>
       </div>
     </div>
+    <div id="completedPhotos" style="margin-top:8px;"></div>
     <div class="row"><div class="field"><label>Requested By</label><input type="text" id="requestedBy" data-save></div><div class="field"><label>Approved By</label><input type="text" id="approvedBy" data-save></div></div>
     <div class="field"><label>Foreman / PM Signature</label><canvas class="sig-canvas" id="fmSig"></canvas><div class="sig-label">Sign above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="fmSigPad.clear()">Clear</button></div></div>
     <div class="field" style="margin-top:16px"><label>Customer / Client Signature</label><canvas class="sig-canvas" id="custSig"></canvas><div class="sig-label">Customer signs above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="custSigPad.clear()">Clear</button></div></div>
@@ -240,18 +236,33 @@ function calcCosts(){
 let photosByEquip = { existing: [], proposed: [], completed: [] };
 
 function buildPhotoSections() {
-  const container = document.getElementById('photosContainer');
-  if (!container) return;
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
   const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
-  container.innerHTML = '';
-  for (let i = 0; i < count; i++) {
-    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
-    container.appendChild(createPhotoGroup('equip_' + i, '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+
+  const equipContainer = document.getElementById('equipmentPhotosContainer');
+  if (equipContainer) {
+    equipContainer.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+      equipContainer.appendChild(createPhotoGroup('equip_' + i, '📸 ' + equipLabel + ' — Photos'));
+    }
   }
-  container.appendChild(createPhotoGroup('existing', '\uD83D\uDCCB Existing Condition'));
-  container.appendChild(createPhotoGroup('proposed', '\uD83D\uDCD0 Proposed Change'));
-  container.appendChild(createPhotoGroup('completed', '\u2705 Completed Work'));
+
+  const existingContainer = document.getElementById('existingPhotos');
+  if (existingContainer && !existingContainer.hasChildNodes()) {
+    existingContainer.appendChild(createPhotoGroup('existing', '📸 Existing Condition'));
+  }
+
+  const proposedContainer = document.getElementById('proposedPhotos');
+  if (proposedContainer && !proposedContainer.hasChildNodes()) {
+    proposedContainer.appendChild(createPhotoGroup('proposed', '📸 Proposed Change'));
+  }
+
+  const completedContainer = document.getElementById('completedPhotos');
+  if (completedContainer && !completedContainer.hasChildNodes()) {
+    completedContainer.appendChild(createPhotoGroup('completed', '📸 Completed Work'));
+  }
+
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
 }
 

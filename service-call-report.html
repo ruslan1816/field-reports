@@ -174,6 +174,7 @@ body {
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">⚙️</span> Equipment<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
     <div id="equipmentContainer"></div>
+    <div id="equipmentPhotosContainer" style="margin-top:10px;"></div>
   </div>
 </div>
 
@@ -188,6 +189,7 @@ body {
       <label>Reported Issue</label>
       <textarea id="complaint" placeholder="What did the customer report? Be specific..." data-save></textarea>
     </div>
+    <div id="complaintPhotos" style="margin-top:8px;"></div>
   </div>
 </div>
 
@@ -214,11 +216,13 @@ body {
       <label>Diagnosis / Root Cause</label>
       <textarea id="diagnosis" placeholder="What was actually wrong? What did you find?" data-save></textarea>
     </div>
-    <div class="field">
+    <div id="diagnosticsPhotos" style="margin-top:8px;"></div>
+    <div class="field" style="margin-top:12px;">
       <label>Work Performed</label>
       <textarea id="workPerformed" placeholder="Step-by-step what you did..." data-save></textarea>
     </div>
-    <div class="field">
+    <div id="workperformedPhotos" style="margin-top:8px;"></div>
+    <div class="field" style="margin-top:12px;">
       <label>Recommendations</label>
       <textarea id="recommendations" placeholder="Follow-up, replacements, monitoring needed..." data-save></textarea>
     </div>
@@ -246,16 +250,6 @@ body {
   </div>
 </div>
 
-<!-- PHOTOS -->
-<div class="section">
-  <div class="section-header" onclick="toggleSection(this)">
-    <span class="icon">📷</span> Photos
-    <span class="collapse-arrow">▼</span>
-  </div>
-  <div class="section-body">
-    <div id="photosContainer"></div>
-  </div>
-</div>
 
 <!-- SYSTEM STATUS -->
 <div class="section">
@@ -479,20 +473,37 @@ function collectAllReadings() {
 let photosByEquip = { complaint: [], diagnostics: [], workperformed: [] };
 
 function buildPhotoSections() {
-  const container = document.getElementById('photosContainer');
-  if (!container) return;
   const names = typeof getEquipmentNames === 'function' ? getEquipmentNames() : [];
   const count = Math.max(names.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
-  container.innerHTML = '';
-  // Equipment photo groups (dynamic — one per equipment added)
-  for (let i = 0; i < count; i++) {
-    const equipLabel = names[i] || 'Equipment #' + (i+1);
-    container.appendChild(createPhotoGroup('equip_' + i, '⚙️ ' + equipLabel + ' — Photos'));
+
+  // Equipment photos — inline in equipment section
+  const equipContainer = document.getElementById('equipmentPhotosContainer');
+  if (equipContainer) {
+    equipContainer.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const equipLabel = names[i] || 'Equipment #' + (i+1);
+      equipContainer.appendChild(createPhotoGroup('equip_' + i, '📸 ' + equipLabel + ' — Photos'));
+    }
   }
-  // Category photo groups
-  container.appendChild(createPhotoGroup('complaint', '🗣️ Customer Complaint'));
-  container.appendChild(createPhotoGroup('diagnostics', '🔍 Diagnostics'));
-  container.appendChild(createPhotoGroup('workperformed', '🔧 Work Performed'));
+
+  // Complaint photos — inline in complaint section
+  const complaintContainer = document.getElementById('complaintPhotos');
+  if (complaintContainer && !complaintContainer.hasChildNodes()) {
+    complaintContainer.appendChild(createPhotoGroup('complaint', '📸 Complaint Photos'));
+  }
+
+  // Diagnostics photos — inline in diagnosis section
+  const diagContainer = document.getElementById('diagnosticsPhotos');
+  if (diagContainer && !diagContainer.hasChildNodes()) {
+    diagContainer.appendChild(createPhotoGroup('diagnostics', '📸 Diagnostic Photos'));
+  }
+
+  // Work performed photos — inline in work section
+  const workContainer = document.getElementById('workperformedPhotos');
+  if (workContainer && !workContainer.hasChildNodes()) {
+    workContainer.appendChild(createPhotoGroup('workperformed', '📸 Work Performed Photos'));
+  }
+
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
 }
 

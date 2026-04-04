@@ -85,6 +85,7 @@ body{padding-bottom:100px}
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">⚙️</span> Equipment<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
     <div id="equipmentContainer"></div>
+    <div id="equipmentPhotosContainer" style="margin-top:10px;"></div>
   </div>
 </div>
 
@@ -93,7 +94,9 @@ body{padding-bottom:100px}
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">🔧</span> Scope of Work<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
     <div class="field"><label>Description of Work</label><textarea id="workDesc" placeholder="What needs to be done..." data-save></textarea></div>
+    <div id="beforePhotos" style="margin-top:8px;"></div>
     <div class="field"><label>Work Performed</label><textarea id="workDone" placeholder="What was actually done (fill after completion)..." data-save></textarea></div>
+    <div id="workperformedPhotos" style="margin-top:8px;"></div>
   </div>
 </div>
 
@@ -139,14 +142,6 @@ body{padding-bottom:100px}
   </div>
 </div>
 
-<!-- PHOTOS -->
-<div class="section">
-  <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos<span class="collapse-arrow">▼</span></div>
-  <div class="section-body">
-    <div id="photosContainer"></div>
-  </div>
-</div>
-
 <!-- SYSTEM STATUS AT DEPARTURE -->
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">🔧</span> System Status at Departure<span class="collapse-arrow">▼</span></div>
@@ -172,6 +167,7 @@ body{padding-bottom:100px}
       </div>
     </div>
     <div class="field"><label>Completion Notes</label><textarea id="completionNotes" placeholder="Any final notes, follow-up needed..." data-save></textarea></div>
+    <div id="afterPhotos" style="margin-top:8px;"></div>
     <div class="field"><label>Technician Signature</label><canvas class="sig-canvas" id="techSig"></canvas><div class="sig-label">Sign above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="techSigPad.clear()">Clear</button></div></div>
     <div class="field" style="margin-top:16px"><label>Customer Signature</label><canvas class="sig-canvas" id="custSig"></canvas><div class="sig-label">Customer signs above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="custSigPad.clear()">Clear</button></div></div>
     <div class="field" style="margin-top:12px"><label>Customer Printed Name</label><input type="text" id="custPrintName" data-save></div>
@@ -246,18 +242,33 @@ function calcCosts(){
 let photosByEquip = { before: [], after: [], workperformed: [] };
 
 function buildPhotoSections() {
-  const container = document.getElementById('photosContainer');
-  if (!container) return;
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
   const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
-  container.innerHTML = '';
-  for (let i = 0; i < count; i++) {
-    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
-    container.appendChild(createPhotoGroup('equip_' + i, '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+
+  const equipContainer = document.getElementById('equipmentPhotosContainer');
+  if (equipContainer) {
+    equipContainer.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+      equipContainer.appendChild(createPhotoGroup('equip_' + i, '\uD83D\uDCF8 ' + equipLabel + ' \u2014 Photos'));
+    }
   }
-  container.appendChild(createPhotoGroup('before', '\uD83D\uDCCB Before Work'));
-  container.appendChild(createPhotoGroup('after', '\u2705 After Work'));
-  container.appendChild(createPhotoGroup('workperformed', '\uD83D\uDD27 Work Performed'));
+
+  const beforeContainer = document.getElementById('beforePhotos');
+  if (beforeContainer && !beforeContainer.hasChildNodes()) {
+    beforeContainer.appendChild(createPhotoGroup('before', '\uD83D\uDCF8 Before Work'));
+  }
+
+  const workContainer = document.getElementById('workperformedPhotos');
+  if (workContainer && !workContainer.hasChildNodes()) {
+    workContainer.appendChild(createPhotoGroup('workperformed', '\uD83D\uDCF8 Work Performed'));
+  }
+
+  const afterContainer = document.getElementById('afterPhotos');
+  if (afterContainer && !afterContainer.hasChildNodes()) {
+    afterContainer.appendChild(createPhotoGroup('after', '\uD83D\uDCF8 After Work'));
+  }
+
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
 }
 
