@@ -221,7 +221,7 @@ function addPart(){const r=document.createElement('div');r.className='parts-row'
 function addLabor(){const r=document.createElement('div');r.className='labor-row';r.innerHTML='<input type="text" placeholder="Technician" class="labor-tech"><input type="number" step="0.25" placeholder="Hrs" class="labor-hrs" style="width:60px" oninput="calcCosts()"><input type="text" placeholder="$/hr" class="labor-rate" style="width:70px" oninput="calcCosts()"><button class="btn btn-danger btn-small" onclick="this.parentElement.remove();calcCosts()" style="width:32px;padding:6px;flex:none">✕</button>';document.getElementById('laborList').appendChild(r)}
 
 function calcCosts(){
-  let parts=0;document.querySelectorAll('.part-cost').forEach(i=>{parts+=parseFloat(i.value)||0});
+  let parts=0;document.querySelectorAll('.parts-row').forEach(r=>{const q=parseFloat(r.querySelector('.part-qty')?.value)||1;const c=parseFloat(r.querySelector('.part-cost')?.value)||0;parts+=q*c});
   let labor=0;document.querySelectorAll('.labor-row').forEach(r=>{const h=parseFloat(r.querySelector('.labor-hrs')?.value)||0;const rt=parseFloat(r.querySelector('.labor-rate')?.value)||0;labor+=h*rt});
   const subtotal=parts+labor;
   const markupPct=parseFloat(document.getElementById('markupPct').value)||0;
@@ -282,15 +282,41 @@ function createPhotoGroup(key, label) {
   return group;
 }
 
+function fixImageOrientation(file, callback) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      // Use createImageBitmap with orientation correction if available
+      // Otherwise use canvas to normalize the image
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+      // Modern browsers auto-orient via drawImage when using img loaded from blob URL
+      // But to be safe, we draw to canvas which normalizes orientation
+      var maxDim = 1200;
+      var w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    // Use object URL — browsers apply EXIF orientation when rendering via object URL
+    img.src = URL.createObjectURL(file);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 function handleEquipPhotos(input, key) {
   if (!photosByEquip[key]) photosByEquip[key] = [];
-  Array.from(input.files).forEach(f => {
-    const r = new FileReader();
-    r.onload = e => {
-      photosByEquip[key].push({ data: e.target.result });
+  Array.from(input.files).forEach(function(f) {
+    fixImageOrientation(f, function(dataUrl) {
+      photosByEquip[key].push({ data: dataUrl });
       renderEquipPhotos(key);
-    };
-    r.readAsDataURL(f);
+    });
   });
   input.value = '';
 }
@@ -382,7 +408,7 @@ function generatePDF(){
   textBlock('Impact on Existing Work',v('impactDesc'));
 
   // Parts table
-  const parts=[];document.querySelectorAll('.parts-row').forEach(r=>{const d=r.querySelector('.part-desc')?.value;const q=r.querySelector('.part-qty')?.value;const c=r.querySelector('.part-cost')?.value;if(d)parts.push([d,q||'1','$'+(parseFloat(c)||0).toFixed(2)])});
+  const parts=[];document.querySelectorAll('.parts-row').forEach(r=>{const d=r.querySelector('.part-desc')?.value;const q=parseFloat(r.querySelector('.part-qty')?.value)||1;const c=parseFloat(r.querySelector('.part-cost')?.value)||0;if(d)parts.push([d,String(q),'$'+(c).toFixed(2)])});
   if(parts.length>0){
     if(y>220){doc.addPage();y=15}
     sH('Parts & Materials');
@@ -421,15 +447,23 @@ function generatePDF(){
   if(status){fR([{label:'Status',value:status}])}
   fR([{label:'Requested By',value:v('requestedBy')},{label:'Approved By',value:v('approvedBy')}]);
 
-  // Photos — per equipment group
-  const allPhotos = photosByEquip || { general: [] };
-  Object.keys(allPhotos).forEach(key => {
-    const arr = allPhotos[key] || [];
+  // Photos — per category, inline next to relevant sections
+  var photoLabels = { existing: 'Existing Condition — Photos', proposed: 'Proposed Change — Photos', completed: 'Completed Work — Photos' };
+  var photoOrder = ['existing', 'proposed', 'completed'];
+  var allPhotos = photosByEquip || {};
+
+  // Also include any equip_ keys
+  Object.keys(allPhotos).forEach(function(key) {
+    if (photoOrder.indexOf(key) === -1) photoOrder.push(key);
+  });
+
+  photoOrder.forEach(function(key) {
+    var arr = allPhotos[key] || [];
     if (arr.length === 0) return;
     if(y>200){doc.addPage();y=15}
-    let label = key === 'general' ? 'Photos' : 'Equipment #' + (parseInt(key)+1) + ' \u2014 Photos';
+    var label = photoLabels[key] || (key.indexOf('equip_') === 0 ? 'Equipment #' + (parseInt(key.split('_')[1])+1) + ' \u2014 Photos' : key + ' \u2014 Photos');
     sH(label);
-    arr.forEach(ph=>{
+    arr.forEach(function(ph){
       if(y>220){doc.addPage();y=15}
       try{doc.addImage(ph.data,'JPEG',mx+3,y,60,45)}catch(e){}
       y+=48;

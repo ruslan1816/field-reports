@@ -523,22 +523,36 @@ function createPhotoGroup(key, label) {
   return group;
 }
 
+function fixImageOrientation(file, callback) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+      var maxDim = 1200;
+      var w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = URL.createObjectURL(file);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 function handleEquipPhotos(input, key) {
   if (!photosByEquip[key]) photosByEquip[key] = [];
-  Array.from(input.files).forEach(f => {
-    const r = new FileReader();
-    r.onload = e => {
-      if (typeof compressImage === 'function') {
-        compressImage(e.target.result).then(compressed => {
-          photosByEquip[key].push({ name: f.name, data: compressed });
-          renderEquipPhotos(key);
-        });
-      } else {
-        photosByEquip[key].push({ name: f.name, data: e.target.result });
-        renderEquipPhotos(key);
-      }
-    };
-    r.readAsDataURL(f);
+  Array.from(input.files).forEach(function(f) {
+    fixImageOrientation(f, function(dataUrl) {
+      photosByEquip[key].push({ name: f.name, data: dataUrl });
+      renderEquipPhotos(key);
+    });
   });
   input.value = '';
 }
@@ -1124,8 +1138,10 @@ function generatePDF() {
       const arr = allPhotos[key] || [];
       if (arr.length === 0) return;
       let label;
-      if (key === 'general') { label = 'General Photos'; }
-      else { const eq = pEquipArr[parseInt(key)]; label = (eq ? eq.type : 'Equipment #' + (parseInt(key)+1)) + ' \u2014 Photos'; }
+      var namedLabels = { complaint: 'Customer Complaint', diagnostics: 'Diagnostics', workperformed: 'Work Performed', general: 'General Photos' };
+      if (namedLabels[key]) { label = namedLabels[key] + ' \u2014 Photos'; }
+      else if (key.indexOf('equip_') === 0) { const eq = pEquipArr[parseInt(key.split('_')[1])]; label = (eq ? eq.type : 'Equipment #' + (parseInt(key.split('_')[1])+1)) + ' \u2014 Photos'; }
+      else { label = key + ' \u2014 Photos'; }
       if (py > 210) { doc.addPage(); py = 15; }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...darkBlue);
       doc.text(label, mx, py); py += 5;

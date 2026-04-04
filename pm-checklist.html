@@ -317,15 +317,36 @@ function createPhotoGroup(key, label) {
   return group;
 }
 
+function fixImageOrientation(file, callback) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+      var maxDim = 1200;
+      var w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = URL.createObjectURL(file);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 function handleEquipPhotos(input, key) {
   if (!photosByEquip[key]) photosByEquip[key] = [];
-  Array.from(input.files).forEach(f => {
-    const r = new FileReader();
-    r.onload = e => {
-      photosByEquip[key].push({ data: e.target.result });
+  Array.from(input.files).forEach(function(f) {
+    fixImageOrientation(f, function(dataUrl) {
+      photosByEquip[key].push({ data: dataUrl });
       renderEquipPhotos(key);
-    };
-    r.readAsDataURL(f);
+    });
   });
   input.value = '';
 }
