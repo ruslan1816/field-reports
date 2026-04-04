@@ -236,7 +236,7 @@ requireAuth().catch(function(){});
 // ========== DRAFT INITIALIZATION ==========
 const draftId = initializeDraftForm('change-order', 'change-order.html');
 const SAVE_KEY_DRAFT = 'nw_draft_' + draftId;
-const reportId='CO-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
+var reportId='CO-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
 document.getElementById('reportId').textContent=reportId;
 document.getElementById('coDate').value=new Date().toISOString().slice(0,10);
 autoFillTechName();
@@ -263,15 +263,18 @@ var _coStatus = 'submitted';
     var fd = report.form_data || {};
 
     _editCloudId = editId;
-    _revisionNumber = (fd._revisionNumber || 1) + 1;
-    _coStatus = fd._coStatus || 'submitted';
+    _revisionNumber = fd._revisionNumber || 1;
+    _coStatus = fd._coStatus || report.status || 'submitted';
 
     // Use same report ID (CO number)
     reportId = report.report_number || fd.reportId || reportId;
     document.getElementById('reportId').textContent = reportId;
 
-    // Update header to show "REVISION"
-    document.querySelector('.subtitle').textContent = 'CHANGE ORDER — REVISION ' + _revisionNumber;
+    // Update header to show status
+    var statusLabels = { submitted: '📋 SUBMITTED', revised: '📝 REVISED', approved: '✅ APPROVED', voided: '🚫 VOIDED' };
+    var headerLabel = statusLabels[_coStatus] || _coStatus.toUpperCase();
+    if (_revisionNumber > 1) headerLabel += ' — Rev ' + _revisionNumber;
+    document.querySelector('.subtitle').textContent = 'CHANGE ORDER — ' + headerLabel;
 
     // Fill all form fields
     var fields = {
@@ -739,13 +742,16 @@ async function confirmSendEmail(){
     }
     // Save or update in cloud
     if (_editCloudId) {
-      // Update existing CO (revision)
+      // Update existing CO (revision) — bump revision number
+      _revisionNumber = (_revisionNumber || 1) + 1;
+      d._revisionNumber = _revisionNumber;
       d._coStatus = 'revised';
       _coStatus = 'revised';
       updateReportInCloud(_editCloudId, { form_data: d, status: 'revised' });
       console.log('[CO] Updated existing CO:', _editCloudId, 'Rev:', _revisionNumber);
     } else {
       d._coStatus = 'submitted';
+      d._revisionNumber = 1;
       saveReportToCloud('change-order', d, { reportId: reportId, projectId: projId });
     }
     const v=id=>(document.getElementById(id)||{}).value||'';
