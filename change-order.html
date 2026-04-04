@@ -68,6 +68,7 @@ body{padding-bottom:100px}
     <div class="field"><label>Customer / Company</label><input type="text" id="custName" data-save></div>
     <div class="field"><label>Address</label><input type="text" id="address" data-save></div>
     <div class="row"><div class="field"><label>Contact</label><input type="text" id="contact" data-save></div><div class="field"><label>Phone</label><input type="tel" id="phone" data-save></div></div>
+    <div class="field"><label>Client Email <span style="font-weight:400;font-size:11px;color:#94a3b8">(optional — to send CO directly to client)</span></label><input type="email" id="clientEmail" data-save placeholder="client@company.com"></div>
   </div>
 </div>
 
@@ -189,10 +190,35 @@ body{padding-bottom:100px}
   </div>
 </div>
 
+<!-- EMAIL PREVIEW MODAL -->
+<div id="emailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:600;align-items:flex-start;justify-content:center;padding:30px 12px;overflow-y:auto">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:560px;padding:24px;position:relative;margin:0 auto">
+    <button onclick="document.getElementById('emailModal').style.display='none'" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8">&times;</button>
+    <h3 style="font-size:16px;font-weight:800;margin:0 0 16px;color:#1e293b">Review & Send</h3>
+    <div class="field"><label style="font-size:12px;font-weight:700;color:#64748b">To (Management)</label>
+      <input type="text" id="emailTo" value="jonathan@northernwolvesac.com, andrei@northernwolvesac.com, ruslan@northernwolvesac.com" style="font-size:12px;background:#f8fafc;color:#64748b" readonly>
+    </div>
+    <div class="field"><label style="font-size:12px;font-weight:700;color:#64748b">CC Client <span style="font-weight:400">(optional)</span></label>
+      <input type="email" id="emailCc" placeholder="client@company.com" style="font-size:13px">
+    </div>
+    <div class="field"><label style="font-size:12px;font-weight:700;color:#64748b">Subject</label>
+      <input type="text" id="emailSubject" style="font-size:13px">
+    </div>
+    <div class="field"><label style="font-size:12px;font-weight:700;color:#64748b">Message</label>
+      <textarea id="emailBody" rows="8" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;line-height:1.5"></textarea>
+    </div>
+    <p style="font-size:11px;color:#94a3b8;margin:4px 0 16px">PDF report will be attached as a Google Drive link.</p>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary" onclick="document.getElementById('emailModal').style.display='none'" style="flex:1">Cancel</button>
+      <button class="btn btn-success" id="btnConfirmSend" onclick="confirmSendEmail()" style="flex:2">📧 Send Change Order</button>
+    </div>
+  </div>
+</div>
+
 <div class="bottom-bar">
   <button class="btn btn-secondary" onclick="saveDraftAndClose()">💾 Draft</button>
   <button class="btn btn-primary" onclick="generateAndDownload()">📄 PDF</button>
-  <button class="btn btn-success" onclick="generateAndEmailWithHistory()">📧 Send</button>
+  <button class="btn btn-success" onclick="openEmailPreview()">📧 Send</button>
 </div>
 
 <script>
@@ -490,46 +516,109 @@ function generatePDF(){
 }
 
 function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`ChangeOrder_${v('custName').replace(/\s+/g,'_')||'CO'}_${v('coDate')}.pdf`);showToast('PDF downloaded!')}
-async function generateAndEmailWithHistory(){
-  var sendBtn = document.querySelector('.btn-success[onclick*="generateAndEmail"]');
-  var origText = sendBtn ? sendBtn.innerHTML : '';
-  if (sendBtn) {
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px"></span>Sending\u2026';
-  }
-  try {
-  const d=collectData?collectData():{};
-  if(typeof saveToHistory==='function') saveToHistory('change-order', d);
-  const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
-  if (projId) {
-    const v = id => (document.getElementById(id) || {}).value || '';
-    saveProjectRecord(projId, {
-      name: 'Change Order - ' + v('custName') + ' - ' + v('coDate'),
-      reportType: 'change-order',
-      reportId: reportId
+
+function openEmailPreview(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  const total=document.getElementById('costTotal').textContent;
+  // Pre-fill CC with client email if entered
+  document.getElementById('emailCc').value=v('clientEmail');
+  // Pre-fill subject
+  document.getElementById('emailSubject').value='Change Order - '+v('custName')+' - '+v('coDate');
+  // Pre-fill professional message body
+  const msg=[
+    'Dear '+( v('contact') || v('custName') || 'Client')+',',
+    '',
+    'Please find attached the Change Order for your review and approval.',
+    '',
+    'Project: '+(v('projectName')||'N/A'),
+    'Change Order #: '+(v('coNumber')||'N/A'),
+    'Date: '+v('coDate'),
+    'Reason: '+(v('changeReason')||'N/A'),
+    '',
+    'Description:',
+    v('changeDesc')||'See attached PDF for details.',
+    '',
+    'Total: '+total,
+    '',
+    'Please review the attached PDF report for the complete breakdown including materials, labor, and cost summary.',
+    '',
+    'If you have any questions, please don\'t hesitate to reach out.',
+    '',
+    'Best regards,',
+    v('requestedBy')||'Northern Wolves AC',
+    'Northern Wolves Air Conditioning',
+    'hello@northernwolvesac.com'
+  ].join('\n');
+  document.getElementById('emailBody').value=msg;
+  document.getElementById('emailModal').style.display='flex';
+}
+
+async function confirmSendEmail(){
+  var btn=document.getElementById('btnConfirmSend');
+  var origText=btn.innerHTML;
+  btn.disabled=true;
+  btn.innerHTML='<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px"></span>Sending\u2026';
+  try{
+    const d=collectData?collectData():{};
+    if(typeof saveToHistory==='function') saveToHistory('change-order',d);
+    const projId=typeof getSelectedProjectId==='function'?getSelectedProjectId():null;
+    if(projId){
+      const v=id=>(document.getElementById(id)||{}).value||'';
+      saveProjectRecord(projId,{name:'Change Order - '+v('custName')+' - '+v('coDate'),reportType:'change-order',reportId:reportId});
+    }
+    saveReportToCloud('change-order',d,{reportId:reportId,projectId:projId});
+    const v=id=>(document.getElementById(id)||{}).value||'';
+    const doc=generatePDF();
+    const fn=`ChangeOrder_${v('custName').replace(/\s+/g,'_')||'CO'}_${v('coDate')}.pdf`;
+    const subject=document.getElementById('emailSubject').value;
+    const bodyText=document.getElementById('emailBody').value;
+    const ccEmail=document.getElementById('emailCc').value.trim();
+
+    // Build HTML email body
+    const htmlBody=buildHtmlEmail(v,bodyText);
+
+    showToast('Uploading report...');
+    const driveResult=await uploadToGoogleDrive(doc,fn);
+    showToast('Sending email...');
+
+    emailjs.init(EMAIL_CONFIG.EMAILJS_PUBLIC_KEY);
+
+    // Build recipients — management + optional CC
+    var toEmails=EMAIL_CONFIG.MANAGEMENT_EMAILS.join(', ');
+    if(ccEmail) toEmails+=', '+ccEmail;
+
+    const fullBody=bodyText+'\n\n--- PDF Report ---\nDownload: '+driveResult.downloadUrl+'\nView: '+driveResult.viewUrl+'\n\n-- Northern Wolves Air Conditioning';
+
+    await emailjs.send(EMAIL_CONFIG.EMAILJS_SERVICE_ID,EMAIL_CONFIG.EMAILJS_TEMPLATE_ID,{
+      to_emails:toEmails,
+      subject:subject,
+      body_text:fullBody,
+      report_type:'Change Order',
+      customer_name:v('custName')||'',
+      tech_name:v('requestedBy')||''
     });
+
+    if(driveResult.driveUrl&&projId){
+      updateProjectDocUrl(projId,reportId,driveResult.driveUrl,driveResult.viewUrl);
+    }
+    document.getElementById('emailModal').style.display='none';
+    showToast('Change Order sent!');
+    setTimeout(function(){window.location.href='index.html'},1500);
+  }catch(err){
+    console.error('Send error:',err);
+    alert('Failed to send: '+(err.text||err.message||'Unknown error'));
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML=origText;
   }
-  saveReportToCloud('change-order', d, { reportId: reportId, projectId: projId });
-  const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
-  const fn=`ChangeOrder_${v('custName').replace(/\s+/g,'_')||'CO'}_${v('coDate')}.pdf`;
-  var result = await sendReportToManagement({
-    reportType: 'Change Order',
-    subject: `Change Order - ${v('custName')} - ${v('coDate')}`,
-    bodyText: `Change Order\n\nCustomer: ${v('custName')}\nDate: ${v('coDate')}\nProject: ${v('projectName')}\nReason: ${v('changeReason')}\nTotal: ${document.getElementById('costTotal').textContent}`,
-    customerName: v('custName'),
-    techName: v('requestedBy'),
-    pdfDoc: doc,
-    filename: fn
-  });
-  if (result && result.driveUrl && projId) {
-    updateProjectDocUrl(projId, reportId, result.driveUrl, result.viewUrl);
-  }
-  } catch(err) {
-    console.error('Send error:', err);
-    alert('Failed to send report: ' + (err.message || 'Unknown error'));
-  } finally {
-    if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = origText; }
-  }
+}
+
+function buildHtmlEmail(v, bodyText){
+  // Convert plain text body to HTML paragraphs
+  return bodyText.split('\n').map(function(line){
+    if(!line.trim()) return '<br>';
+    return '<p style="margin:0 0 4px;font-size:14px;color:#1e293b;line-height:1.6">'+line.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>';
+  }).join('');
 }
 </script>
 <script src="sw-register.js?v=52"></script>
