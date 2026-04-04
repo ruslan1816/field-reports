@@ -29,7 +29,6 @@ body{padding-bottom:100px}
 .parts-row{display:flex;gap:6px;margin-bottom:8px;align-items:center}.parts-row input{flex:1;padding:10px;border:1px solid var(--nw-border);border-radius:6px;font-size:14px;background:var(--nw-section)}.parts-row input:focus{border-color:var(--nw-primary);background:#fff;outline:none}.parts-row .qty{width:50px;text-align:center}.parts-row .cost{width:70px;text-align:right}
 .labor-row{display:flex;gap:6px;margin-bottom:8px;align-items:center}.labor-row input{flex:1;padding:10px;border:1px solid var(--nw-border);border-radius:6px;font-size:14px;background:var(--nw-section)}.labor-row input:focus{border-color:var(--nw-primary);outline:none;background:#fff}
 .cost-summary{background:var(--nw-dark);color:#fff;border-radius:10px;padding:16px;margin-top:12px}.cost-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}.cost-row.total{border-top:2px solid #475569;padding-top:10px;margin-top:6px;font-weight:700;font-size:16px;color:var(--nw-accent)}
-.markup-input{width:60px;text-align:center;padding:6px;border:1px solid #475569;border-radius:4px;background:#334155;color:#fff;font-size:14px;font-weight:700}
 .photo-group{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}.photo-group-header{font-size:13px;font-weight:700;color:#0696D7;margin-bottom:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -124,8 +123,10 @@ body{padding-bottom:100px}
     <!-- COST SUMMARY -->
     <div class="cost-summary">
       <div class="cost-row"><span>Materials</span><span id="costParts">$0.00</span></div>
+      <div class="cost-row" style="font-size:12px;color:#94a3b8"><span>&nbsp;&nbsp;OH (12%)</span><span id="costOH">$0.00</span></div>
+      <div class="cost-row" style="font-size:12px;color:#94a3b8"><span>&nbsp;&nbsp;Profit (10%)</span><span id="costProfit">$0.00</span></div>
+      <div class="cost-row"><span>Materials Total</span><span id="costMaterialsTotal">$0.00</span></div>
       <div class="cost-row"><span>Labor</span><span id="costLabor">$0.00</span></div>
-      <div class="cost-row"><span>Markup <input type="number" id="markupPct" class="markup-input" value="15" min="0" max="100" oninput="calcCosts()"> %</span><span id="costMarkup">$0.00</span></div>
       <div class="cost-row total"><span>TOTAL</span><span id="costTotal">$0.00</span></div>
     </div>
   </div>
@@ -221,15 +222,17 @@ function addPart(){const r=document.createElement('div');r.className='parts-row'
 function addLabor(){const r=document.createElement('div');r.className='labor-row';r.innerHTML='<input type="text" placeholder="Technician" class="labor-tech"><input type="number" step="0.25" placeholder="Hrs" class="labor-hrs" style="width:60px" oninput="calcCosts()"><input type="text" placeholder="$/hr" class="labor-rate" style="width:70px" oninput="calcCosts()"><button class="btn btn-danger btn-small" onclick="this.parentElement.remove();calcCosts()" style="width:32px;padding:6px;flex:none">✕</button>';document.getElementById('laborList').appendChild(r)}
 
 function calcCosts(){
-  let parts=0;document.querySelectorAll('.parts-row').forEach(r=>{const q=parseFloat(r.querySelector('.part-qty')?.value)||1;const c=parseFloat(r.querySelector('.part-cost')?.value)||0;parts+=q*c});
+  let matRaw=0;document.querySelectorAll('.parts-row').forEach(r=>{const q=parseFloat(r.querySelector('.part-qty')?.value)||1;const c=parseFloat(r.querySelector('.part-cost')?.value)||0;matRaw+=q*c});
+  const oh=matRaw*0.12;
+  const profit=matRaw*0.10;
+  const matTotal=matRaw+oh+profit;
   let labor=0;document.querySelectorAll('.labor-row').forEach(r=>{const h=parseFloat(r.querySelector('.labor-hrs')?.value)||0;const rt=parseFloat(r.querySelector('.labor-rate')?.value)||0;labor+=h*rt});
-  const subtotal=parts+labor;
-  const markupPct=parseFloat(document.getElementById('markupPct').value)||0;
-  const markupAmt=subtotal*(markupPct/100);
-  document.getElementById('costParts').textContent='$'+parts.toFixed(2);
+  document.getElementById('costParts').textContent='$'+matRaw.toFixed(2);
+  document.getElementById('costOH').textContent='$'+oh.toFixed(2);
+  document.getElementById('costProfit').textContent='$'+profit.toFixed(2);
+  document.getElementById('costMaterialsTotal').textContent='$'+matTotal.toFixed(2);
   document.getElementById('costLabor').textContent='$'+labor.toFixed(2);
-  document.getElementById('costMarkup').textContent='$'+markupAmt.toFixed(2);
-  document.getElementById('costTotal').textContent='$'+(subtotal+markupAmt).toFixed(2);
+  document.getElementById('costTotal').textContent='$'+(matTotal+labor).toFixed(2);
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
@@ -429,11 +432,12 @@ function generatePDF(){
   if(y>230){doc.addPage();y=15}
   sH('Cost Summary');
   const pTotal=document.getElementById('costParts').textContent;
+  const ohTotal=document.getElementById('costOH').textContent;
+  const profitTotal=document.getElementById('costProfit').textContent;
+  const matTotalVal=document.getElementById('costMaterialsTotal').textContent;
   const lTotal=document.getElementById('costLabor').textContent;
-  const mTotal=document.getElementById('costMarkup').textContent;
   const gTotal=document.getElementById('costTotal').textContent;
-  const mkPct=(parseFloat(document.getElementById('markupPct').value)||0)+'%';
-  doc.autoTable({startY:y,margin:{left:mx,right:15},body:[['Materials',pTotal],['Labor',lTotal],['Markup ('+mkPct+')',mTotal],['TOTAL',gTotal]],theme:'plain',bodyStyles:{fontSize:10,cellPadding:3},columnStyles:{0:{fontStyle:'bold'},1:{halign:'right',fontStyle:'bold'}},didParseCell:function(data){if(data.row.index===3){data.cell.styles.fillColor=[49,149,202];data.cell.styles.textColor=[255,255,255];data.cell.styles.fontSize=12}}});
+  doc.autoTable({startY:y,margin:{left:mx,right:15},body:[['Materials',pTotal],['   OH (12%)',ohTotal],['   Profit (10%)',profitTotal],['Materials Total',matTotalVal],['Labor',lTotal],['TOTAL',gTotal]],theme:'plain',bodyStyles:{fontSize:10,cellPadding:3},columnStyles:{0:{fontStyle:'bold'},1:{halign:'right',fontStyle:'bold'}},didParseCell:function(data){if(data.row.index===5){data.cell.styles.fillColor=[49,149,202];data.cell.styles.textColor=[255,255,255];data.cell.styles.fontSize=12}if(data.row.index===1||data.row.index===2){data.cell.styles.fontSize=8;data.cell.styles.textColor=[148,163,184]}}});
   y=doc.lastAutoTable.finalY+4;
 
   // Schedule Impact
