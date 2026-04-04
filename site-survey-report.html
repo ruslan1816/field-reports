@@ -18,6 +18,7 @@
 <script src="customer-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
+<script src="ai-summary.js?v=52"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -228,6 +229,21 @@ body{padding-bottom:100px}
   </div>
 </div>
 
+<!-- AI SUMMARY (optional) -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">🤖</span> AI Summary <span style="font-weight:400;font-size:12px;color:#64748b;">(optional)</span>
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">Generate a professional summary of this report using AI. You can edit it before sending.</p>
+    <button class="btn btn-primary btn-small" id="btnAISummary" onclick="handleAISummaryClick('site-survey', collectData)" style="margin-bottom:10px;">✨ Generate AI Summary</button>
+    <div id="aiSummaryResult" style="display:none;">
+      <textarea id="aiSummaryText" rows="5" placeholder="AI-generated summary will appear here..." data-save style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+    </div>
+  </div>
+</div>
+
 <div class="bottom-bar">
   <button class="btn btn-secondary" onclick="saveDraftAndClose()">💾 Draft</button>
   <button class="btn btn-primary" onclick="generateAndDownload()">📄 PDF</button>
@@ -380,6 +396,14 @@ function collectEquipment(){
     items.push({type:v('eq-type'),mfg:v('eq-mfg'),model:v('eq-model'),serial:v('eq-serial'),age:v('eq-age'),capacity:v('eq-cap'),location:v('eq-loc'),condition:condEl?condEl.dataset.value||'':'',notes:v('eq-notes')});
   });
   return items.filter(e=>e.type);
+}
+
+function collectData(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  const radioVal=n=>{const r=document.querySelector(`input[name="${n}"]:checked`);return r?r.value:''};
+  const condVal=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':''};
+  const checkedVals=gid=>{const vals=[];document.querySelectorAll('#'+gid+' input:checked').forEach(i=>vals.push(i.value));return vals.join(', ')};
+  return{reportId,surveyDate:v('surveyDate'),custName:v('custName'),address:v('address'),contact:v('contact'),phone:v('phone'),techName:v('techName'),buildingType:v('buildingType'),floors:v('floors'),sqft:v('sqft'),scope:v('scope'),purpose:checkedVals('purposeGroup'),equipment:collectEquipment(),ductType:v('ductType'),ductCondition:condVal('ductCondition'),insCondition:condVal('insCondition'),pipeCondition:condVal('pipeCondition'),distNotes:v('distNotes'),mainService:v('mainService'),availCircuits:v('availCircuits'),elecNotes:v('elecNotes'),controlsType:v('controlsType'),accessNotes:v('accessNotes'),parkingNotes:v('parkingNotes'),crane:radioVal('crane'),tempReadings:v('tempReadings'),observedIssues:v('observedIssues'),custIssues:v('custIssues'),recommendations:v('recommendations'),priority:radioVal('priority'),techSig:techSigPad.toDataURL(),aiSummary: typeof getAISummary === 'function' ? getAISummary() : ''};
 }
 
 function generatePDF(){

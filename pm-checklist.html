@@ -19,6 +19,7 @@
 <script src="equipment-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
+<script src="ai-summary.js?v=52"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -137,6 +138,21 @@ body{padding-bottom:100px}
     <div class="field"><label>Technician Signature</label><canvas class="sig-canvas" id="techSig"></canvas><div class="sig-label">Sign above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="techSigPad.clear()">Clear</button></div></div>
     <div class="field" style="margin-top:16px"><label>Customer Signature</label><canvas class="sig-canvas" id="custSig"></canvas><div class="sig-label">Customer signs above</div><div style="margin-top:8px"><button class="btn btn-outline btn-small" onclick="custSigPad.clear()">Clear</button></div></div>
     <div class="field" style="margin-top:12px"><label>Printed Name</label><input type="text" id="custPrintName" data-save></div>
+  </div>
+</div>
+
+<!-- AI SUMMARY (optional) -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">🤖</span> AI Summary <span style="font-weight:400;font-size:12px;color:#64748b;">(optional)</span>
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">Generate a professional summary of this report using AI. You can edit it before sending.</p>
+    <button class="btn btn-primary btn-small" id="btnAISummary" onclick="handleAISummaryClick('pm-checklist', collectData)" style="margin-bottom:10px;">✨ Generate AI Summary</button>
+    <div id="aiSummaryResult" style="display:none;">
+      <textarea id="aiSummaryText" rows="5" placeholder="AI-generated summary will appear here..." data-save style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+    </div>
   </div>
 </div>
 
@@ -502,6 +518,31 @@ function generatePDF(){
   doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);
   doc.text('Northern Wolves Air Conditioning — New York & New Jersey',pw/2,fY,{align:'center'});
   return doc;
+}
+
+function collectData(){
+  const v=id=>(document.getElementById(id)||{}).value||'';
+  const radioVal=name=>{const r=document.querySelector('input[name="'+name+'"]:checked');return r?r.value:''};
+  return {
+    reportId: reportId,
+    pmDate: v('pmDate'), techName: v('techName'),
+    custName: v('custName'), address: v('address'),
+    workOrder: v('workOrder'), visitNum: v('visitNum'),
+    equipMfg: v('equipMfg'), equipModel: v('equipModel'),
+    equipSerial: v('equipSerial'), equipLoc: v('equipLoc'),
+    equipment: typeof collectEquipmentData==='function'?collectEquipmentData():[],
+    checklistResults: getChecklistResults(),
+    deficiencies: v('deficiencies'),
+    pmRecommendations: v('pmRecommendations'),
+    pmNotes: v('pmNotes'),
+    statusByEquip: collectStatusData(),
+    statusNotes: v('statusNotes'),
+    custPrintName: v('custPrintName'),
+    techSig: techSigPad.toDataURL(), custSig: custSigPad.toDataURL(),
+    photos: getAllPhotos(),
+    photosByEquip: photosByEquip,
+    aiSummary: typeof getAISummary==='function'?getAISummary():''
+  };
 }
 
 function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`);showToast('PDF downloaded!')}

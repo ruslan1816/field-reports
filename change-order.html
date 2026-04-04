@@ -18,6 +18,7 @@
 <script src="customer-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
+<script src="ai-summary.js?v=52"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -176,6 +177,21 @@ body{padding-bottom:100px}
   </div>
 </div>
 
+<!-- AI SUMMARY (optional) -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">🤖</span> AI Summary <span style="font-weight:400;font-size:12px;color:#64748b;">(optional)</span>
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">Generate a professional summary of this report using AI. You can edit it before sending.</p>
+    <button class="btn btn-primary btn-small" id="btnAISummary" onclick="handleAISummaryClick('change-order', collectData)" style="margin-bottom:10px;">✨ Generate AI Summary</button>
+    <div id="aiSummaryResult" style="display:none;">
+      <textarea id="aiSummaryText" rows="5" placeholder="AI-generated summary will appear here..." data-save style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+    </div>
+  </div>
+</div>
+
 <div class="bottom-bar">
   <button class="btn btn-secondary" onclick="saveDraftAndClose()">💾 Draft</button>
   <button class="btn btn-primary" onclick="generateAndDownload()">📄 PDF</button>
@@ -319,7 +335,7 @@ function saveDraftAndClose(){
 function collectData(){
   const v=id=>(document.getElementById(id)||{}).value||'';
   const radioVal=n=>{const r=document.querySelector(`input[name="${n}"]:checked`);return r?r.value:''};
-  return{reportId,coDate:v('coDate'),coNumber:v('coNumber'),projectName:v('projectName'),originalRef:v('originalRef'),custName:v('custName'),address:v('address'),contact:v('contact'),phone:v('phone'),changeReason:v('changeReason'),changeDesc:v('changeDesc'),impactDesc:v('impactDesc'),addDays:v('addDays'),newTarget:v('newTarget'),scheduleNotes:v('scheduleNotes'),priority:radioVal('priority'),coStatus:radioVal('coStatus'),requestedBy:v('requestedBy'),approvedBy:v('approvedBy'),custPrintName:v('custPrintName'),costTotal:document.getElementById('costTotal').textContent};
+  return{reportId,coDate:v('coDate'),coNumber:v('coNumber'),projectName:v('projectName'),originalRef:v('originalRef'),custName:v('custName'),address:v('address'),contact:v('contact'),phone:v('phone'),changeReason:v('changeReason'),changeDesc:v('changeDesc'),impactDesc:v('impactDesc'),addDays:v('addDays'),newTarget:v('newTarget'),scheduleNotes:v('scheduleNotes'),priority:radioVal('priority'),coStatus:radioVal('coStatus'),requestedBy:v('requestedBy'),approvedBy:v('approvedBy'),custPrintName:v('custPrintName'),costTotal:document.getElementById('costTotal').textContent,aiSummary: typeof getAISummary === 'function' ? getAISummary() : ''};
 }
 
 function generatePDF(){

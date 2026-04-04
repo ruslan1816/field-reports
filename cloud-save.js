@@ -37,6 +37,9 @@
                        formData.surveyDate || formData.rfiDate || new Date().toISOString().split('T')[0];
       var address = formData.custAddress || formData.projAddress || formData.address || '';
 
+      // AI summary (optional — tech may have generated one)
+      var aiSummary = formData.aiSummary || '';
+
       // Build report row
       var row = {
         report_number: options.reportId || formData.reportId || generateReportNumber(formType),
@@ -48,6 +51,11 @@
         form_data: formData,
         status: 'submitted'
       };
+
+      // Include AI summary if present
+      if (aiSummary) {
+        row.ai_summary = aiSummary;
+      }
 
       console.log('[cloud-save] Saving report:', row.report_number, row.report_type);
 

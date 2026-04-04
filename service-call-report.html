@@ -21,6 +21,7 @@
 <script src="equipment-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
+<script src="ai-summary.js?v=52"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -325,6 +326,21 @@ body {
     <div class="field" style="margin-top:12px;">
       <label>Customer Printed Name</label>
       <input type="text" id="custPrintName" placeholder="Print name" data-save>
+    </div>
+  </div>
+</div>
+
+<!-- AI SUMMARY (optional) -->
+<div class="section">
+  <div class="section-header" onclick="toggleSection(this)">
+    <span class="icon">🤖</span> AI Summary <span style="font-weight:400;font-size:12px;color:#64748b;">(optional)</span>
+    <span class="collapse-arrow">▼</span>
+  </div>
+  <div class="section-body">
+    <p style="font-size:13px;color:#64748b;margin:0 0 10px;">Generate a professional summary of this report using AI. You can edit it before sending.</p>
+    <button class="btn btn-primary btn-small" id="btnAISummary" onclick="handleAISummaryClick('service-call', collectData)" style="margin-bottom:10px;">✨ Generate AI Summary</button>
+    <div id="aiSummaryResult" style="display:none;">
+      <textarea id="aiSummaryText" rows="5" placeholder="AI-generated summary will appear here..." data-save style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
     </div>
   </div>
 </div>
@@ -770,7 +786,8 @@ function collectData() {
     custPrintName: v('custPrintName'),
     techSig: techSigPad.toDataURL(), custSig: custSigPad.toDataURL(),
     photos: getAllPhotos(),
-    photosByEquip: photosByEquip
+    photosByEquip: photosByEquip,
+    aiSummary: typeof getAISummary === 'function' ? getAISummary() : ''
   };
 }
 
