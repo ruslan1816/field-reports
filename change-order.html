@@ -233,6 +233,31 @@ body{padding-bottom:100px}
 
 <script>
 requireAuth().catch(function(){});
+
+var DRIVE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxPvr8QooEcdcxt937V49-Y_o9lz5-qQUQqjnaGr5mcabxOr9iZbkP3yxN9O2T09NoW/exec';
+
+async function driveUploadPhoto(projectName, projectId, fileName, base64Data) {
+  try {
+    var resp = await fetch(DRIVE_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'upload_file',
+        projectName: projectName,
+        projectId: projectId,
+        fileName: fileName,
+        fileData: base64Data,
+        mimeType: 'image/jpeg',
+        category: 'reports'
+      })
+    });
+    return await resp.json();
+  } catch(e) {
+    console.error('[CO] Photo upload error:', e);
+    return { success: false, error: e.message };
+  }
+}
+
 // ========== DRAFT INITIALIZATION ==========
 const draftId = initializeDraftForm('change-order', 'change-order.html');
 const SAVE_KEY_DRAFT = 'nw_draft_' + draftId;
@@ -440,7 +465,13 @@ function collectPhotosData() {
   var result = {};
   Object.keys(photosByEquip).forEach(function(key) {
     if (photosByEquip[key] && photosByEquip[key].length > 0) {
-      result[key] = photosByEquip[key].map(function(p) { return { data: p.data }; });
+      result[key] = photosByEquip[key].map(function(p) {
+        // Prefer Drive references over base64
+        if (p.driveId) {
+          return { driveId: p.driveId, driveUrl: p.driveUrl, downloadUrl: p.downloadUrl, directUrl: p.directUrl || '', name: p.name, thumb: p.thumb || '' };
+        }
+        return { data: p.data };
+      });
     }
   });
   return result;
@@ -451,10 +482,95 @@ function restorePhotosData(photosObj) {
   Object.keys(photosObj).forEach(function(key) {
     if (!photosByEquip[key]) photosByEquip[key] = [];
     (photosObj[key] || []).forEach(function(p) {
-      if (p.data) photosByEquip[key].push({ data: p.data });
+      if (p.driveId) {
+        // Photo on Google Drive — use direct URL for full-res display + PDF
+        var directUrl = p.directUrl || ('https://lh3.googleusercontent.com/d/' + p.driveId);
+        photosByEquip[key].push({
+          data: directUrl,
+          driveId: p.driveId,
+          driveUrl: p.driveUrl,
+          downloadUrl: p.downloadUrl,
+          directUrl: directUrl,
+          name: p.name,
+          thumb: p.thumb || ''
+        });
+      } else if (p.data) {
+        // Legacy base64 photo
+        photosByEquip[key].push({ data: p.data });
+      }
     });
     renderEquipPhotos(key);
   });
+}
+
+function makeThumb(dataUrl, maxDim, callback) {
+  var img = new Image();
+  img.onload = function() {
+    var c = document.createElement('canvas');
+    var w = img.width, h = img.height;
+    if (w > maxDim || h > maxDim) {
+      if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+      else { w = Math.round(w * maxDim / h); h = maxDim; }
+    }
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    callback(c.toDataURL('image/jpeg', 0.5));
+  };
+  img.src = dataUrl;
+}
+
+async function uploadAllPhotosToDrive(projectName, projectId, coNumber) {
+  var uploaded = {};
+  var keys = Object.keys(photosByEquip);
+  for (var k = 0; k < keys.length; k++) {
+    var key = keys[k];
+    var photos = photosByEquip[key] || [];
+    if (photos.length === 0) continue;
+    uploaded[key] = [];
+    for (var i = 0; i < photos.length; i++) {
+      var ph = photos[i];
+      // If already uploaded to Drive (has driveId), keep the reference
+      if (ph.driveId) {
+        uploaded[key].push({ driveId: ph.driveId, driveUrl: ph.driveUrl, downloadUrl: ph.downloadUrl, directUrl: ph.directUrl || '', name: ph.name, thumb: ph.thumb || '' });
+        continue;
+      }
+      // New photo — upload full-size to Drive, create small thumbnail for Supabase
+      var base64 = ph.data;
+      if (base64.indexOf(',') !== -1) base64 = base64.split(',')[1];
+      var fileName = 'CO-' + (coNumber || 'photo') + '_' + key + '_' + (i + 1) + '.jpg';
+      // Generate thumbnail (200px, low quality ~5-10KB)
+      var thumb = await new Promise(function(resolve) {
+        makeThumb(ph.data, 200, resolve);
+      });
+      try {
+        var result = await driveUploadPhoto(projectName, projectId, fileName, base64);
+        if (result.success && result.file) {
+          var directUrl = result.file.directUrl || ('https://lh3.googleusercontent.com/d/' + result.file.id);
+          var ref = {
+            driveId: result.file.id,
+            driveUrl: result.file.viewUrl || result.file.url,
+            downloadUrl: result.file.downloadUrl,
+            directUrl: directUrl,
+            name: result.file.name || fileName,
+            thumb: thumb
+          };
+          uploaded[key].push(ref);
+          // Update local reference so we don't re-upload
+          photos[i].driveId = ref.driveId;
+          photos[i].driveUrl = ref.driveUrl;
+          photos[i].downloadUrl = ref.downloadUrl;
+          photos[i].directUrl = directUrl;
+          photos[i].name = ref.name;
+          photos[i].thumb = thumb;
+        } else {
+          console.warn('[CO] Photo upload failed:', key, i, result.error);
+        }
+      } catch(e) {
+        console.warn('[CO] Photo upload exception:', key, i, e);
+      }
+    }
+  }
+  return uploaded;
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
@@ -770,6 +886,14 @@ async function confirmSendEmail(){
     if(projId){
       const v=id=>(document.getElementById(id)||{}).value||'';
       saveProjectRecord(projId,{name:'Change Order - '+v('custName')+' - '+v('coDate'),reportType:'change-order',reportId:reportId});
+    }
+    // Upload photos to Google Drive
+    if (projId && Object.keys(photosByEquip).some(function(k){ return photosByEquip[k].length > 0; })) {
+      showToast('Uploading photos...');
+      var _projName = (document.getElementById('projectName') || {}).value || (document.getElementById('custName') || {}).value || 'Unknown';
+      var _coNum = (document.getElementById('coNumber') || {}).value || reportId;
+      var drivePhotos = await uploadAllPhotosToDrive(_projName, projId, _coNum);
+      d._photos = drivePhotos;
     }
     // Save or update in cloud
     if (_editCloudId) {

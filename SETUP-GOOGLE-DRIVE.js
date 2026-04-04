@@ -155,6 +155,9 @@ function uploadFile(projectName, projectId, fileName, base64Data, mimeType, cate
 
   var file = catFolder.createFile(blob);
 
+  // Make file viewable by anyone with link (needed for photo previews in the app)
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
   return {
     success: true,
     file: {
@@ -166,7 +169,8 @@ function uploadFile(projectName, projectId, fileName, base64Data, mimeType, cate
       createdAt: file.getDateCreated().toISOString(),
       url: file.getUrl(),
       downloadUrl: 'https://drive.google.com/uc?export=download&id=' + file.getId(),
-      viewUrl: file.getUrl()
+      viewUrl: file.getUrl(),
+      directUrl: 'https://lh3.googleusercontent.com/d/' + file.getId()
     }
   };
 }
