@@ -633,8 +633,33 @@ body{font-family:'Inter',sans-serif;background:#f0f2f5;color:#1a2332;-webkit-fon
       if (!Array.isArray(photos) || photos.length === 0) return;
       hasPhotos = true;
 
-      var sectionTitle = key === 'general' ? 'General Photos' :
-        (equips[parseInt(key)] ? (equips[parseInt(key)].name || equips[parseInt(key)].type || 'Equipment ' + (parseInt(key) + 1)) : 'Equipment ' + (parseInt(key) + 1));
+      var PHOTO_LABELS = {
+        general: 'General Photos',
+        complaint: 'Customer Complaint',
+        diagnostics: 'Diagnostics',
+        workperformed: 'Work Performed',
+        before: 'Before',
+        after: 'After',
+        readings: 'Readings & Measurements',
+        deficiencies: 'Deficiencies Found',
+        building: 'Building / Site',
+        ductwork: 'Ductwork & Piping',
+        electrical: 'Electrical',
+        existing: 'Existing Condition',
+        proposed: 'Proposed Change',
+        completed: 'Completed Work'
+      };
+      var sectionTitle;
+      if (PHOTO_LABELS[key]) {
+        sectionTitle = PHOTO_LABELS[key];
+      } else if (key.startsWith('equip_')) {
+        var eIdx = parseInt(key.replace('equip_', ''));
+        sectionTitle = equips[eIdx] ? (equips[eIdx].name || equips[eIdx].type || 'Equipment ' + (eIdx + 1)) : 'Equipment ' + (eIdx + 1);
+      } else if (!isNaN(parseInt(key))) {
+        sectionTitle = equips[parseInt(key)] ? (equips[parseInt(key)].name || equips[parseInt(key)].type || 'Equipment ' + (parseInt(key) + 1)) : 'Equipment ' + (parseInt(key) + 1);
+      } else {
+        sectionTitle = key;
+      }
 
       html += '<div class="rpt-photo-section">';
       html += '<div class="rpt-photo-section-title">' + esc(sectionTitle) + '</div>';

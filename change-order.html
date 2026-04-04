@@ -237,19 +237,21 @@ function calcCosts(){
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { general: [] };
+let photosByEquip = { existing: [], proposed: [], completed: [] };
 
 function buildPhotoSections() {
   const container = document.getElementById('photosContainer');
   if (!container) return;
-  const count = typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0;
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
   container.innerHTML = '';
-  container.appendChild(createPhotoGroup('general', '\uD83D\uDCF7 General Photos'));
   for (let i = 0; i < count; i++) {
     const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
-    container.appendChild(createPhotoGroup(String(i), '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+    container.appendChild(createPhotoGroup('equip_' + i, '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
   }
+  container.appendChild(createPhotoGroup('existing', '\uD83D\uDCCB Existing Condition'));
+  container.appendChild(createPhotoGroup('proposed', '\uD83D\uDCD0 Proposed Change'));
+  container.appendChild(createPhotoGroup('completed', '\u2705 Completed Work'));
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
 }
 

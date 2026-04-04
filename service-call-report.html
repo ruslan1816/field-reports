@@ -476,7 +476,7 @@ function collectAllReadings() {
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { general: [] };
+let photosByEquip = { complaint: [], diagnostics: [], workperformed: [] };
 
 function buildPhotoSections() {
   const container = document.getElementById('photosContainer');
@@ -484,11 +484,15 @@ function buildPhotoSections() {
   const names = typeof getEquipmentNames === 'function' ? getEquipmentNames() : [];
   const count = Math.max(names.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
   container.innerHTML = '';
-  container.appendChild(createPhotoGroup('general', '📷 General Photos'));
+  // Equipment photo groups (dynamic — one per equipment added)
   for (let i = 0; i < count; i++) {
     const equipLabel = names[i] || 'Equipment #' + (i+1);
-    container.appendChild(createPhotoGroup(String(i), '⚙️ ' + equipLabel + ' — Photos'));
+    container.appendChild(createPhotoGroup('equip_' + i, '⚙️ ' + equipLabel + ' — Photos'));
   }
+  // Category photo groups
+  container.appendChild(createPhotoGroup('complaint', '🗣️ Customer Complaint'));
+  container.appendChild(createPhotoGroup('diagnostics', '🔍 Diagnostics'));
+  container.appendChild(createPhotoGroup('workperformed', '🔧 Work Performed'));
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
 }
 
@@ -622,8 +626,8 @@ function updateEquipLabels() {
   // Update photo group headers
   document.querySelectorAll('.photo-group').forEach(g => {
     const key = g.dataset.key;
-    if (key === 'general') return;
-    const idx = parseInt(key);
+    if (!key || !key.startsWith('equip_')) return;
+    const idx = parseInt(key.replace('equip_', ''));
     const header = g.querySelector('.photo-group-header');
     if (header && !isNaN(idx)) {
       header.textContent = '⚙️ ' + (names[idx] || 'Equipment #' + (idx+1)) + ' — Photos';

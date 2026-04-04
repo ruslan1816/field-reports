@@ -362,7 +362,7 @@ function rebuildAllStartupReadings() {
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { general: [] };
+let photosByEquip = { before: [], after: [], readings: [] };
 
 function buildPhotoSections() {
   const container = document.getElementById('photosContainer');
@@ -370,11 +370,13 @@ function buildPhotoSections() {
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
   const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
   container.innerHTML = '';
-  container.appendChild(createPhotoGroup('general', '\uD83D\uDCF7 General Photos'));
   for (let i = 0; i < count; i++) {
     const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
-    container.appendChild(createPhotoGroup(String(i), '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+    container.appendChild(createPhotoGroup('equip_' + i, '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
   }
+  container.appendChild(createPhotoGroup('before', '\uD83D\uDCCB Before Start-Up'));
+  container.appendChild(createPhotoGroup('after', '\u2705 After Start-Up'));
+  container.appendChild(createPhotoGroup('readings', '\uD83C\uDF21\uFE0F Readings & Measurements'));
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
 }
 
@@ -496,8 +498,8 @@ function updateEquipLabels() {
   });
   document.querySelectorAll('.photo-group').forEach(g => {
     const key = g.dataset.key;
-    if (key === 'general') return;
-    const idx = parseInt(key);
+    if (!key || !key.startsWith('equip_')) return;
+    const idx = parseInt(key.replace('equip_', ''));
     const header = g.querySelector('.photo-group-header');
     if (header && !isNaN(idx)) {
       header.textContent = '\u2699\uFE0F ' + (names[idx] || 'Equipment #' + (idx+1)) + ' \u2014 Photos';

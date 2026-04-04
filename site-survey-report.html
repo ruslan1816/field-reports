@@ -301,7 +301,7 @@ function addEquipment(){
 addEquipment(); // Start with one
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { general: [] };
+let photosByEquip = { building: [], ductwork: [], electrical: [] };
 
 function getSurveyEquipLabels() {
   const labels = [];
@@ -315,14 +315,16 @@ function getSurveyEquipLabels() {
 function buildPhotoSections() {
   const container = document.getElementById('photosContainer');
   if (!container) return;
-  const labels = getSurveyEquipLabels();
-  const count = labels.length;
+  const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
+  const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
   container.innerHTML = '';
-  container.appendChild(createPhotoGroup('general', '\uD83D\uDCF7 General Photos'));
   for (let i = 0; i < count; i++) {
-    const equipLabel = labels[i] || 'Equipment #' + (i+1);
-    container.appendChild(createPhotoGroup(String(i), '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
+    const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
+    container.appendChild(createPhotoGroup('equip_' + i, '\u2699\uFE0F ' + equipLabel + ' \u2014 Photos'));
   }
+  container.appendChild(createPhotoGroup('building', '\uD83C\uDFE2 Building / Site'));
+  container.appendChild(createPhotoGroup('ductwork', '\uD83D\uDD29 Ductwork & Piping'));
+  container.appendChild(createPhotoGroup('electrical', '\u26A1 Electrical'));
   Object.keys(photosByEquip).forEach(key => renderEquipPhotos(key));
 }
 
