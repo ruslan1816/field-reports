@@ -975,7 +975,7 @@ async function saveAndGoBack() {
   try {
     showToast('Saving...');
     var d = collectData();
-    await updateReportInCloud(_editCloudId, { form_data: d });
+    await updateReportInCloud(_editCloudId, { form_data: d, status: _coStatus || d._coStatus || 'submitted' });
     showToast('Changes saved!');
     setTimeout(function() {
       if (window.history.length > 1) { history.back(); }

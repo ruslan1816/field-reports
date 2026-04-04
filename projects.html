@@ -1335,6 +1335,13 @@ requireAuth().catch(function(){});
     // Load cloud projects in background
     loadProjectsFromCloud();
 
+    // Refresh COs when navigating back (bfcache restore)
+    window.addEventListener('pageshow', function(e) {
+      if (e.persisted && currentProjectId) {
+        loadChangeOrders(currentProjectId);
+      }
+    });
+
     // New project
     document.getElementById('btnNewProject').addEventListener('click', function() {
       openModal(null);
