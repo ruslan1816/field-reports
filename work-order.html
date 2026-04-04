@@ -239,7 +239,7 @@ function calcCosts(){
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { before: [], after: [], workperformed: [] };
+var photosByEquip = { before: [], after: [], workperformed: [] };
 
 function buildPhotoSections() {
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];

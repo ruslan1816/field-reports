@@ -470,7 +470,7 @@ function collectAllReadings() {
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { complaint: [], diagnostics: [], workperformed: [] };
+var photosByEquip = { complaint: [], diagnostics: [], workperformed: [] };
 
 function buildPhotoSections() {
   const names = typeof getEquipmentNames === 'function' ? getEquipmentNames() : [];
@@ -567,7 +567,7 @@ function getAllPhotos() {
 Object.defineProperty(window, 'photos', { get: function() { return getAllPhotos(); }, configurable: true });
 
 // ========== PER-EQUIPMENT STATUS ==========
-let statusByEquip = {};
+var statusByEquip = {};
 
 function buildStatusSections() {
   const container = document.getElementById('statusContainer');

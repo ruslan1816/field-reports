@@ -262,7 +262,7 @@ function getChecklistResults(){
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { before: [], after: [], deficiencies: [], additional: [] };
+var photosByEquip = { before: [], after: [], deficiencies: [], additional: [] };
 
 function buildPhotoSections() {
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];

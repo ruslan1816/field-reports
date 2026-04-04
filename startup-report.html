@@ -358,7 +358,7 @@ function rebuildAllStartupReadings() {
 }
 
 // ========== PER-EQUIPMENT PHOTOS ==========
-let photosByEquip = { before: [], after: [], readings: [] };
+var photosByEquip = { before: [], after: [], readings: [] };
 
 function buildPhotoSections() {
   const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
