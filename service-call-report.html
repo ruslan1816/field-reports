@@ -22,6 +22,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
 <script src="ai-summary.js?v=52"></script>
+<script src="ai-chat.js?v=1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -75,6 +76,17 @@ body {
 
 <div class="autosave-indicator" id="autosaveIndicator">Saved</div>
 <div class="toast" id="toast"></div>
+
+<div style="padding:0 16px">
+  <div class="ai-chat-banner" onclick="openServiceCallAIChat()">
+    <div class="icon">✨</div>
+    <div class="txt">
+      <b>AI Assistant</b>
+      <span>Describe the job — I'll fill out the report for you</span>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+</div>
 
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📁</span> Project<span class="collapse-arrow">▼</span></div>
@@ -1205,6 +1217,62 @@ async function generateAndEmailWithHistory() {
   } finally {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = origText; }
   }
+}
+
+// ========== AI CHAT ASSISTANT ==========
+function openServiceCallAIChat() {
+  openAIChat({
+    mode: 'form-fill',
+    reportType: 'service-call',
+    fields: [
+      {id:'callDate', label:'Date (YYYY-MM-DD)'},
+      {id:'timeArrive', label:'Time Arrived (HH:MM 24h)'},
+      {id:'timeDepart', label:'Time Departed (HH:MM 24h)'},
+      {id:'workOrder', label:'Work Order #'},
+      {id:'techName', label:'Technician Name'},
+      {id:'callType', label:'Call Type (Emergency, Service Call, PM Visit, Callback, Installation)'},
+      {id:'custName', label:'Customer / Company Name'},
+      {id:'custAddress', label:'Customer Address'},
+      {id:'custContact', label:'On-site Contact Person'},
+      {id:'custPhone', label:'Contact Phone'},
+      {id:'custEmail', label:'Customer Email'},
+      {id:'complaint', label:'Customer Complaint (textarea)'},
+      {id:'diagnosis', label:'Diagnosis / Findings (textarea)'},
+      {id:'workPerformed', label:'Work Performed (textarea)'},
+      {id:'recommendations', label:'Recommendations / Follow-up (textarea)'},
+      {id:'refAdded', label:'Refrigerant Added (lbs)'},
+      {id:'statusNotes', label:'Additional Notes (textarea)'},
+      {id:'regHours', label:'Regular Hours'},
+      {id:'otHours', label:'Overtime Hours'},
+      {id:'travelTime', label:'Travel Time (hours)'}
+    ],
+    onFill: function(data) {
+      Object.keys(data).forEach(function(key) {
+        var val = data[key];
+        // Radio group: callType
+        if (key === 'callType') {
+          var radios = document.querySelectorAll('input[name="callType"]');
+          radios.forEach(function(r) {
+            if (r.value.toLowerCase() === String(val).toLowerCase()) {
+              r.checked = true;
+              var label = r.closest('.check-item');
+              if (label) {
+                document.querySelectorAll('#callType .check-item').forEach(function(l){l.classList.remove('selected');});
+                label.classList.add('selected');
+              }
+            }
+          });
+          return;
+        }
+        var el = document.getElementById(key);
+        if (!el) return;
+        el.value = val;
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+      if (typeof showToast === 'function') showToast('AI filled ' + Object.keys(data).length + ' fields');
+    }
+  });
 }
 </script>
 
