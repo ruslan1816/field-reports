@@ -92,8 +92,8 @@ body{padding-bottom:100px}
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📷</span> Photos / Attachments<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
     <div class="photo-area" onclick="document.getElementById('photoInput').click()">
-      <div class="icon">📸</div><p>Tap to take photo</p>
-      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this)">
+      <div class="icon">📸</div><p>Tap to take or upload photos</p>
+      <input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="handlePhotos(this)">
     </div>
     <div class="photo-preview" id="photoPreview"></div>
   </div>

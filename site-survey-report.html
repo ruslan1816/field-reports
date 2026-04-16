@@ -364,8 +364,8 @@ function createPhotoGroup(key, label) {
   group.innerHTML = `
     <div class="photo-group-header">${label}</div>
     <div class="photo-area" onclick="this.querySelector('input').click()">
-      <div class="icon">\uD83D\uDCF8</div><p>Tap to add photos</p>
-      <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="handleEquipPhotos(this, '${key}')">
+      <div class="icon">\uD83D\uDCF8</div><p>Tap to take or upload photos</p>
+      <input type="file" accept="image/*" multiple style="display:none" onchange="handleEquipPhotos(this, '${key}')">
     </div>
     <div class="photo-preview" id="photoPreview_${key}"></div>
   `;
