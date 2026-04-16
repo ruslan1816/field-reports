@@ -1313,18 +1313,19 @@ function startAnalysis() {
     detailEl.textContent = aiProgressMessages[msgIdx];
   }, 3000);
 
-  // Call AI
-  callAIProxy();
+  // Multi-phase analysis
+  runMultiPhaseAnalysis();
 }
 
 function retryAnalysis() {
   startAnalysis();
 }
 
-async function callAIProxy() {
-  var additionalNotes = document.getElementById('additionalNotes').value.trim();
+// ===== Multi-Phase AI Analysis =====
+// Phase 1: Get project info + complete submittal LIST (short output)
+// Phase 2: Batch-enrich submittals with materials + compliance notes (3-5 at a time)
 
-  // Limit extracted text — keep only pages with meaningful text, cap total
+function getCleanText() {
   var textForPrompt = '';
   var usedPages = 0;
   for (var p = 0; p < extractedPages.length; p++) {
@@ -1333,102 +1334,109 @@ async function callAIProxy() {
       usedPages++;
     }
   }
-  // Cap at 30K chars to stay well within proxy limits
   if (textForPrompt.length > 30000) {
-    console.warn('[submittals] Text truncated from ' + textForPrompt.length + ' to 30000 chars');
     textForPrompt = textForPrompt.substring(0, 30000) + '\n\n[TEXT TRUNCATED]';
   }
+  console.log('[submittals] Using ' + usedPages + ' pages, ' + textForPrompt.length + ' chars');
+  return textForPrompt;
+}
 
-  console.log('[submittals] Using ' + usedPages + ' pages, ' + textForPrompt.length + ' chars of text');
+async function sendToProxy(prompt) {
+  var response = await fetch(AI_PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'generate_summary', prompt: prompt })
+  });
+  var responseText = await response.text();
+  window._lastProxyResponse = responseText;
 
-  var prompt = buildAnalysisPrompt(textForPrompt, additionalNotes);
-  console.log('[submittals] Full prompt length:', prompt.length, 'chars');
+  if (responseText.trim().charAt(0) === '<') throw new Error('Proxy returned HTML error page');
 
-  // Store everything for debugging
-  window._lastPromptLength = prompt.length;
-  window._lastAIResponse = '';
-  window._lastProxyResponse = '';
+  var data;
+  try { data = JSON.parse(responseText); } catch(e) { throw new Error('Proxy response not JSON'); }
+
+  if (!data.success) throw new Error(data.error || 'AI error');
+  if (!data.summary || !data.summary.trim()) throw new Error('AI returned empty response');
+
+  window._lastAIResponse = data.summary;
+  return data.summary;
+}
+
+async function runMultiPhaseAnalysis() {
+  var drawingText = getCleanText();
+  var additionalNotes = document.getElementById('additionalNotes').value.trim();
+  var detailEl = document.getElementById('aiDetailText');
 
   try {
-    console.log('[submittals] Sending to AI proxy...');
-    var response = await fetch(AI_PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'generate_summary',
-        prompt: prompt
-      })
-    });
+    // ===== PHASE 1: Get complete submittal list =====
+    detailEl.textContent = 'Phase 1/3: Scanning specifications for ALL required submittals...';
+    console.log('[submittals] Phase 1: Getting submittal list...');
 
-    console.log('[submittals] Proxy HTTP status:', response.status);
+    var phase1Prompt = buildPhase1Prompt(drawingText, additionalNotes);
+    console.log('[submittals] Phase 1 prompt:', phase1Prompt.length, 'chars');
 
-    var responseText = await response.text();
-    window._lastProxyResponse = responseText;
-    console.log('[submittals] Raw proxy response length:', responseText.length);
-    console.log('[submittals] Raw proxy response (first 500):', responseText.substring(0, 500));
+    var phase1Response = await sendToProxy(phase1Prompt);
+    var listData = extractJSON(phase1Response);
 
-    if (aiProgressInterval) {
-      clearInterval(aiProgressInterval);
-      aiProgressInterval = null;
+    if (!listData || !listData.submittals || listData.submittals.length === 0) {
+      window._lastAIResponse = phase1Response;
+      throw new Error('Phase 1 returned no submittals. Tap "Show Raw AI Response" to see output.');
     }
 
-    // Check for HTML error page (Apps Script sometimes returns HTML on error)
-    if (responseText.trim().charAt(0) === '<') {
-      window._lastAIResponse = 'Proxy returned HTML (probably an error page). Prompt may be too large (' + prompt.length + ' chars).';
-      onAnalysisError('AI proxy returned an error page. The drawing text (' + textForPrompt.length + ' chars) may be too large for the proxy. Try a smaller PDF or add key specs in the Additional Notes field instead.');
-      return;
+    console.log('[submittals] Phase 1 found', listData.submittals.length, 'submittals');
+    projectInfo = listData.projectInfo || {};
+    var submittalList = listData.submittals;
+
+    // ===== PHASE 2: Enrich with materials & compliance (batch of 5) =====
+    detailEl.textContent = 'Phase 2/3: Generating materials and compliance details...';
+
+    var batchSize = 5;
+    var enrichedSubmittals = [];
+
+    for (var b = 0; b < submittalList.length; b += batchSize) {
+      var batch = submittalList.slice(b, b + batchSize);
+      var batchEnd = Math.min(b + batchSize, submittalList.length);
+      detailEl.textContent = 'Phase 2/3: Enriching submittals ' + (b + 1) + '-' + batchEnd + ' of ' + submittalList.length + '...';
+
+      console.log('[submittals] Phase 2 batch:', (b + 1), '-', batchEnd);
+
+      var phase2Prompt = buildPhase2Prompt(drawingText, batch);
+      var phase2Response = await sendToProxy(phase2Prompt);
+      var enrichedBatch = extractJSON(phase2Response);
+
+      if (enrichedBatch && enrichedBatch.submittals) {
+        for (var e = 0; e < enrichedBatch.submittals.length; e++) {
+          enrichedSubmittals.push(enrichedBatch.submittals[e]);
+        }
+      } else {
+        // If enrichment fails, keep the basic info from Phase 1
+        console.warn('[submittals] Phase 2 batch failed, using basic info');
+        for (var f = 0; f < batch.length; f++) {
+          batch[f].materials = batch[f].materials || [{ item: batch[f].title, spec: 'Per specifications', manufacturer: 'As Specified', model: '' }];
+          batch[f].complianceNotes = batch[f].complianceNotes || ['Per project specifications and applicable codes'];
+          enrichedSubmittals.push(batch[f]);
+        }
+      }
     }
 
-    var data;
-    try { data = JSON.parse(responseText); } catch(e) {
-      window._lastAIResponse = 'Raw response (not JSON): ' + responseText.substring(0, 2000);
-      onAnalysisError('AI proxy returned invalid response (not JSON). HTTP ' + response.status + '. Response length: ' + responseText.length);
-      return;
+    // ===== PHASE 3: Finalize =====
+    detailEl.textContent = 'Phase 3/3: Assembling submittal package...';
+
+    if (aiProgressInterval) { clearInterval(aiProgressInterval); aiProgressInterval = null; }
+
+    // Renumber sequentially
+    for (var n = 0; n < enrichedSubmittals.length; n++) {
+      enrichedSubmittals[n].number = String(n + 1).padStart(3, '0');
     }
 
-    console.log('[submittals] Proxy data keys:', Object.keys(data).join(', '));
-    console.log('[submittals] data.success:', data.success);
-    console.log('[submittals] data.summary length:', data.summary ? data.summary.length : 'N/A');
-    console.log('[submittals] data.error:', data.error || 'none');
-
-    if (!data.success) {
-      window._lastAIResponse = 'Proxy error: ' + (data.error || JSON.stringify(data));
-      onAnalysisError('AI proxy error: ' + (data.error || 'Unknown error. Check "Show Raw AI Response".'));
-      return;
-    }
-
-    if (!data.summary || data.summary.trim().length === 0) {
-      window._lastAIResponse = 'Proxy returned success but summary is empty. Full response: ' + JSON.stringify(data).substring(0, 2000);
-      onAnalysisError('AI returned an empty response. The prompt (' + prompt.length + ' chars) may exceed the proxy\'s limit, or the Claude API timed out.');
-      return;
-    }
-
-    var rawText = data.summary;
-    window._lastAIResponse = rawText;
-    console.log('[submittals] AI response length:', rawText.length);
-    console.log('[submittals] AI response first 300:', rawText.substring(0, 300));
-    console.log('[submittals] AI response last 200:', rawText.substring(Math.max(0, rawText.length - 200)));
-
-    // Robust JSON extraction
-    var parsed = extractJSON(rawText);
-
-    if (!parsed) {
-      onAnalysisError('AI responded (' + rawText.length + ' chars) but could not parse as JSON. Tap "Show Raw AI Response" to see what Claude returned.');
-      return;
-    }
-
-    console.log('[submittals] Parsed OK:', parsed.submittals ? parsed.submittals.length + ' submittals' : 'no submittals array');
-    analysisData = parsed;
-    onAnalysisSuccess(parsed);
+    submittals = enrichedSubmittals;
+    analysisData = { projectInfo: projectInfo, analysis: listData.analysis || {}, submittals: enrichedSubmittals };
+    onAnalysisSuccess(analysisData);
 
   } catch (err) {
-    if (aiProgressInterval) {
-      clearInterval(aiProgressInterval);
-      aiProgressInterval = null;
-    }
-    console.error('[submittals] Fetch error:', err);
-    window._lastAIResponse = 'Fetch error: ' + err.message + '. This often means the request timed out or CORS issue.';
-    onAnalysisError('Request failed: ' + err.message + '. The AI proxy may have timed out processing the large drawing.');
+    if (aiProgressInterval) { clearInterval(aiProgressInterval); aiProgressInterval = null; }
+    console.error('[submittals] Multi-phase error:', err);
+    onAnalysisError(err.message);
   }
 }
 
@@ -1567,7 +1575,85 @@ function showRawResponse() {
   }
 }
 
-// ===== Build AI Prompt =====
+// ===== PHASE 1 PROMPT: Get complete list =====
+function buildPhase1Prompt(extractedText, additionalNotes) {
+  var prompt = 'You are a Senior HVAC Mechanical Engineer. Analyze these mechanical drawings and list EVERY submittal needed.\n\n' +
+  'CRITICAL: You must check for ALL of these categories and include every one that applies:\n' +
+  'GENERAL MATERIALS:\n' +
+  '- Ductwork construction (SMACNA standards, gauges, seal class, joints)\n' +
+  '- Duct fittings/accessories (Ductmate, flex connectors, access doors)\n' +
+  '- Flex duct\n' +
+  '- Piping - hydronic hot water (copper, steel, schedule)\n' +
+  '- Piping - chilled water\n' +
+  '- Piping - refrigerant (ACR copper)\n' +
+  '- Piping - condensate drain\n' +
+  '- Piping - gas\n' +
+  '- Pipe insulation - hot water\n' +
+  '- Pipe insulation - chilled water/condensation\n' +
+  '- Pipe insulation - refrigerant\n' +
+  '- Duct insulation - wrap (fiberglass R-value)\n' +
+  '- Duct insulation - board (outdoor)\n' +
+  '- Acoustical duct lining\n' +
+  '- Fire wrap insulation (UL 1978/2221)\n' +
+  '- Pipe hangers and supports (clevis, trapeze, MSS SP-69)\n' +
+  '- Duct hangers and supports\n' +
+  '- Anchors (concrete, expansion, powder-actuated)\n' +
+  '- Vibration isolators (spring, rubber, ceiling hung, inertia base)\n' +
+  '- Seismic bracing/restraints\n' +
+  '- Valves (gate, globe, ball, butterfly, check, balancing)\n' +
+  '- Roof penetration curbs\n' +
+  '- Equipment support rails/curbs\n' +
+  '- Pipe roof supports\n' +
+  '- Fire/smoke dampers\n' +
+  '- Volume/balancing dampers\n' +
+  '- Grilles, registers, diffusers (GRDs)\n' +
+  '- HVAC identification (labels, tags)\n' +
+  '- Testing, adjusting, balancing (TAB)\n' +
+  '- BAS/DDC controls\n' +
+  '- Gas venting\n' +
+  '- Condensate pumps\n' +
+  '- Air cleaning (NPBI, UV, HEPA)\n' +
+  '- Kitchen exhaust ductwork (black iron, SS)\n' +
+  '- Hydronic specialties (exp tanks, air separators, strainers)\n' +
+  '- Duct sealant/mastic\n\n' +
+  'EQUIPMENT (check schedules on drawings):\n' +
+  '- RTUs, AHUs, VRF/VRV, split systems, mini-splits, fan coils\n' +
+  '- Boilers, chillers, cooling towers\n' +
+  '- Pumps (hydronic, condensate)\n' +
+  '- Exhaust fans, supply fans, kitchen exhaust fans\n' +
+  '- Unit heaters, cabinet heaters, radiant panels, fin-tube\n' +
+  '- VAV, FPB, ERV/HRV, DOAS, MAU\n' +
+  '- Kitchen hoods, heat pumps, humidifiers\n\n' +
+  'Return ONLY valid JSON (no text before or after):\n' +
+  '{"projectInfo":{"name":"","address":"","engineer":"","architect":"","projectNo":""},' +
+  '"analysis":{"summary":"2 sentences about the project","keyFindings":["finding1","finding2"]},' +
+  '"submittals":[{"number":"001","specSection":"230XXX","title":"Short Title","category":"standard or equipment","description":"1 sentence"}]}\n\n' +
+  'Include ALL applicable submittals. It is critical to not miss any. If in doubt, include it.\n' +
+  'Standard materials first, then equipment.\n\n' +
+  '=== DRAWING TEXT ===\n' + extractedText;
+  if (additionalNotes) prompt += '\n\n=== ADDITIONAL NOTES ===\n' + additionalNotes;
+  return prompt;
+}
+
+// ===== PHASE 2 PROMPT: Enrich batch with details =====
+function buildPhase2Prompt(extractedText, batch) {
+  var batchList = '';
+  for (var i = 0; i < batch.length; i++) {
+    batchList += (i + 1) + '. #' + batch[i].number + ' - ' + batch[i].title + ' (Spec: ' + (batch[i].specSection || 'TBD') + ')\n';
+  }
+  var prompt = 'You are a Senior HVAC Mechanical Engineer. Based on the drawing text below, provide detailed materials and compliance notes for these submittals.\n\n' +
+  'SUBMITTALS TO ENRICH:\n' + batchList + '\n' +
+  'For each submittal, determine:\n' +
+  '1. materials: [{item, spec (ASTM/UL/standard), manufacturer, model}] — use real products/standards\n' +
+  '2. complianceNotes: ["specific requirement from drawings"] — reference actual spec notes found\n' +
+  '3. drawingRef: "M-XXX Note X" if found in text\n\n' +
+  'Return ONLY valid JSON:\n' +
+  '{"submittals":[{"number":"001","specSection":"230XXX","title":"...","category":"...","description":"...","materials":[{"item":"...","spec":"...","manufacturer":"...","model":"..."}],"complianceNotes":["..."],"drawingRef":"..."}]}\n\n' +
+  '=== DRAWING TEXT ===\n' + extractedText.substring(0, 20000);
+  return prompt;
+}
+
+// ===== Legacy prompt (kept for reference) =====
 function buildAnalysisPrompt(extractedText, additionalNotes) {
   var systemPrompt = 'You are a Senior HVAC Mechanical Engineer and Submittal Coordinator with 20+ years of experience in commercial HVAC construction in New York and New Jersey. You work for Northern Wolves Air Conditioning.\n\n' +
 'YOUR EXPERTISE:\n' +
