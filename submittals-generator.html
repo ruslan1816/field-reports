@@ -1324,17 +1324,33 @@ function retryAnalysis() {
 async function callAIProxy() {
   var additionalNotes = document.getElementById('additionalNotes').value.trim();
 
-  // Limit extracted text to ~60K chars to keep prompt manageable
-  var textForPrompt = extractedFullText;
-  if (textForPrompt.length > 60000) {
-    console.warn('[submittals] Text truncated from ' + textForPrompt.length + ' to 60000 chars');
-    textForPrompt = textForPrompt.substring(0, 60000) + '\n\n[TEXT TRUNCATED — remaining pages omitted]';
+  // Limit extracted text — keep only pages with meaningful text, cap total
+  var textForPrompt = '';
+  var usedPages = 0;
+  for (var p = 0; p < extractedPages.length; p++) {
+    if (extractedPages[p].charCount > 50) {
+      textForPrompt += '\n--- PAGE ' + extractedPages[p].pageNum + ' ---\n' + extractedPages[p].text;
+      usedPages++;
+    }
+  }
+  // Cap at 30K chars to stay well within proxy limits
+  if (textForPrompt.length > 30000) {
+    console.warn('[submittals] Text truncated from ' + textForPrompt.length + ' to 30000 chars');
+    textForPrompt = textForPrompt.substring(0, 30000) + '\n\n[TEXT TRUNCATED]';
   }
 
+  console.log('[submittals] Using ' + usedPages + ' pages, ' + textForPrompt.length + ' chars of text');
+
   var prompt = buildAnalysisPrompt(textForPrompt, additionalNotes);
-  console.log('[submittals] Prompt length:', prompt.length, 'chars');
+  console.log('[submittals] Full prompt length:', prompt.length, 'chars');
+
+  // Store everything for debugging
+  window._lastPromptLength = prompt.length;
+  window._lastAIResponse = '';
+  window._lastProxyResponse = '';
 
   try {
+    console.log('[submittals] Sending to AI proxy...');
     var response = await fetch(AI_PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -1344,44 +1360,64 @@ async function callAIProxy() {
       })
     });
 
+    console.log('[submittals] Proxy HTTP status:', response.status);
+
     var responseText = await response.text();
+    window._lastProxyResponse = responseText;
     console.log('[submittals] Raw proxy response length:', responseText.length);
     console.log('[submittals] Raw proxy response (first 500):', responseText.substring(0, 500));
-
-    var data;
-    try { data = JSON.parse(responseText); } catch(e) {
-      console.error('[submittals] Proxy response is not JSON:', responseText.substring(0, 300));
-      throw new Error('AI proxy returned invalid response. Check console for details.');
-    }
 
     if (aiProgressInterval) {
       clearInterval(aiProgressInterval);
       aiProgressInterval = null;
     }
 
-    if (!data.success) {
-      var errMsg = data.error || 'AI returned an error';
-      console.error('[submittals] AI error:', errMsg);
-      onAnalysisError(errMsg);
+    // Check for HTML error page (Apps Script sometimes returns HTML on error)
+    if (responseText.trim().charAt(0) === '<') {
+      window._lastAIResponse = 'Proxy returned HTML (probably an error page). Prompt may be too large (' + prompt.length + ' chars).';
+      onAnalysisError('AI proxy returned an error page. The drawing text (' + textForPrompt.length + ' chars) may be too large for the proxy. Try a smaller PDF or add key specs in the Additional Notes field instead.');
       return;
     }
 
-    var rawText = data.summary || '';
-    console.log('[submittals] AI response length:', rawText.length);
-    console.log('[submittals] AI response (first 300):', rawText.substring(0, 300));
-    console.log('[submittals] AI response (last 200):', rawText.substring(Math.max(0, rawText.length - 200)));
+    var data;
+    try { data = JSON.parse(responseText); } catch(e) {
+      window._lastAIResponse = 'Raw response (not JSON): ' + responseText.substring(0, 2000);
+      onAnalysisError('AI proxy returned invalid response (not JSON). HTTP ' + response.status + '. Response length: ' + responseText.length);
+      return;
+    }
 
-    // Robust JSON extraction — try multiple strategies
+    console.log('[submittals] Proxy data keys:', Object.keys(data).join(', '));
+    console.log('[submittals] data.success:', data.success);
+    console.log('[submittals] data.summary length:', data.summary ? data.summary.length : 'N/A');
+    console.log('[submittals] data.error:', data.error || 'none');
+
+    if (!data.success) {
+      window._lastAIResponse = 'Proxy error: ' + (data.error || JSON.stringify(data));
+      onAnalysisError('AI proxy error: ' + (data.error || 'Unknown error. Check "Show Raw AI Response".'));
+      return;
+    }
+
+    if (!data.summary || data.summary.trim().length === 0) {
+      window._lastAIResponse = 'Proxy returned success but summary is empty. Full response: ' + JSON.stringify(data).substring(0, 2000);
+      onAnalysisError('AI returned an empty response. The prompt (' + prompt.length + ' chars) may exceed the proxy\'s limit, or the Claude API timed out.');
+      return;
+    }
+
+    var rawText = data.summary;
+    window._lastAIResponse = rawText;
+    console.log('[submittals] AI response length:', rawText.length);
+    console.log('[submittals] AI response first 300:', rawText.substring(0, 300));
+    console.log('[submittals] AI response last 200:', rawText.substring(Math.max(0, rawText.length - 200)));
+
+    // Robust JSON extraction
     var parsed = extractJSON(rawText);
 
     if (!parsed) {
-      console.error('[submittals] Could not parse JSON. Full response saved to window._lastAIResponse');
-      window._lastAIResponse = rawText;
-      onAnalysisError('Could not parse AI response as JSON. Open browser console and type _lastAIResponse to see the raw AI output.');
+      onAnalysisError('AI responded (' + rawText.length + ' chars) but could not parse as JSON. Tap "Show Raw AI Response" to see what Claude returned.');
       return;
     }
 
-    console.log('[submittals] Parsed successfully:', parsed.submittals ? parsed.submittals.length + ' submittals' : 'no submittals array');
+    console.log('[submittals] Parsed OK:', parsed.submittals ? parsed.submittals.length + ' submittals' : 'no submittals array');
     analysisData = parsed;
     onAnalysisSuccess(parsed);
 
@@ -1390,8 +1426,9 @@ async function callAIProxy() {
       clearInterval(aiProgressInterval);
       aiProgressInterval = null;
     }
-    console.error('[submittals] Error:', err);
-    onAnalysisError(err.message || 'Network error — please check your connection.');
+    console.error('[submittals] Fetch error:', err);
+    window._lastAIResponse = 'Fetch error: ' + err.message + '. This often means the request timed out or CORS issue.';
+    onAnalysisError('Request failed: ' + err.message + '. The AI proxy may have timed out processing the large drawing.');
   }
 }
 
@@ -1517,7 +1554,13 @@ function showRawResponse() {
   var area = document.getElementById('rawResponseArea');
   var pre = document.getElementById('rawResponseText');
   if (area.style.display === 'none') {
-    pre.textContent = window._lastAIResponse || '(No response captured — check browser console)';
+    var info = '';
+    info += '=== DEBUG INFO ===\n';
+    info += 'Prompt length: ' + (window._lastPromptLength || 'unknown') + ' chars\n';
+    info += 'Proxy response length: ' + (window._lastProxyResponse ? window._lastProxyResponse.length : 'N/A') + '\n\n';
+    info += '=== AI RESPONSE ===\n';
+    info += (window._lastAIResponse && window._lastAIResponse.length > 0) ? window._lastAIResponse : '(Empty — AI returned nothing)';
+    pre.textContent = info;
     area.style.display = 'block';
   } else {
     area.style.display = 'none';
