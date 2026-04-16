@@ -937,6 +937,22 @@ body { padding-bottom: 100px; }
       <ul class="key-findings" id="keyFindingsList" style="display:none;"></ul>
     </div>
 
+    <!-- AI Chat for Refinement -->
+    <div class="ai-refine-chat" id="aiRefineChat" style="display:none;margin:0 16px 14px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#0696D7,#5D822C);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">✨</div>
+        <div>
+          <div style="font-weight:700;font-size:13px;color:var(--nw-text);">Refine with AI</div>
+          <div style="font-size:11px;color:var(--nw-muted);">Tell me what to add, remove, or change</div>
+        </div>
+      </div>
+      <div id="refineChatMessages" style="max-height:250px;overflow-y:auto;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:6px;align-items:flex-end;">
+        <textarea id="refineInput" rows="2" placeholder="e.g. Add copper refrigeration piping — Type L hard and soft rolls up to 7/8 inch..." style="flex:1;resize:none;border:1px solid var(--nw-border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;background:var(--nw-section);"></textarea>
+        <button onclick="sendRefineMessage()" id="refineSendBtn" style="padding:8px 14px;background:var(--nw-primary);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap;">Send</button>
+      </div>
+    </div>
+
     <!-- Project Info Card (editable) -->
     <div class="project-info-card" id="projectInfoCard" style="display:none;">
       <h3>Project Information</h3>
@@ -1063,6 +1079,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   loadProject(projectId);
   setupUploadZone();
+
+  // Enter key for refine chat (Shift+Enter = newline)
+  var refineInput = document.getElementById('refineInput');
+  if (refineInput) {
+    refineInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendRefineMessage();
+      }
+    });
+  }
 });
 
 // ===== Load Project =====
@@ -1831,6 +1858,9 @@ function renderReviewStep(parsed) {
     }
   }
 
+  // Show AI refine chat
+  document.getElementById('aiRefineChat').style.display = 'block';
+
   // Project info
   var pi = parsed.projectInfo || {};
   var piCard = document.getElementById('projectInfoCard');
@@ -2010,6 +2040,128 @@ function moveSubmittal(idx, dir) {
   }
 
   renderSubmittalList();
+}
+
+// ===== AI Refine Chat =====
+var refineHistory = [];
+
+function addRefineBubble(who, text) {
+  var container = document.getElementById('refineChatMessages');
+  var div = document.createElement('div');
+  div.style.cssText = who === 'user'
+    ? 'background:#0696D7;color:#fff;border-radius:12px 12px 4px 12px;padding:8px 12px;margin-bottom:6px;max-width:85%;margin-left:auto;font-size:13px;line-height:1.4;white-space:pre-wrap;'
+    : 'background:#fff;border:1px solid #e2e8f0;color:#1a2332;border-radius:12px 12px 12px 4px;padding:8px 12px;margin-bottom:6px;max-width:85%;font-size:13px;line-height:1.4;white-space:pre-wrap;';
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendRefineMessage() {
+  var input = document.getElementById('refineInput');
+  var btn = document.getElementById('refineSendBtn');
+  var msg = (input.value || '').trim();
+  if (!msg) return;
+
+  input.value = '';
+  addRefineBubble('user', msg);
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  // Build current submittal list for context
+  syncSubmittalEdits();
+  var currentList = submittals.map(function(s) {
+    return s.number + '|' + s.specSection + '|' + s.title + '|' + s.category;
+  }).join('\n');
+
+  var prompt = 'You are a Senior HVAC Mechanical Engineer helping refine a submittal list.\n\n' +
+    'CURRENT SUBMITTAL LIST:\n' + currentList + '\n\n' +
+    'The user says: "' + msg + '"\n\n' +
+    'Based on their request, respond with ACTIONS to take. Use this exact format (plain text, one per line):\n' +
+    'ADD|specSection|Title|standard or equipment|1-sentence description|materials notes\n' +
+    'REMOVE|number (e.g. 005)\n' +
+    'UPDATE|number|field|new value\n' +
+    'MSG|Your message to the user explaining what you did\n\n' +
+    'Example response:\n' +
+    'ADD|232113|Copper Refrigerant Piping - Type L|standard|ACR copper Type L hard drawn and soft annealed rolls for refrigerant lines|Type L hard for 1-1/8 and larger, soft rolls up to 7/8 inch, brazed joints per ASHRAE 15\n' +
+    'MSG|Added copper refrigerant piping submittal with Type L specs. Hard drawn for larger sizes, soft rolls for 7/8 inch and smaller.\n\n' +
+    'You can output multiple ADD/REMOVE/UPDATE lines plus one MSG line.\n' +
+    'If the user asks a question, just respond with MSG|your answer.\n' +
+    'Always include at least one MSG line.';
+
+  try {
+    var response = await sendToProxy(prompt);
+    console.log('[refine] AI response:', response);
+    processRefineResponse(response);
+  } catch (err) {
+    console.error('[refine] Error:', err);
+    addRefineBubble('ai', 'Sorry, error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send';
+  }
+}
+
+function processRefineResponse(text) {
+  var lines = text.split('\n');
+  var messages = [];
+  var actions = 0;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+
+    if (line.indexOf('ADD|') === 0) {
+      var parts = line.substring(4).split('|');
+      var newNum = String(submittals.length + 1).padStart(3, '0');
+      var newSub = {
+        number: newNum,
+        specSection: (parts[0] || '').trim(),
+        title: (parts[1] || '').trim(),
+        category: (parts[2] || 'standard').trim().toLowerCase(),
+        description: (parts[3] || '').trim(),
+        materials: [{ item: (parts[1] || '').trim(), spec: (parts[5] || parts[3] || '').trim(), manufacturer: 'As Specified', model: '' }],
+        complianceNotes: [(parts[5] || parts[3] || 'Per project specifications').trim()],
+        drawingRef: ''
+      };
+      submittals.push(newSub);
+      actions++;
+    } else if (line.indexOf('REMOVE|') === 0) {
+      var removeNum = line.substring(7).trim();
+      for (var r = submittals.length - 1; r >= 0; r--) {
+        if (submittals[r].number === removeNum) {
+          submittals.splice(r, 1);
+          actions++;
+          break;
+        }
+      }
+    } else if (line.indexOf('UPDATE|') === 0) {
+      var up = line.substring(7).split('|');
+      var updateNum = (up[0] || '').trim();
+      var updateField = (up[1] || '').trim();
+      var updateVal = (up[2] || '').trim();
+      for (var u = 0; u < submittals.length; u++) {
+        if (submittals[u].number === updateNum && updateField) {
+          submittals[u][updateField] = updateVal;
+          actions++;
+          break;
+        }
+      }
+    } else if (line.indexOf('MSG|') === 0) {
+      messages.push(line.substring(4).trim());
+    }
+  }
+
+  // Renumber
+  for (var n = 0; n < submittals.length; n++) {
+    submittals[n].number = String(n + 1).padStart(3, '0');
+  }
+
+  if (actions > 0) {
+    renderSubmittalList();
+  }
+
+  var reply = messages.length > 0 ? messages.join('\n') : (actions > 0 ? 'Done — ' + actions + ' change(s) applied.' : 'No changes made.');
+  addRefineBubble('ai', reply);
 }
 
 function addNewSubmittal() {
