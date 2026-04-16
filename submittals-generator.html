@@ -1376,7 +1376,17 @@ async function runMultiPhaseAnalysis() {
     console.log('[submittals] Phase 1 prompt:', phase1Prompt.length, 'chars');
 
     var phase1Response = await sendToProxy(phase1Prompt);
-    var listData = extractJSON(phase1Response);
+    console.log('[submittals] Phase 1 raw response:', phase1Response);
+
+    // Try text parsing first (compact format), fall back to JSON
+    var listData = null;
+    if (phase1Response.indexOf('S|') !== -1 || phase1Response.indexOf('PROJECT|') !== -1) {
+      listData = parsePhase1Response(phase1Response);
+      console.log('[submittals] Parsed as compact text:', listData.submittals.length, 'submittals');
+    }
+    if (!listData || listData.submittals.length === 0) {
+      listData = extractJSON(phase1Response);
+    }
 
     if (!listData || !listData.submittals || listData.submittals.length === 0) {
       window._lastAIResponse = phase1Response;
@@ -1575,64 +1585,66 @@ function showRawResponse() {
   }
 }
 
-// ===== PHASE 1 PROMPT: Get complete list =====
+// ===== PHASE 1 PROMPT: Get complete list in COMPACT format =====
+// The proxy has a ~1024 token output limit, so we use pipe-delimited text, not JSON
 function buildPhase1Prompt(extractedText, additionalNotes) {
-  var prompt = 'You are a Senior HVAC Mechanical Engineer. Analyze these mechanical drawings and list EVERY submittal needed.\n\n' +
-  'CRITICAL: You must check for ALL of these categories and include every one that applies:\n' +
-  'GENERAL MATERIALS:\n' +
-  '- Ductwork construction (SMACNA standards, gauges, seal class, joints)\n' +
-  '- Duct fittings/accessories (Ductmate, flex connectors, access doors)\n' +
-  '- Flex duct\n' +
-  '- Piping - hydronic hot water (copper, steel, schedule)\n' +
-  '- Piping - chilled water\n' +
-  '- Piping - refrigerant (ACR copper)\n' +
-  '- Piping - condensate drain\n' +
-  '- Piping - gas\n' +
-  '- Pipe insulation - hot water\n' +
-  '- Pipe insulation - chilled water/condensation\n' +
-  '- Pipe insulation - refrigerant\n' +
-  '- Duct insulation - wrap (fiberglass R-value)\n' +
-  '- Duct insulation - board (outdoor)\n' +
-  '- Acoustical duct lining\n' +
-  '- Fire wrap insulation (UL 1978/2221)\n' +
-  '- Pipe hangers and supports (clevis, trapeze, MSS SP-69)\n' +
-  '- Duct hangers and supports\n' +
-  '- Anchors (concrete, expansion, powder-actuated)\n' +
-  '- Vibration isolators (spring, rubber, ceiling hung, inertia base)\n' +
-  '- Seismic bracing/restraints\n' +
-  '- Valves (gate, globe, ball, butterfly, check, balancing)\n' +
-  '- Roof penetration curbs\n' +
-  '- Equipment support rails/curbs\n' +
-  '- Pipe roof supports\n' +
-  '- Fire/smoke dampers\n' +
-  '- Volume/balancing dampers\n' +
-  '- Grilles, registers, diffusers (GRDs)\n' +
-  '- HVAC identification (labels, tags)\n' +
-  '- Testing, adjusting, balancing (TAB)\n' +
-  '- BAS/DDC controls\n' +
-  '- Gas venting\n' +
-  '- Condensate pumps\n' +
-  '- Air cleaning (NPBI, UV, HEPA)\n' +
-  '- Kitchen exhaust ductwork (black iron, SS)\n' +
-  '- Hydronic specialties (exp tanks, air separators, strainers)\n' +
-  '- Duct sealant/mastic\n\n' +
-  'EQUIPMENT (check schedules on drawings):\n' +
-  '- RTUs, AHUs, VRF/VRV, split systems, mini-splits, fan coils\n' +
-  '- Boilers, chillers, cooling towers\n' +
-  '- Pumps (hydronic, condensate)\n' +
-  '- Exhaust fans, supply fans, kitchen exhaust fans\n' +
-  '- Unit heaters, cabinet heaters, radiant panels, fin-tube\n' +
-  '- VAV, FPB, ERV/HRV, DOAS, MAU\n' +
-  '- Kitchen hoods, heat pumps, humidifiers\n\n' +
-  'Return ONLY valid JSON (no text before or after):\n' +
-  '{"projectInfo":{"name":"","address":"","engineer":"","architect":"","projectNo":""},' +
-  '"analysis":{"summary":"2 sentences about the project","keyFindings":["finding1","finding2"]},' +
-  '"submittals":[{"number":"001","specSection":"230XXX","title":"Short Title","category":"standard or equipment","description":"1 sentence"}]}\n\n' +
-  'Include ALL applicable submittals. It is critical to not miss any. If in doubt, include it.\n' +
-  'Standard materials first, then equipment.\n\n' +
+  var prompt = 'You are a Senior HVAC Mechanical Engineer. Analyze the drawing text and list EVERY submittal needed.\n\n' +
+  'CHECK ALL of these — include every one that applies to this project:\n' +
+  'Ductwork standards, Duct fittings/accessories, Flex duct, Piping-HW, Piping-CHW, Piping-refrigerant, Piping-condensate, Piping-gas, Pipe insulation-HW, Pipe insulation-CHW, Pipe insulation-refrigerant, Duct insulation-wrap, Duct insulation-board, Acoustical lining, Fire wrap, Pipe hangers/supports, Duct hangers, Anchors, Vibration isolators, Seismic bracing, Valves, Roof curbs, Equipment stands, Pipe roof supports, Fire/smoke dampers, Volume dampers, GRDs, HVAC ID/labels, TAB, BAS/DDC controls, Gas venting, Condensate pumps, Duct sealant, Hydronic specialties\n' +
+  'EQUIPMENT: RTUs, AHUs, VRF/VRV units, Split systems, Mini-splits, Fan coils, Boilers, Chillers, Pumps, Exhaust fans, Supply fans, Duct heaters, Unit heaters, Cabinet heaters, Radiant panels, VAV/FPB, ERV/HRV, DOAS, MAU, Kitchen hoods\n\n' +
+  'RESPOND IN THIS EXACT FORMAT (plain text, one line per item, pipe separated):\n' +
+  'PROJECT|name|address|engineer|architect|projectNo\n' +
+  'SUMMARY|2 sentence project summary\n' +
+  'S|specSection|Title|standard or equipment\n' +
+  'S|specSection|Title|standard or equipment\n' +
+  '(repeat S lines for EVERY submittal)\n\n' +
+  'Example:\n' +
+  'PROJECT|School XYZ|123 Main St|ABC Engineers|DEF Architects|P-001\n' +
+  'SUMMARY|K-12 school HVAC with RTUs and hydronic heating.\n' +
+  'S|233113|Ductwork Construction Standards|standard\n' +
+  'S|232113|Hydronic Piping|standard\n' +
+  'S|230719|Pipe Insulation - Hot Water|standard\n' +
+  'S|237400|Packaged RTUs|equipment\n\n' +
+  'CRITICAL: Include ALL submittals. It is far better to include extras than miss one. If drawings show ductwork, you MUST include ductwork + duct insulation + duct hangers + duct sealant. If piping exists, include piping + pipe insulation + pipe hangers + anchors + vibration isolators + valves. Think comprehensively.\n\n' +
   '=== DRAWING TEXT ===\n' + extractedText;
   if (additionalNotes) prompt += '\n\n=== ADDITIONAL NOTES ===\n' + additionalNotes;
   return prompt;
+}
+
+// Parse the compact Phase 1 response
+function parsePhase1Response(text) {
+  var lines = text.split('\n');
+  var result = { projectInfo: {}, analysis: {}, submittals: [] };
+  var num = 1;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+
+    if (line.indexOf('PROJECT|') === 0 || line.indexOf('PROJECT:') === 0) {
+      var parts = line.replace(/^PROJECT[:|]\s*/, '').split('|');
+      result.projectInfo = {
+        name: (parts[0] || '').trim(),
+        address: (parts[1] || '').trim(),
+        engineer: (parts[2] || '').trim(),
+        architect: (parts[3] || '').trim(),
+        projectNo: (parts[4] || '').trim()
+      };
+    } else if (line.indexOf('SUMMARY|') === 0 || line.indexOf('SUMMARY:') === 0) {
+      result.analysis.summary = line.replace(/^SUMMARY[:|]\s*/, '').trim();
+    } else if (line.indexOf('S|') === 0 || line.indexOf('S:') === 0) {
+      var sp = line.replace(/^S[:|]\s*/, '').split('|');
+      result.submittals.push({
+        number: String(num).padStart(3, '0'),
+        specSection: (sp[0] || '').trim(),
+        title: (sp[1] || '').trim(),
+        category: (sp[2] || 'standard').trim().toLowerCase(),
+        description: ''
+      });
+      num++;
+    }
+  }
+  return result;
 }
 
 // ===== PHASE 2 PROMPT: Enrich batch with details =====
