@@ -909,8 +909,14 @@ body { padding-bottom: 100px; }
     <div class="ai-error-area" id="aiErrorArea">
       <div class="error-icon">&#10060;</div>
       <div class="error-msg" id="aiErrorMsg">Something went wrong during analysis.</div>
-      <button class="btn btn-primary" onclick="retryAnalysis()" style="width:auto;display:inline-flex;padding:10px 24px;">Retry Analysis</button>
-      <button class="btn btn-secondary" onclick="goToStep(1)" style="width:auto;display:inline-flex;padding:10px 24px;margin-top:8px;">Back to Upload</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+        <button class="btn btn-primary" onclick="retryAnalysis()" style="width:auto;display:inline-flex;padding:10px 24px;">Retry Analysis</button>
+        <button class="btn btn-secondary" onclick="goToStep(1)" style="width:auto;display:inline-flex;padding:10px 24px;">Back to Upload</button>
+        <button class="btn btn-secondary" onclick="showRawResponse()" style="width:auto;display:inline-flex;padding:10px 24px;">Show Raw AI Response</button>
+      </div>
+      <div id="rawResponseArea" style="display:none;margin-top:12px;text-align:left;max-height:300px;overflow-y:auto;background:#f8f8f8;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+        <pre id="rawResponseText" style="white-space:pre-wrap;word-break:break-word;font-size:11px;margin:0;"></pre>
+      </div>
     </div>
 
     <!-- Success -->
@@ -1317,7 +1323,16 @@ function retryAnalysis() {
 
 async function callAIProxy() {
   var additionalNotes = document.getElementById('additionalNotes').value.trim();
-  var prompt = buildAnalysisPrompt(extractedFullText, additionalNotes);
+
+  // Limit extracted text to ~60K chars to keep prompt manageable
+  var textForPrompt = extractedFullText;
+  if (textForPrompt.length > 60000) {
+    console.warn('[submittals] Text truncated from ' + textForPrompt.length + ' to 60000 chars');
+    textForPrompt = textForPrompt.substring(0, 60000) + '\n\n[TEXT TRUNCATED — remaining pages omitted]';
+  }
+
+  var prompt = buildAnalysisPrompt(textForPrompt, additionalNotes);
+  console.log('[submittals] Prompt length:', prompt.length, 'chars');
 
   try {
     var response = await fetch(AI_PROXY_URL, {
@@ -1329,58 +1344,134 @@ async function callAIProxy() {
       })
     });
 
-    var text = await response.text();
+    var responseText = await response.text();
+    console.log('[submittals] Raw proxy response length:', responseText.length);
+    console.log('[submittals] Raw proxy response (first 500):', responseText.substring(0, 500));
+
     var data;
-    try { data = JSON.parse(text); } catch(e) { throw new Error('Invalid response from AI proxy'); }
+    try { data = JSON.parse(responseText); } catch(e) {
+      console.error('[submittals] Proxy response is not JSON:', responseText.substring(0, 300));
+      throw new Error('AI proxy returned invalid response. Check console for details.');
+    }
 
     if (aiProgressInterval) {
       clearInterval(aiProgressInterval);
       aiProgressInterval = null;
     }
 
-    if (data.success && data.summary) {
-      // Parse the AI response as JSON
-      var parsed = null;
-      var rawText = data.summary;
-
-      // Try to extract JSON from the response (handle markdown code fences)
-      var jsonStr = rawText;
-      var fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (fenceMatch) {
-        jsonStr = fenceMatch[1].trim();
-      }
-
-      try {
-        parsed = JSON.parse(jsonStr);
-      } catch (parseErr) {
-        // Try to find JSON object in the text
-        var braceStart = rawText.indexOf('{');
-        var braceEnd = rawText.lastIndexOf('}');
-        if (braceStart !== -1 && braceEnd > braceStart) {
-          try {
-            parsed = JSON.parse(rawText.substring(braceStart, braceEnd + 1));
-          } catch (e2) {
-            throw new Error('Could not parse AI response as JSON');
-          }
-        } else {
-          throw new Error('AI response does not contain valid JSON');
-        }
-      }
-
-      analysisData = parsed;
-      onAnalysisSuccess(parsed);
-    } else {
-      var errMsg = data.error || 'AI returned an unexpected response';
+    if (!data.success) {
+      var errMsg = data.error || 'AI returned an error';
+      console.error('[submittals] AI error:', errMsg);
       onAnalysisError(errMsg);
+      return;
     }
+
+    var rawText = data.summary || '';
+    console.log('[submittals] AI response length:', rawText.length);
+    console.log('[submittals] AI response (first 300):', rawText.substring(0, 300));
+    console.log('[submittals] AI response (last 200):', rawText.substring(Math.max(0, rawText.length - 200)));
+
+    // Robust JSON extraction — try multiple strategies
+    var parsed = extractJSON(rawText);
+
+    if (!parsed) {
+      console.error('[submittals] Could not parse JSON. Full response saved to window._lastAIResponse');
+      window._lastAIResponse = rawText;
+      onAnalysisError('Could not parse AI response as JSON. Open browser console and type _lastAIResponse to see the raw AI output.');
+      return;
+    }
+
+    console.log('[submittals] Parsed successfully:', parsed.submittals ? parsed.submittals.length + ' submittals' : 'no submittals array');
+    analysisData = parsed;
+    onAnalysisSuccess(parsed);
+
   } catch (err) {
     if (aiProgressInterval) {
       clearInterval(aiProgressInterval);
       aiProgressInterval = null;
     }
-    console.error('AI proxy error:', err);
+    console.error('[submittals] Error:', err);
     onAnalysisError(err.message || 'Network error — please check your connection.');
   }
+}
+
+// Robust JSON extraction from AI response
+function extractJSON(text) {
+  if (!text || !text.trim()) return null;
+
+  // Strategy 1: Direct parse (if AI returned pure JSON)
+  try { return JSON.parse(text.trim()); } catch(e) {}
+
+  // Strategy 2: Extract from ```json ... ``` code fences
+  var fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1].trim()); } catch(e) {}
+  }
+
+  // Strategy 3: Find outermost { ... } in the text
+  var firstBrace = text.indexOf('{');
+  var lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    var candidate = text.substring(firstBrace, lastBrace + 1);
+    try { return JSON.parse(candidate); } catch(e) {}
+  }
+
+  // Strategy 4: JSON might be truncated (missing closing braces)
+  // Try to fix by adding missing brackets
+  if (firstBrace !== -1) {
+    var candidate2 = text.substring(firstBrace);
+    // Count open vs close braces
+    var openBraces = (candidate2.match(/\{/g) || []).length;
+    var closeBraces = (candidate2.match(/\}/g) || []).length;
+    var openBrackets = (candidate2.match(/\[/g) || []).length;
+    var closeBrackets = (candidate2.match(/\]/g) || []).length;
+
+    // Try to close any unclosed arrays/objects
+    var suffix = '';
+    for (var b = 0; b < openBrackets - closeBrackets; b++) suffix += ']';
+    for (var c = 0; c < openBraces - closeBraces; c++) suffix += '}';
+
+    if (suffix) {
+      // Find last complete submittal entry and truncate there
+      var lastCompleteSubmittal = candidate2.lastIndexOf('"drawingRef"');
+      if (lastCompleteSubmittal === -1) lastCompleteSubmittal = candidate2.lastIndexOf('"complianceNotes"');
+      if (lastCompleteSubmittal === -1) lastCompleteSubmittal = candidate2.lastIndexOf('"category"');
+
+      if (lastCompleteSubmittal > 0) {
+        // Find the end of that submittal's closing brace
+        var afterField = candidate2.indexOf('}', lastCompleteSubmittal);
+        if (afterField > 0) {
+          var truncated = candidate2.substring(0, afterField + 1) + ']}';
+          try { return JSON.parse(truncated); } catch(e) {}
+        }
+      }
+
+      // Simple approach: just close everything
+      try { return JSON.parse(candidate2 + suffix); } catch(e) {}
+    }
+  }
+
+  // Strategy 5: AI might have written prose then JSON — look for "submittals" key
+  var submittalIdx = text.indexOf('"submittals"');
+  if (submittalIdx > 0) {
+    // Walk backwards to find the opening brace
+    var searchStart = text.lastIndexOf('{', submittalIdx);
+    if (searchStart !== -1) {
+      var candidate3 = text.substring(searchStart);
+      // Try all closing strategies
+      try { return JSON.parse(candidate3); } catch(e) {}
+      var ob = (candidate3.match(/\{/g) || []).length;
+      var cb = (candidate3.match(/\}/g) || []).length;
+      var obt = (candidate3.match(/\[/g) || []).length;
+      var cbt = (candidate3.match(/\]/g) || []).length;
+      var fix = '';
+      for (var x = 0; x < obt - cbt; x++) fix += ']';
+      for (var y = 0; y < ob - cb; y++) fix += '}';
+      try { return JSON.parse(candidate3 + fix); } catch(e) {}
+    }
+  }
+
+  return null;
 }
 
 function onAnalysisSuccess(parsed) {
@@ -1419,6 +1510,18 @@ function onAnalysisError(msg) {
   document.getElementById('aiWorkingArea').style.display = 'none';
   document.getElementById('aiErrorArea').style.display = 'block';
   document.getElementById('aiErrorMsg').textContent = msg;
+  document.getElementById('rawResponseArea').style.display = 'none';
+}
+
+function showRawResponse() {
+  var area = document.getElementById('rawResponseArea');
+  var pre = document.getElementById('rawResponseText');
+  if (area.style.display === 'none') {
+    pre.textContent = window._lastAIResponse || '(No response captured — check browser console)';
+    area.style.display = 'block';
+  } else {
+    area.style.display = 'none';
+  }
 }
 
 // ===== Build AI Prompt =====
