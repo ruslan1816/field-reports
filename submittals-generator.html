@@ -1,0 +1,2338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=52"></script>
+<script src="auth.js?v=52"></script>
+<script src="cloud-save.js?v=52"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>AI Submittals Generator — Northern Wolves AC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="styles.css">
+<style>
+body { padding-bottom: 100px; }
+
+/* ===== Wizard Container ===== */
+.wizard-wrap {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+/* ===== Step Progress Bar ===== */
+.step-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 16px 8px;
+  gap: 0;
+  background: var(--nw-card);
+  border-bottom: var(--nw-border-width) solid var(--nw-border);
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nw-muted);
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+
+.step-item.active {
+  color: var(--nw-primary);
+}
+
+.step-item.completed {
+  color: var(--nw-success);
+}
+
+.step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--nw-section);
+  color: var(--nw-muted);
+  border: 2px solid var(--nw-border);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.step-item.active .step-number {
+  background: var(--nw-primary);
+  color: #fff;
+  border-color: var(--nw-primary);
+}
+
+.step-item.completed .step-number {
+  background: var(--nw-success);
+  color: #fff;
+  border-color: var(--nw-success);
+}
+
+.step-connector {
+  width: 24px;
+  height: 2px;
+  background: var(--nw-border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.step-connector.completed {
+  background: var(--nw-success);
+}
+
+/* ===== Step Panels ===== */
+.step-panel {
+  display: none;
+  padding: 0;
+}
+
+.step-panel.active {
+  display: block;
+}
+
+/* ===== Upload Zone ===== */
+.upload-zone {
+  border: 2px dashed var(--nw-border);
+  border-radius: var(--nw-radius-card);
+  padding: 40px 20px;
+  text-align: center;
+  background: var(--nw-section);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin: 16px;
+}
+
+.upload-zone:hover,
+.upload-zone.dragover {
+  border-color: var(--nw-primary);
+  background: #e8f4fd;
+}
+
+.upload-zone .upload-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+.upload-zone .upload-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--nw-text);
+  margin-bottom: 4px;
+}
+
+.upload-zone .upload-sub {
+  font-size: 13px;
+  color: var(--nw-muted);
+}
+
+.upload-zone .upload-browse {
+  color: var(--nw-primary);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* ===== Extraction Progress ===== */
+.extraction-area {
+  display: none;
+  margin: 16px;
+}
+
+.progress-bar-wrap {
+  background: var(--nw-section);
+  border-radius: 8px;
+  height: 8px;
+  overflow: hidden;
+  margin: 12px 0;
+  border: var(--nw-border-width) solid var(--nw-border);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--nw-primary);
+  border-radius: 8px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.progress-bar-fill.success {
+  background: var(--nw-success);
+}
+
+.progress-label {
+  font-size: 12px;
+  color: var(--nw-muted);
+  text-align: center;
+  font-weight: 600;
+}
+
+/* ===== Summary Card ===== */
+.summary-card {
+  background: var(--nw-card);
+  border: var(--nw-border-width) solid var(--nw-border);
+  border-radius: var(--nw-radius-card);
+  padding: 16px;
+  margin: 16px;
+}
+
+.summary-card h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--nw-text);
+}
+
+.summary-stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--nw-section);
+  font-size: 13px;
+}
+
+.summary-stat:last-child {
+  border-bottom: none;
+}
+
+.summary-stat .label {
+  color: var(--nw-muted);
+}
+
+.summary-stat .value {
+  font-weight: 700;
+  color: var(--nw-text);
+}
+
+.summary-warning {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 10px 12px;
+  border-radius: var(--nw-radius-card);
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 12px;
+  display: none;
+}
+
+/* ===== AI Analysis Step ===== */
+.ai-analysis-area {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.ai-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--nw-section);
+  border-top-color: var(--nw-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ai-status-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--nw-text);
+  margin-bottom: 8px;
+}
+
+.ai-detail-text {
+  font-size: 13px;
+  color: var(--nw-muted);
+  font-style: italic;
+  min-height: 20px;
+}
+
+.ai-error-area {
+  display: none;
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.ai-error-area .error-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.ai-error-area .error-msg {
+  font-size: 14px;
+  color: var(--nw-danger);
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* ===== AI Success Summary ===== */
+.ai-success-area {
+  display: none;
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.ai-success-area .success-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.ai-success-area .success-msg {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--nw-success);
+  margin-bottom: 8px;
+}
+
+.ai-success-area .success-detail {
+  font-size: 13px;
+  color: var(--nw-muted);
+}
+
+/* ===== Review Step ===== */
+.project-info-card {
+  background: var(--nw-card);
+  border: var(--nw-border-width) solid var(--nw-border);
+  border-radius: var(--nw-radius-card);
+  padding: 16px;
+  margin: 16px;
+}
+
+.project-info-card h3 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--nw-muted);
+  margin-bottom: 12px;
+  border-left: 3px solid var(--nw-primary);
+  padding-left: 8px;
+}
+
+.info-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.info-row .field {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* ===== Submittal Cards ===== */
+.submittal-list {
+  padding: 0 16px 16px;
+}
+
+.submittal-card {
+  background: var(--nw-card);
+  border: var(--nw-border-width) solid var(--nw-border);
+  border-radius: var(--nw-radius-card);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.submittal-card:hover {
+  border-color: var(--nw-primary);
+}
+
+.submittal-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.submittal-num {
+  background: var(--nw-dark);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--nw-radius-btn);
+  flex-shrink: 0;
+}
+
+.submittal-spec {
+  font-size: 11px;
+  color: var(--nw-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.submittal-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--nw-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submittal-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--nw-radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.submittal-badge.standard {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.submittal-badge.equipment {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.submittal-expand-arrow {
+  font-size: 10px;
+  color: var(--nw-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.submittal-card.expanded .submittal-expand-arrow {
+  transform: rotate(180deg);
+}
+
+.submittal-card-body {
+  display: none;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--nw-section);
+}
+
+.submittal-card.expanded .submittal-card-body {
+  display: block;
+}
+
+.submittal-card-body .field {
+  margin-bottom: 10px;
+}
+
+.submittal-card-body .field label {
+  font-size: 10px;
+}
+
+.submittal-card-body .field input,
+.submittal-card-body .field textarea {
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.materials-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 8px 0;
+}
+
+.materials-table th {
+  background: var(--nw-section);
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--nw-muted);
+  border-bottom: var(--nw-border-width) solid var(--nw-border);
+}
+
+.materials-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--nw-section);
+  vertical-align: top;
+}
+
+.materials-table input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--nw-border);
+  border-radius: var(--nw-radius-btn);
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--nw-section);
+}
+
+.materials-table input:focus {
+  border-color: var(--nw-primary);
+  background: #fff;
+  outline: none;
+}
+
+.compliance-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+
+.compliance-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 0;
+  color: var(--nw-text);
+}
+
+.compliance-list li::before {
+  content: "\2022";
+  color: var(--nw-primary);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.submittal-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+.submittal-actions button {
+  padding: 6px 12px;
+  border: 1px solid var(--nw-border);
+  border-radius: var(--nw-radius-btn);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--nw-section);
+  color: var(--nw-text);
+  transition: all 0.15s;
+}
+
+.submittal-actions button:hover {
+  border-color: var(--nw-primary);
+}
+
+.submittal-actions button.delete-btn {
+  color: var(--nw-danger);
+  border-color: var(--nw-danger);
+  background: #fff;
+}
+
+.submittal-actions button.delete-btn:hover {
+  background: #fee2e2;
+}
+
+.add-submittal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 12px;
+  border: 2px dashed var(--nw-border);
+  border-radius: var(--nw-radius-card);
+  background: var(--nw-section);
+  color: var(--nw-primary);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  margin-top: 8px;
+}
+
+.add-submittal-btn:hover {
+  border-color: var(--nw-primary);
+  background: #e8f4fd;
+}
+
+/* ===== Generate Step ===== */
+.generate-progress {
+  padding: 24px 16px;
+}
+
+.gen-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--nw-card);
+  border: var(--nw-border-width) solid var(--nw-border);
+  border-radius: var(--nw-radius-card);
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.gen-item .gen-status {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.gen-item .gen-label {
+  flex: 1;
+  font-weight: 600;
+  color: var(--nw-text);
+}
+
+.gen-item .gen-action {
+  flex-shrink: 0;
+}
+
+.gen-item .gen-action a {
+  color: var(--nw-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.gen-item .gen-action a:hover {
+  text-decoration: underline;
+}
+
+.gen-item.pending .gen-status {
+  color: var(--nw-muted);
+}
+
+.gen-item.processing .gen-status {
+  animation: spin 0.8s linear infinite;
+  color: var(--nw-primary);
+}
+
+.gen-item.done .gen-status {
+  color: var(--nw-success);
+}
+
+/* ===== Submittal Log Table ===== */
+.submittal-log {
+  margin: 16px;
+  overflow-x: auto;
+}
+
+.submittal-log table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.submittal-log th {
+  background: var(--nw-primary);
+  color: #fff;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.submittal-log td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--nw-section);
+  white-space: nowrap;
+}
+
+.submittal-log tr:nth-child(even) {
+  background: var(--nw-section);
+}
+
+/* ===== Analysis Summary Card (step 3 top) ===== */
+.analysis-summary-card {
+  background: linear-gradient(135deg, #0696D7 0%, #0574a8 100%);
+  color: #fff;
+  border-radius: var(--nw-radius-card);
+  padding: 16px;
+  margin: 16px;
+}
+
+.analysis-summary-card h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.analysis-summary-card p {
+  font-size: 13px;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.analysis-summary-card .key-findings {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.2);
+}
+
+.analysis-summary-card .key-findings li {
+  font-size: 12px;
+  margin-bottom: 4px;
+  opacity: 0.9;
+}
+
+/* ===== Error State ===== */
+.error-state {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.error-state .icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+.error-state h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--nw-text);
+  margin-bottom: 8px;
+}
+
+.error-state p {
+  font-size: 14px;
+  color: var(--nw-muted);
+  margin-bottom: 20px;
+}
+
+/* ===== Notes textarea in step 1 ===== */
+.notes-area {
+  margin: 16px;
+  display: none;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 600px) {
+  .step-item .step-label {
+    display: none;
+  }
+  .step-progress {
+    padding: 12px 8px 8px;
+  }
+  .step-connector {
+    width: 16px;
+  }
+  .info-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  .submittal-card-header {
+    flex-wrap: wrap;
+  }
+  .submittal-title {
+    order: 10;
+    width: 100%;
+    margin-top: 4px;
+    white-space: normal;
+  }
+  .materials-table {
+    font-size: 11px;
+  }
+  .materials-table th,
+  .materials-table td {
+    padding: 4px 6px;
+  }
+}
+
+@media (max-width: 400px) {
+  .upload-zone {
+    padding: 28px 16px;
+    margin: 12px;
+  }
+  .summary-card,
+  .project-info-card,
+  .analysis-summary-card,
+  .notes-area {
+    margin: 12px;
+  }
+  .submittal-list {
+    padding: 0 12px 12px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <a href="#" class="back-btn" onclick="event.preventDefault(); if(window.history.length>1){history.back()}else{location.href='projects.html'}">&#8592;</a>
+  <img src="logo-header.png" alt="Northern Wolves AC" style="height:32px;width:auto;">
+  <div class="header-content">
+    <h1>AI Submittals Generator</h1>
+    <div class="subtitle" id="projectSubtitle">Loading project...</div>
+  </div>
+</header>
+<div class="toast" id="toast"></div>
+
+<!-- ===== NO PROJECT ERROR ===== -->
+<div id="noProjectError" style="display:none">
+  <div class="error-state">
+    <div class="icon">&#9888;&#65039;</div>
+    <h2>No Project Selected</h2>
+    <p>This page requires a project. Please go back and select a project first.</p>
+    <a href="projects.html" class="btn btn-primary" style="display:inline-flex;width:auto;padding:12px 24px;">Go to Projects</a>
+  </div>
+</div>
+
+<!-- ===== MAIN WIZARD ===== -->
+<div id="wizardMain" class="wizard-wrap">
+
+  <!-- Step Progress Bar -->
+  <div class="step-progress">
+    <div class="step-item active" id="stepItem1">
+      <div class="step-number" id="stepNum1">1</div>
+      <span class="step-label">Upload</span>
+    </div>
+    <div class="step-connector" id="stepConn1"></div>
+    <div class="step-item" id="stepItem2">
+      <div class="step-number" id="stepNum2">2</div>
+      <span class="step-label">Analyze</span>
+    </div>
+    <div class="step-connector" id="stepConn2"></div>
+    <div class="step-item" id="stepItem3">
+      <div class="step-number" id="stepNum3">3</div>
+      <span class="step-label">Review</span>
+    </div>
+    <div class="step-connector" id="stepConn3"></div>
+    <div class="step-item" id="stepItem4">
+      <div class="step-number" id="stepNum4">4</div>
+      <span class="step-label">Generate</span>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 1: Upload & Extract ==================== -->
+  <div class="step-panel active" id="step1">
+
+    <div class="upload-zone" id="uploadZone">
+      <div class="upload-icon">&#128196;</div>
+      <div class="upload-title">Upload Mechanical Drawings (PDF)</div>
+      <div class="upload-sub">Drag and drop your PDF here, or <span class="upload-browse">tap to browse</span></div>
+      <div class="upload-sub" style="margin-top:6px;font-size:11px;">Accepts .pdf files only</div>
+      <input type="file" id="pdfFileInput" accept=".pdf" style="display:none">
+    </div>
+
+    <!-- File Selected Info -->
+    <div id="fileSelectedInfo" style="display:none;margin:0 16px 8px;padding:10px 14px;background:var(--nw-card);border:var(--nw-border-width) solid var(--nw-border);border-radius:var(--nw-radius-card);align-items:center;gap:10px;">
+      <span style="font-size:24px;">&#128203;</span>
+      <div style="flex:1;min-width:0;">
+        <div id="fileName" style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+        <div id="fileSize" style="font-size:11px;color:var(--nw-muted);"></div>
+      </div>
+      <button onclick="resetUpload()" style="border:none;background:none;color:var(--nw-danger);font-size:18px;cursor:pointer;padding:4px;">&#10005;</button>
+    </div>
+
+    <!-- Extraction Progress -->
+    <div class="extraction-area" id="extractionArea">
+      <div class="summary-card">
+        <h3>Extracting Text from PDF...</h3>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="extractProgress"></div>
+        </div>
+        <div class="progress-label" id="extractLabel">Preparing...</div>
+      </div>
+    </div>
+
+    <!-- Extraction Summary -->
+    <div id="extractionSummary" style="display:none;">
+      <div class="summary-card">
+        <h3>Extraction Complete</h3>
+        <div class="summary-stat">
+          <span class="label">Total Pages</span>
+          <span class="value" id="summaryPages">-</span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Characters Extracted</span>
+          <span class="value" id="summaryChars">-</span>
+        </div>
+        <div class="summary-stat">
+          <span class="label">Pages with Text</span>
+          <span class="value" id="summaryTextPages">-</span>
+        </div>
+        <div id="pagesList" style="font-size:11px;color:var(--nw-muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--nw-section);"></div>
+        <div class="summary-warning" id="scanWarning">
+          &#9888; Very few pages contain substantial text. This PDF may be scanned images rather than searchable text. AI analysis may produce limited results.
+        </div>
+      </div>
+    </div>
+
+    <!-- Additional Notes -->
+    <div class="notes-area" id="notesArea">
+      <div class="field">
+        <label>Additional Notes (Optional)</label>
+        <textarea id="additionalNotes" placeholder="Paste any extra specs, equipment schedules, or notes the PDF didn't capture. This helps the AI produce more accurate submittals." style="min-height:100px;"></textarea>
+      </div>
+    </div>
+
+    <!-- Analyze Button -->
+    <div id="analyzeButtonArea" style="display:none;padding:0 16px 16px;">
+      <button class="btn btn-primary" onclick="startAnalysis()">Analyze with AI &#8594;</button>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 2: AI Analysis ==================== -->
+  <div class="step-panel" id="step2">
+
+    <!-- Spinner / Working -->
+    <div class="ai-analysis-area" id="aiWorkingArea">
+      <div class="ai-spinner"></div>
+      <div class="ai-status-text">AI is reading your specifications...</div>
+      <div class="ai-detail-text" id="aiDetailText">Identifying specification sections...</div>
+    </div>
+
+    <!-- Error -->
+    <div class="ai-error-area" id="aiErrorArea">
+      <div class="error-icon">&#10060;</div>
+      <div class="error-msg" id="aiErrorMsg">Something went wrong during analysis.</div>
+      <button class="btn btn-primary" onclick="retryAnalysis()" style="width:auto;display:inline-flex;padding:10px 24px;">Retry Analysis</button>
+      <button class="btn btn-secondary" onclick="goToStep(1)" style="width:auto;display:inline-flex;padding:10px 24px;margin-top:8px;">Back to Upload</button>
+    </div>
+
+    <!-- Success -->
+    <div class="ai-success-area" id="aiSuccessArea">
+      <div class="success-icon">&#9989;</div>
+      <div class="success-msg" id="aiSuccessMsg">Analysis Complete!</div>
+      <div class="success-detail" id="aiSuccessDetail">Loading results...</div>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 3: Review & Edit ==================== -->
+  <div class="step-panel" id="step3">
+
+    <!-- Analysis Summary -->
+    <div class="analysis-summary-card" id="analysisSummaryCard" style="display:none;">
+      <h3>AI Analysis Summary</h3>
+      <p id="analysisSummaryText"></p>
+      <ul class="key-findings" id="keyFindingsList" style="display:none;"></ul>
+    </div>
+
+    <!-- Project Info Card (editable) -->
+    <div class="project-info-card" id="projectInfoCard" style="display:none;">
+      <h3>Project Information</h3>
+      <div class="field">
+        <label>Project Name</label>
+        <input type="text" id="editProjectName">
+      </div>
+      <div class="info-row">
+        <div class="field">
+          <label>Address</label>
+          <input type="text" id="editProjectAddress">
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="field">
+          <label>Engineer / MEP Firm</label>
+          <input type="text" id="editProjectEngineer">
+        </div>
+        <div class="field">
+          <label>Architect</label>
+          <input type="text" id="editProjectArchitect">
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="field">
+          <label>Project No.</label>
+          <input type="text" id="editProjectNo">
+        </div>
+      </div>
+    </div>
+
+    <!-- Submittal Cards -->
+    <div style="padding:8px 16px 0;display:flex;align-items:center;justify-content:space-between;" id="submittalCountBar" class="" >
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--nw-muted);">Submittals <span id="submittalCount" style="color:var(--nw-primary);">0</span></div>
+      <div style="font-size:11px;color:var(--nw-muted);">Tap to expand / edit</div>
+    </div>
+
+    <div class="submittal-list" id="submittalList"></div>
+
+    <!-- Generate Button -->
+    <div style="padding:0 16px 16px;">
+      <button class="btn btn-primary" onclick="startGeneration()" id="generateBtn" style="display:none;">Generate Package &#8594;</button>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 4: Generate ==================== -->
+  <div class="step-panel" id="step4">
+
+    <!-- Generation Progress -->
+    <div class="generate-progress" id="genProgressArea">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--nw-text);">Generating Cover Pages...</div>
+      <div class="progress-bar-wrap" style="margin-bottom:16px;">
+        <div class="progress-bar-fill" id="genProgress"></div>
+      </div>
+      <div id="genItemsArea"></div>
+    </div>
+
+    <!-- Submittal Log -->
+    <div class="submittal-log" id="submittalLogArea" style="display:none;">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--nw-muted);margin-bottom:8px;border-left:3px solid var(--nw-primary);padding-left:8px;">Submittal Log</div>
+      <div style="overflow-x:auto;">
+        <table id="submittalLogTable">
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Spec Section</th>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="submittalLogBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div id="genActionsArea" style="display:none;padding:16px;">
+      <button class="btn btn-success" onclick="saveToProject()" id="saveToProjectBtn">Save to Project</button>
+      <button class="btn btn-primary" onclick="downloadAll()" style="margin-top:8px;" id="downloadAllBtn">Download All Cover Pages</button>
+      <button class="btn btn-secondary" onclick="goToStep(3)" style="margin-top:8px;">Back to Review</button>
+    </div>
+  </div>
+
+</div><!-- /wizard-wrap -->
+
+<!-- Bottom spacer for fixed bar clearance -->
+<div style="height:60px;"></div>
+
+<script>
+/* =============================================================
+   AI Submittals Generator — Northern Wolves AC
+   ============================================================= */
+
+// ===== Configuration =====
+var AI_PROXY_URL = 'https://script.google.com/macros/s/AKfycbyliO2PnVCaDfFYsA3hZZOwQYP3ElniEx7YHhM7ZkMXcMo0Fly3R-IQjLQXXbpuM6Rv9w/exec';
+var DRIVE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxPvr8QooEcdcxt937V49-Y_o9lz5-qQUQqjnaGr5mcabxOr9iZbkP3yxN9O2T09NoW/exec';
+
+// ===== PDF.js worker =====
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ===== State =====
+var currentStep = 1;
+var projectId = null;
+var projectData = null;
+var extractedPages = [];
+var extractedFullText = '';
+var aiResult = null;
+var submittals = [];
+var projectInfo = {};
+var generatedPDFs = [];
+var analysisData = null;
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', function() {
+  var params = new URLSearchParams(window.location.search);
+  projectId = params.get('project');
+
+  if (!projectId) {
+    document.getElementById('wizardMain').style.display = 'none';
+    document.getElementById('noProjectError').style.display = 'block';
+    return;
+  }
+
+  loadProject(projectId);
+  setupUploadZone();
+});
+
+// ===== Load Project =====
+async function loadProject(id) {
+  try {
+    var result = await supabaseClient.from('projects').select('*').eq('id', id).single();
+    if (result.data) {
+      projectData = result.data;
+      document.getElementById('projectSubtitle').textContent = projectData.name || 'Project';
+    } else {
+      document.getElementById('projectSubtitle').textContent = 'Project not found';
+      showToast('Could not load project', 'error');
+    }
+  } catch (err) {
+    console.error('Error loading project:', err);
+    document.getElementById('projectSubtitle').textContent = 'Error loading project';
+  }
+}
+
+// ===== Upload Zone Setup =====
+function setupUploadZone() {
+  var zone = document.getElementById('uploadZone');
+  var input = document.getElementById('pdfFileInput');
+
+  zone.addEventListener('click', function() {
+    input.click();
+  });
+
+  zone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    zone.classList.add('dragover');
+  });
+
+  zone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    zone.classList.remove('dragover');
+  });
+
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    zone.classList.remove('dragover');
+    var files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type === 'application/pdf') {
+      handleFileSelected(files[0]);
+    } else {
+      showToast('Please upload a PDF file', 'error');
+    }
+  });
+
+  input.addEventListener('change', function() {
+    if (input.files.length > 0) {
+      handleFileSelected(input.files[0]);
+    }
+  });
+}
+
+// ===== File Selected =====
+function handleFileSelected(file) {
+  document.getElementById('uploadZone').style.display = 'none';
+
+  var infoEl = document.getElementById('fileSelectedInfo');
+  infoEl.style.display = 'flex';
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = formatFileSize(file.size);
+
+  startExtraction(file);
+}
+
+function resetUpload() {
+  document.getElementById('uploadZone').style.display = '';
+  document.getElementById('fileSelectedInfo').style.display = 'none';
+  document.getElementById('extractionArea').style.display = 'none';
+  document.getElementById('extractionSummary').style.display = 'none';
+  document.getElementById('notesArea').style.display = 'none';
+  document.getElementById('analyzeButtonArea').style.display = 'none';
+  document.getElementById('pdfFileInput').value = '';
+  extractedPages = [];
+  extractedFullText = '';
+}
+
+// ===== PDF Text Extraction =====
+async function startExtraction(file) {
+  var extractionArea = document.getElementById('extractionArea');
+  var progressBar = document.getElementById('extractProgress');
+  var progressLabel = document.getElementById('extractLabel');
+
+  extractionArea.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressLabel.textContent = 'Loading PDF...';
+
+  try {
+    var arrayBuffer = await file.arrayBuffer();
+    var pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    var totalPages = pdf.numPages;
+
+    progressLabel.textContent = 'Extracting text from ' + totalPages + ' pages...';
+
+    extractedPages = [];
+    var allText = '';
+
+    for (var i = 1; i <= totalPages; i++) {
+      var page = await pdf.getPage(i);
+      var textContent = await page.getTextContent();
+      var pageText = textContent.items.map(function(item) { return item.str; }).join(' ');
+
+      extractedPages.push({
+        pageNum: i,
+        text: pageText,
+        charCount: pageText.length
+      });
+
+      allText += '\n--- PAGE ' + i + ' ---\n' + pageText;
+
+      var pct = Math.round((i / totalPages) * 100);
+      progressBar.style.width = pct + '%';
+      progressLabel.textContent = 'Page ' + i + ' of ' + totalPages;
+    }
+
+    extractedFullText = allText;
+
+    // Complete
+    progressBar.style.width = '100%';
+    progressBar.classList.add('success');
+    progressLabel.textContent = 'Extraction complete!';
+
+    // Show summary after a brief pause
+    setTimeout(function() {
+      showExtractionSummary(totalPages);
+    }, 500);
+
+  } catch (err) {
+    console.error('PDF extraction error:', err);
+    progressBar.style.width = '100%';
+    progressBar.style.background = 'var(--nw-danger)';
+    progressLabel.textContent = 'Error extracting PDF: ' + err.message;
+    showToast('PDF extraction failed', 'error');
+  }
+}
+
+function showExtractionSummary(totalPages) {
+  document.getElementById('extractionArea').style.display = 'none';
+  document.getElementById('extractionSummary').style.display = 'block';
+  document.getElementById('notesArea').style.display = 'block';
+  document.getElementById('analyzeButtonArea').style.display = 'block';
+
+  var totalChars = 0;
+  var pagesWithText = [];
+
+  for (var i = 0; i < extractedPages.length; i++) {
+    totalChars += extractedPages[i].charCount;
+    if (extractedPages[i].charCount > 100) {
+      pagesWithText.push(extractedPages[i].pageNum);
+    }
+  }
+
+  document.getElementById('summaryPages').textContent = totalPages;
+  document.getElementById('summaryChars').textContent = totalChars.toLocaleString();
+  document.getElementById('summaryTextPages').textContent = pagesWithText.length + ' of ' + totalPages;
+
+  // Show which pages have text
+  if (pagesWithText.length > 0 && pagesWithText.length <= 20) {
+    document.getElementById('pagesList').textContent = 'Pages with text: ' + pagesWithText.join(', ');
+  } else if (pagesWithText.length > 20) {
+    document.getElementById('pagesList').textContent = 'Pages with text: ' + pagesWithText.slice(0, 20).join(', ') + '... and ' + (pagesWithText.length - 20) + ' more';
+  }
+
+  // Warning if few pages have text
+  if (pagesWithText.length < totalPages * 0.3 && totalPages > 2) {
+    document.getElementById('scanWarning').style.display = 'block';
+  }
+}
+
+// ===== Step Navigation =====
+function goToStep(step) {
+  // Hide all panels
+  var panels = document.querySelectorAll('.step-panel');
+  for (var i = 0; i < panels.length; i++) {
+    panels[i].classList.remove('active');
+  }
+
+  // Show target
+  document.getElementById('step' + step).classList.add('active');
+
+  // Update progress bar
+  for (var s = 1; s <= 4; s++) {
+    var item = document.getElementById('stepItem' + s);
+    var num = document.getElementById('stepNum' + s);
+
+    item.classList.remove('active', 'completed');
+    num.textContent = s;
+
+    if (s < step) {
+      item.classList.add('completed');
+      num.innerHTML = '&#10003;';
+    } else if (s === step) {
+      item.classList.add('active');
+    }
+
+    // Connectors
+    if (s < 4) {
+      var conn = document.getElementById('stepConn' + s);
+      conn.classList.remove('completed');
+      if (s < step) {
+        conn.classList.add('completed');
+      }
+    }
+  }
+
+  currentStep = step;
+
+  // Scroll to top
+  window.scrollTo(0, 0);
+}
+
+// ===== AI Analysis =====
+var aiProgressMessages = [
+  'Identifying specification sections...',
+  'Analyzing equipment schedules...',
+  'Reading drawing notes and details...',
+  'Cross-referencing codes and standards...',
+  'Checking SMACNA ductwork requirements...',
+  'Evaluating piping specifications...',
+  'Identifying insulation requirements...',
+  'Reviewing seismic and structural notes...',
+  'Cataloging fire and smoke damper specs...',
+  'Building comprehensive submittal list...'
+];
+var aiProgressInterval = null;
+
+function startAnalysis() {
+  goToStep(2);
+
+  // Reset UI
+  document.getElementById('aiWorkingArea').style.display = 'block';
+  document.getElementById('aiErrorArea').style.display = 'none';
+  document.getElementById('aiSuccessArea').style.display = 'none';
+
+  // Start cycling messages
+  var msgIdx = 0;
+  var detailEl = document.getElementById('aiDetailText');
+  detailEl.textContent = aiProgressMessages[0];
+
+  aiProgressInterval = setInterval(function() {
+    msgIdx = (msgIdx + 1) % aiProgressMessages.length;
+    detailEl.textContent = aiProgressMessages[msgIdx];
+  }, 3000);
+
+  // Call AI
+  callAIProxy();
+}
+
+function retryAnalysis() {
+  startAnalysis();
+}
+
+async function callAIProxy() {
+  var additionalNotes = document.getElementById('additionalNotes').value.trim();
+  var prompt = buildAnalysisPrompt(extractedFullText, additionalNotes);
+
+  try {
+    var response = await fetch(AI_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'generate_summary',
+        prompt: prompt
+      })
+    });
+
+    var text = await response.text();
+    var data;
+    try { data = JSON.parse(text); } catch(e) { throw new Error('Invalid response from AI proxy'); }
+
+    if (aiProgressInterval) {
+      clearInterval(aiProgressInterval);
+      aiProgressInterval = null;
+    }
+
+    if (data.success && data.summary) {
+      // Parse the AI response as JSON
+      var parsed = null;
+      var rawText = data.summary;
+
+      // Try to extract JSON from the response (handle markdown code fences)
+      var jsonStr = rawText;
+      var fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) {
+        jsonStr = fenceMatch[1].trim();
+      }
+
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (parseErr) {
+        // Try to find JSON object in the text
+        var braceStart = rawText.indexOf('{');
+        var braceEnd = rawText.lastIndexOf('}');
+        if (braceStart !== -1 && braceEnd > braceStart) {
+          try {
+            parsed = JSON.parse(rawText.substring(braceStart, braceEnd + 1));
+          } catch (e2) {
+            throw new Error('Could not parse AI response as JSON');
+          }
+        } else {
+          throw new Error('AI response does not contain valid JSON');
+        }
+      }
+
+      analysisData = parsed;
+      onAnalysisSuccess(parsed);
+    } else {
+      var errMsg = data.error || 'AI returned an unexpected response';
+      onAnalysisError(errMsg);
+    }
+  } catch (err) {
+    if (aiProgressInterval) {
+      clearInterval(aiProgressInterval);
+      aiProgressInterval = null;
+    }
+    console.error('AI proxy error:', err);
+    onAnalysisError(err.message || 'Network error — please check your connection.');
+  }
+}
+
+function onAnalysisSuccess(parsed) {
+  document.getElementById('aiWorkingArea').style.display = 'none';
+  document.getElementById('aiSuccessArea').style.display = 'block';
+
+  var numSubmittals = parsed.submittals ? parsed.submittals.length : 0;
+  var stdCount = 0;
+  var eqCount = 0;
+
+  if (parsed.submittals) {
+    for (var i = 0; i < parsed.submittals.length; i++) {
+      if (parsed.submittals[i].category === 'equipment') {
+        eqCount++;
+      } else {
+        stdCount++;
+      }
+    }
+  }
+
+  document.getElementById('aiSuccessMsg').textContent = 'Found ' + numSubmittals + ' Submittals';
+  document.getElementById('aiSuccessDetail').textContent = stdCount + ' standard, ' + eqCount + ' equipment';
+
+  // Store data
+  submittals = parsed.submittals || [];
+  projectInfo = parsed.projectInfo || {};
+
+  // Auto-proceed to step 3 after brief delay
+  setTimeout(function() {
+    goToStep(3);
+    renderReviewStep(parsed);
+  }, 1500);
+}
+
+function onAnalysisError(msg) {
+  document.getElementById('aiWorkingArea').style.display = 'none';
+  document.getElementById('aiErrorArea').style.display = 'block';
+  document.getElementById('aiErrorMsg').textContent = msg;
+}
+
+// ===== Build AI Prompt =====
+function buildAnalysisPrompt(extractedText, additionalNotes) {
+  var systemPrompt = 'You are a Senior HVAC Mechanical Engineer and Submittal Coordinator with 20+ years of experience in commercial HVAC construction in New York and New Jersey. You work for Northern Wolves Air Conditioning.\n\n' +
+'YOUR EXPERTISE:\n' +
+'- Deep knowledge of CSI Division 23 (HVAC) specifications and all subsections\n' +
+'- SMACNA ductwork construction standards (gauges, reinforcement, seal classes, pressure classes)\n' +
+'- ASHRAE standards (15 - Refrigeration Safety, 90.1 - Energy, 62.1 - Ventilation)\n' +
+'- International Mechanical Code (IMC) — especially Chapter 11 for refrigerant piping\n' +
+'- International Building Code (IBC) seismic provisions (ASCE 7)\n' +
+'- ASTM material standards for pipes, insulation, sheet metal, hangers\n' +
+'- UL listing requirements for fire dampers, fire wrap, duct liner, venting\n' +
+'- NFPA codes for kitchen exhaust, fire protection\n' +
+'- All major HVAC equipment manufacturers and product lines\n' +
+'- Piping systems: copper Type L/M/K, Schedule 40/80 steel, ACR copper, grooved (Victaulic), stainless, CPVC, PVC\n' +
+'- Ductwork: galvanized steel, stainless steel, aluminum, black iron (kitchen exhaust), spiral round/oval, rectangular, flex duct\n' +
+'- Insulation: fiberglass pipe (ASTM C547), elastomeric (ASTM C534 AP Armaflex), mineral wool, duct wrap (ASTM C553), duct board, duct liner (ASTM C1071), fire-rated wraps (UL 1978/2221), outdoor board with weatherproof jacketing\n' +
+'- Supports: clevis hangers, trapeze/channel, pipe rolls, pipe clamps, riser clamps, strut systems (Unistrut/B-Line), seismic bracing, concrete anchors, beam clamps\n' +
+'- Equipment: RTUs, AHUs, VRF/VRV, split systems, mini-splits, boilers (condensing/non-condensing/steam), chillers, cooling towers, pumps, exhaust fans, supply fans, ERV/HRV, DOAS, MAU, VAV, FPB, WSHP, unit heaters, cabinet heaters, radiant panels, fin-tube radiation, kitchen hoods, CRAC/CRAH units\n\n' +
+'STANDARD SUBMITTAL CATEGORIES — check drawing notes and specs for each:\n' +
+'GENERAL/MATERIALS (standard across most projects):\n' +
+'1. Ductwork Construction Standards - SMACNA gauges, seal class, pressure class, joint types (Ductmate for >=12", TDC/TDF for smaller), reinforcement\n' +
+'2. Duct Fittings and Accessories - Ductmate flanged connections, flex connectors, access doors, turning vanes, duct tape/sealant\n' +
+'3. Flex Duct - manufacturer, type, R-value, max length\n' +
+'4. Piping - Hydronic (hot water, chilled water) - material, joining method, schedule/type\n' +
+'5. Piping - Refrigerant (ACR copper) - rating, brazing, IMC/ASHRAE 15 compliance\n' +
+'6. Piping - Condensate Drain - material (copper vs PVC — check specs carefully), type\n' +
+'7. Pipe Insulation - Hot Water - material, thickness, ASTM standard, vapor retarder\n' +
+'8. Pipe Insulation - Chilled Water/Condensation - closed cell elastomeric, thickness\n' +
+'9. Pipe Insulation - Refrigerant - same as chilled water typically\n' +
+'10. Duct Insulation - Wrap (fiberglass with FSK facing) - R-value, ASTM C553\n' +
+'11. Duct Insulation - Board (outdoor/exposed ducts) - rigid board with weatherproof jacketing\n' +
+'12. Acoustical Duct Lining - ASTM C1071, Type I fiberglass, erosion resistant\n' +
+'13. Fire Wrap Insulation - UL 1978 / UL 2221, 1-hr and 2-hr rated, for grease ducts and fire-rated assemblies\n' +
+'14. Pipe Hangers and Supports - clevis, pipe rolls, clamps, trapeze, riser clamps, MSS SP-69/SP-89 spacing\n' +
+'15. Duct Hangers and Supports - galvanized steel strap/rod, per SMACNA spacing\n' +
+'16. Anchors - concrete screw (Tapcon/DeWalt), expansion, powder-actuated, beam clamps\n' +
+'17. Vibration Isolators - spring mounts, rubber pads, inertia bases, ceiling hung isolators, neoprene\n' +
+'18. Seismic Bracing and Restraints - per ASCE 7, site class, SRC, cable/strut bracing\n' +
+'19. Valves - gate, globe, ball, butterfly, check, balancing, pressure reducing, relief\n' +
+'20. Roof Penetration Curbs - RTU curbs, pipe/duct penetration curbs, insulated, min height\n' +
+'21. Equipment Support Rails/Curbs - roof-mounted equipment stands, VRF stands\n' +
+'22. Pipe Roof Supports - non-penetrating adjustable supports\n' +
+'23. Fire and Smoke Dampers - UL 555/555S rated, fusible link, actuator type\n' +
+'24. Volume/Balancing Dampers\n' +
+'25. Grilles, Registers, Diffusers (GRDs) - supply, return, exhaust, transfer\n' +
+'26. HVAC Identification - pipe labels, duct labels, equipment tags, valve tags\n' +
+'27. Testing, Adjusting, Balancing (TAB)\n' +
+'28. BAS/DDC Controls - BACnet, control sequences, sensors, actuators\n' +
+'29. Gas Venting - B-Vent, direct vent, stainless steel double-wall (Category I-IV)\n' +
+'30. Condensation/Condensate Pumps\n' +
+'31. Air Cleaning/Purification - NPBI, UV-C, HEPA, carbon filters\n' +
+'32. Kitchen Exhaust Ductwork - black iron, stainless steel double-wall (Captive Aire), welded construction, grease-rated\n' +
+'33. Specialty Ductwork - aluminum (pool areas), dryer exhaust, lab exhaust\n' +
+'34. Hydronic Specialties - expansion tanks, air separators, strainers, glycol feeders, BTU meters\n\n' +
+'EQUIPMENT (project-specific — identify from schedules on drawings):\n' +
+'- Packaged RTUs\n' +
+'- Indoor AHUs / Fan Coils\n' +
+'- VRF/VRV outdoor and indoor units\n' +
+'- Split system condensing units + evaporator coils\n' +
+'- Ductless mini-splits\n' +
+'- Boilers (gas-fired condensing, non-condensing, steam)\n' +
+'- Chillers (air-cooled, water-cooled, absorption)\n' +
+'- Cooling towers / fluid coolers\n' +
+'- Hydronic pumps (inline, base-mounted, booster)\n' +
+'- General exhaust fans (centrifugal, inline, roof-mounted)\n' +
+'- Kitchen exhaust fans (grease-rated, UL 762)\n' +
+'- Lab/fume hood exhaust fans (corrosion resistant)\n' +
+'- Garage ventilation fans (CO/NO2 detection system)\n' +
+'- Destratification fans\n' +
+'- Transfer/booster fans\n' +
+'- Unit heaters (gas, electric, hydronic, steam)\n' +
+'- Cabinet unit heaters\n' +
+'- Radiant ceiling panels\n' +
+'- Fin-tube radiation / baseboard heaters\n' +
+'- VAV terminal units (cooling only, reheat)\n' +
+'- Fan powered boxes (series, parallel)\n' +
+'- ERV/HRV units\n' +
+'- DOAS units\n' +
+'- MAU (makeup air units)\n' +
+'- Kitchen hoods (Type I grease, Type II heat/steam)\n' +
+'- Water source heat pumps (WSHP)\n' +
+'- Air source heat pumps (ASHP)\n' +
+'- Geothermal heat pumps (GSHP)\n' +
+'- Humidifiers (steam, evaporative)\n' +
+'- Dehumidifiers\n' +
+'- Computer room units (CRAC/CRAH)\n' +
+'- Refrigeration condensing units (walk-in cooler/freezer)\n\n' +
+'RESPONSE FORMAT:\n' +
+'Return ONLY valid JSON with no markdown formatting, no code fences, no prose. Just pure JSON:\n' +
+'{\n' +
+'  "projectInfo": {\n' +
+'    "name": "extracted from title block or notes",\n' +
+'    "address": "project address if found",\n' +
+'    "engineer": "design engineer/MEP firm",\n' +
+'    "architect": "architect firm if found",\n' +
+'    "projectNo": "project number if found"\n' +
+'  },\n' +
+'  "analysis": {\n' +
+'    "summary": "2-3 sentence summary of what was found in the drawings",\n' +
+'    "specSections": ["list of spec section numbers identified"],\n' +
+'    "keyFindings": ["important specification notes affecting submittals"],\n' +
+'    "seismic": {"siteClass":"", "category":"", "windSpeed":"", "Ss":"", "S1":""},\n' +
+'    "specialRequirements": ["unusual or project-specific requirements"]\n' +
+'  },\n' +
+'  "submittals": [\n' +
+'    {\n' +
+'      "number": "001",\n' +
+'      "specSection": "230719",\n' +
+'      "title": "Pipe Insulation - Hot Water",\n' +
+'      "category": "standard",\n' +
+'      "description": "Brief professional description of what is being submitted",\n' +
+'      "materials": [\n' +
+'        {"item": "HW Pipe Insulation 2 in. and smaller", "spec": "ASTM C547 fiberglass, 1 in. thick, ASJ vapor retarder", "manufacturer": "Johns Manville", "model": "Micro-Lok HP"}\n' +
+'      ],\n' +
+'      "complianceNotes": ["Per spec section 230719 and M-002 Note 12.A", "Minimum 1 in. thickness for pipes 4 in. and smaller"],\n' +
+'      "drawingRef": "M-002 Note 12.A"\n' +
+'    }\n' +
+'  ]\n' +
+'}\n\n' +
+'CRITICAL RULES:\n' +
+'1. Extract REAL information from the provided text. Do not fabricate data.\n' +
+'2. If specific manufacturer/model appears in equipment schedules, use those exact values.\n' +
+'3. If manufacturer is not specified in specs, use "As Specified or Equal" or recommend a common industry standard manufacturer.\n' +
+'4. Include ALL submittals that are needed based on what the drawings show — it is far better to include extra submittals than to miss one.\n' +
+'5. Number submittals sequentially: 001, 002, 003...\n' +
+'6. List standard/general material submittals FIRST, then equipment submittals.\n' +
+'7. Each submittal specSection must be the correct CSI Division 23 number.\n' +
+'8. For compliance notes, reference ACTUAL requirements found in the extracted text.\n' +
+'9. If a note on the drawings specifies a particular material (e.g., "Copper Type L only — no PVC for condensate"), make sure the submittal reflects that EXACT requirement.\n' +
+'10. Pay special attention to M-001/M-002 type drawing sheets — these contain the most critical specification notes.\n' +
+'11. If drawing notes reference specific standards (SMACNA, ASTM, UL, ASHRAE), include those in compliance notes.\n' +
+'12. For ductwork, identify: construction class/pressure class, seal class, joint types, gauge requirements.\n' +
+'13. For piping, identify: material types for each service (HW, CHW, refrigerant, condensate, gas, steam), joining methods, and sizes where noted.\n' +
+'14. Check for any sustainability, LEED, or green building requirements.\n' +
+'15. Identify if project needs seismic bracing — check for seismic design criteria on drawings.';
+
+  var userPrompt = 'Analyze the following mechanical drawing/specification text extracted from a project PDF and generate a complete submittal list.\n\n';
+  userPrompt += '=== EXTRACTED DRAWING TEXT ===\n' + extractedText + '\n';
+  if (additionalNotes) {
+    userPrompt += '\n=== ADDITIONAL NOTES FROM USER ===\n' + additionalNotes + '\n';
+  }
+  userPrompt += '\n=== END ===\nGenerate the complete submittal list as JSON.';
+
+  return systemPrompt + '\n\n' + userPrompt;
+}
+
+// ===== Render Review Step =====
+function renderReviewStep(parsed) {
+  // Analysis summary
+  if (parsed.analysis) {
+    var summaryCard = document.getElementById('analysisSummaryCard');
+    summaryCard.style.display = 'block';
+    document.getElementById('analysisSummaryText').textContent = parsed.analysis.summary || '';
+
+    if (parsed.analysis.keyFindings && parsed.analysis.keyFindings.length > 0) {
+      var findingsList = document.getElementById('keyFindingsList');
+      findingsList.style.display = 'block';
+      findingsList.innerHTML = '';
+      for (var k = 0; k < parsed.analysis.keyFindings.length; k++) {
+        var li = document.createElement('li');
+        li.textContent = parsed.analysis.keyFindings[k];
+        findingsList.appendChild(li);
+      }
+    }
+  }
+
+  // Project info
+  var pi = parsed.projectInfo || {};
+  var piCard = document.getElementById('projectInfoCard');
+  piCard.style.display = 'block';
+
+  document.getElementById('editProjectName').value = pi.name || (projectData ? projectData.name : '') || '';
+  document.getElementById('editProjectAddress').value = pi.address || (projectData ? projectData.address : '') || '';
+  document.getElementById('editProjectEngineer').value = pi.engineer || '';
+  document.getElementById('editProjectArchitect').value = pi.architect || '';
+  document.getElementById('editProjectNo').value = pi.projectNo || '';
+
+  // Submittals
+  submittals = parsed.submittals || [];
+  renderSubmittalList();
+
+  document.getElementById('generateBtn').style.display = '';
+}
+
+function renderSubmittalList() {
+  var container = document.getElementById('submittalList');
+  container.innerHTML = '';
+
+  document.getElementById('submittalCount').textContent = submittals.length;
+
+  for (var i = 0; i < submittals.length; i++) {
+    container.appendChild(createSubmittalCard(submittals[i], i));
+  }
+
+  // Add submittal button
+  var addBtn = document.createElement('button');
+  addBtn.className = 'add-submittal-btn';
+  addBtn.innerHTML = '+ Add Submittal';
+  addBtn.onclick = function() { addNewSubmittal(); };
+  container.appendChild(addBtn);
+}
+
+function createSubmittalCard(sub, idx) {
+  var card = document.createElement('div');
+  card.className = 'submittal-card';
+  card.setAttribute('data-idx', idx);
+
+  // Header
+  var header = document.createElement('div');
+  header.className = 'submittal-card-header';
+  header.onclick = function() { card.classList.toggle('expanded'); };
+
+  header.innerHTML =
+    '<span class="submittal-num">' + escapeHtml(sub.number || String(idx + 1).padStart(3, '0')) + '</span>' +
+    '<span class="submittal-spec">' + escapeHtml(sub.specSection || '') + '</span>' +
+    '<span class="submittal-title">' + escapeHtml(sub.title || 'Untitled') + '</span>' +
+    '<span class="submittal-badge ' + (sub.category === 'equipment' ? 'equipment' : 'standard') + '">' + escapeHtml(sub.category || 'standard') + '</span>' +
+    '<span class="submittal-expand-arrow">&#9660;</span>';
+
+  card.appendChild(header);
+
+  // Body
+  var body = document.createElement('div');
+  body.className = 'submittal-card-body';
+
+  // Description
+  var descField = createEditField('Description', sub.description || '', 'textarea', 'desc_' + idx);
+
+  // Drawing Reference
+  var refField = createEditField('Drawing Reference', sub.drawingRef || '', 'input', 'ref_' + idx);
+
+  // Materials table
+  var matHtml = '<div class="field"><label>MATERIALS</label>';
+  matHtml += '<table class="materials-table"><thead><tr><th>Item</th><th>Specification</th><th>Manufacturer</th><th>Model</th><th style="width:30px;"></th></tr></thead><tbody>';
+
+  var materials = sub.materials || [];
+  for (var m = 0; m < materials.length; m++) {
+    matHtml += '<tr>' +
+      '<td><input type="text" value="' + escapeAttr(materials[m].item || '') + '" data-field="item" data-sub="' + idx + '" data-mat="' + m + '"></td>' +
+      '<td><input type="text" value="' + escapeAttr(materials[m].spec || '') + '" data-field="spec" data-sub="' + idx + '" data-mat="' + m + '"></td>' +
+      '<td><input type="text" value="' + escapeAttr(materials[m].manufacturer || '') + '" data-field="manufacturer" data-sub="' + idx + '" data-mat="' + m + '"></td>' +
+      '<td><input type="text" value="' + escapeAttr(materials[m].model || '') + '" data-field="model" data-sub="' + idx + '" data-mat="' + m + '"></td>' +
+      '<td><button onclick="removeMaterial(' + idx + ',' + m + ')" style="border:none;background:none;color:var(--nw-danger);cursor:pointer;font-size:14px;">&#10005;</button></td>' +
+      '</tr>';
+  }
+
+  matHtml += '</tbody></table>';
+  matHtml += '<button onclick="addMaterial(' + idx + ')" style="margin-top:6px;padding:4px 10px;border:1px dashed var(--nw-border);border-radius:var(--nw-radius-btn);background:var(--nw-section);color:var(--nw-primary);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;">+ Add Material</button>';
+  matHtml += '</div>';
+
+  // Compliance notes
+  var notesHtml = '<div class="field"><label>COMPLIANCE NOTES</label><ul class="compliance-list">';
+  var notes = sub.complianceNotes || [];
+  for (var n = 0; n < notes.length; n++) {
+    notesHtml += '<li><input type="text" value="' + escapeAttr(notes[n]) + '" data-sub="' + idx + '" data-note="' + n + '" style="border:1px solid var(--nw-border);border-radius:var(--nw-radius-btn);padding:4px 8px;font-size:12px;font-family:inherit;width:100%;background:var(--nw-section);" onfocus="this.style.borderColor=\'var(--nw-primary)\';this.style.background=\'#fff\'" onblur="this.style.borderColor=\'var(--nw-border)\';this.style.background=\'var(--nw-section)\'"></li>';
+  }
+  notesHtml += '</ul>';
+  notesHtml += '<button onclick="addComplianceNote(' + idx + ')" style="padding:4px 10px;border:1px dashed var(--nw-border);border-radius:var(--nw-radius-btn);background:var(--nw-section);color:var(--nw-primary);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;">+ Add Note</button>';
+  notesHtml += '</div>';
+
+  // Actions
+  var actionsHtml = '<div class="submittal-actions">';
+  if (idx > 0) {
+    actionsHtml += '<button onclick="moveSubmittal(' + idx + ',-1)">&#9650; Up</button>';
+  }
+  if (idx < submittals.length - 1) {
+    actionsHtml += '<button onclick="moveSubmittal(' + idx + ',1)">&#9660; Down</button>';
+  }
+  actionsHtml += '<button class="delete-btn" onclick="deleteSubmittal(' + idx + ')">&#128465; Delete</button>';
+  actionsHtml += '</div>';
+
+  body.appendChild(descField);
+  body.appendChild(refField);
+
+  var matDiv = document.createElement('div');
+  matDiv.innerHTML = matHtml;
+  body.appendChild(matDiv);
+
+  var notesDiv = document.createElement('div');
+  notesDiv.innerHTML = notesHtml;
+  body.appendChild(notesDiv);
+
+  var actDiv = document.createElement('div');
+  actDiv.innerHTML = actionsHtml;
+  body.appendChild(actDiv);
+
+  card.appendChild(body);
+
+  return card;
+}
+
+function createEditField(label, value, type, id) {
+  var div = document.createElement('div');
+  div.className = 'field';
+
+  var lbl = document.createElement('label');
+  lbl.textContent = label;
+  div.appendChild(lbl);
+
+  if (type === 'textarea') {
+    var ta = document.createElement('textarea');
+    ta.value = value;
+    ta.id = id;
+    ta.style.minHeight = '60px';
+    div.appendChild(ta);
+  } else {
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = value;
+    inp.id = id;
+    div.appendChild(inp);
+  }
+
+  return div;
+}
+
+// ===== Submittal Edit Actions =====
+function deleteSubmittal(idx) {
+  if (confirm('Delete submittal #' + submittals[idx].number + ' — ' + submittals[idx].title + '?')) {
+    submittals.splice(idx, 1);
+    // Renumber
+    for (var i = 0; i < submittals.length; i++) {
+      submittals[i].number = String(i + 1).padStart(3, '0');
+    }
+    renderSubmittalList();
+    showToast('Submittal deleted');
+  }
+}
+
+function moveSubmittal(idx, dir) {
+  var newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= submittals.length) return;
+
+  syncSubmittalEdits();
+
+  var temp = submittals[idx];
+  submittals[idx] = submittals[newIdx];
+  submittals[newIdx] = temp;
+
+  // Renumber
+  for (var i = 0; i < submittals.length; i++) {
+    submittals[i].number = String(i + 1).padStart(3, '0');
+  }
+
+  renderSubmittalList();
+}
+
+function addNewSubmittal() {
+  syncSubmittalEdits();
+
+  var newNum = String(submittals.length + 1).padStart(3, '0');
+  submittals.push({
+    number: newNum,
+    specSection: '230000',
+    title: 'New Submittal',
+    category: 'standard',
+    description: '',
+    materials: [{ item: '', spec: '', manufacturer: '', model: '' }],
+    complianceNotes: [''],
+    drawingRef: ''
+  });
+
+  renderSubmittalList();
+
+  // Expand the new card
+  var cards = document.querySelectorAll('.submittal-card');
+  var lastCard = cards[cards.length - 2]; // -2 because last child is add button
+  if (lastCard) {
+    lastCard.classList.add('expanded');
+    lastCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function addMaterial(subIdx) {
+  syncSubmittalEdits();
+  submittals[subIdx].materials.push({ item: '', spec: '', manufacturer: '', model: '' });
+  renderSubmittalList();
+  // Re-expand
+  var cards = document.querySelectorAll('.submittal-card');
+  if (cards[subIdx]) cards[subIdx].classList.add('expanded');
+}
+
+function removeMaterial(subIdx, matIdx) {
+  syncSubmittalEdits();
+  submittals[subIdx].materials.splice(matIdx, 1);
+  renderSubmittalList();
+  var cards = document.querySelectorAll('.submittal-card');
+  if (cards[subIdx]) cards[subIdx].classList.add('expanded');
+}
+
+function addComplianceNote(subIdx) {
+  syncSubmittalEdits();
+  submittals[subIdx].complianceNotes.push('');
+  renderSubmittalList();
+  var cards = document.querySelectorAll('.submittal-card');
+  if (cards[subIdx]) cards[subIdx].classList.add('expanded');
+}
+
+// ===== Sync Edits Back to Data =====
+function syncSubmittalEdits() {
+  for (var i = 0; i < submittals.length; i++) {
+    // Description
+    var descEl = document.getElementById('desc_' + i);
+    if (descEl) submittals[i].description = descEl.value;
+
+    // Drawing ref
+    var refEl = document.getElementById('ref_' + i);
+    if (refEl) submittals[i].drawingRef = refEl.value;
+
+    // Materials
+    var matInputs = document.querySelectorAll('input[data-sub="' + i + '"][data-mat]');
+    for (var m = 0; m < matInputs.length; m++) {
+      var mi = parseInt(matInputs[m].getAttribute('data-mat'));
+      var field = matInputs[m].getAttribute('data-field');
+      if (submittals[i].materials[mi]) {
+        submittals[i].materials[mi][field] = matInputs[m].value;
+      }
+    }
+
+    // Compliance notes
+    var noteInputs = document.querySelectorAll('input[data-sub="' + i + '"][data-note]');
+    for (var n = 0; n < noteInputs.length; n++) {
+      var ni = parseInt(noteInputs[n].getAttribute('data-note'));
+      if (submittals[i].complianceNotes) {
+        submittals[i].complianceNotes[ni] = noteInputs[n].value;
+      }
+    }
+  }
+
+  // Sync project info
+  projectInfo.name = document.getElementById('editProjectName').value;
+  projectInfo.address = document.getElementById('editProjectAddress').value;
+  projectInfo.engineer = document.getElementById('editProjectEngineer').value;
+  projectInfo.architect = document.getElementById('editProjectArchitect').value;
+  projectInfo.projectNo = document.getElementById('editProjectNo').value;
+}
+
+// ===== Step 4: Generate Package =====
+async function startGeneration() {
+  syncSubmittalEdits();
+  goToStep(4);
+
+  generatedPDFs = [];
+  var genItemsArea = document.getElementById('genItemsArea');
+  genItemsArea.innerHTML = '';
+  var progressBar = document.getElementById('genProgress');
+
+  // Create items
+  var items = [];
+  for (var i = 0; i < submittals.length; i++) {
+    var div = document.createElement('div');
+    div.className = 'gen-item pending';
+    div.id = 'genItem_' + i;
+    div.innerHTML =
+      '<span class="gen-status">&#9711;</span>' +
+      '<span class="gen-label">' + escapeHtml(submittals[i].number + ' — ' + submittals[i].title) + '</span>' +
+      '<span class="gen-action" id="genAction_' + i + '"></span>';
+    genItemsArea.appendChild(div);
+    items.push(div);
+  }
+
+  // Generate each cover page
+  for (var j = 0; j < submittals.length; j++) {
+    var item = document.getElementById('genItem_' + j);
+    item.className = 'gen-item processing';
+    item.querySelector('.gen-status').innerHTML = '&#8635;';
+
+    var pct = Math.round(((j) / submittals.length) * 100);
+    progressBar.style.width = pct + '%';
+
+    try {
+      var pdfBlob = generateCoverPDF(submittals[j], projectInfo);
+      var blobUrl = URL.createObjectURL(pdfBlob);
+
+      generatedPDFs.push({
+        submittal: submittals[j],
+        blob: pdfBlob,
+        url: blobUrl,
+        filename: 'Submittal_' + submittals[j].number + '_' + submittals[j].title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 40) + '.pdf'
+      });
+
+      item.className = 'gen-item done';
+      item.querySelector('.gen-status').innerHTML = '&#10003;';
+      document.getElementById('genAction_' + j).innerHTML = '<a href="' + blobUrl + '" target="_blank" download="' + escapeAttr(generatedPDFs[generatedPDFs.length - 1].filename) + '">Download</a>';
+    } catch (err) {
+      console.error('Error generating PDF for submittal ' + j + ':', err);
+      item.className = 'gen-item done';
+      item.querySelector('.gen-status').innerHTML = '&#10060;';
+      item.querySelector('.gen-status').style.color = 'var(--nw-danger)';
+    }
+
+    // Brief pause for visual effect
+    await sleep(50);
+  }
+
+  progressBar.style.width = '100%';
+  progressBar.classList.add('success');
+
+  // Show submittal log
+  renderSubmittalLog();
+
+  // Show actions
+  document.getElementById('genActionsArea').style.display = 'block';
+
+  showToast('All cover pages generated!');
+}
+
+// ===== jsPDF Cover Page Generation =====
+function generateCoverPDF(submittal, pInfo) {
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'letter'
+  });
+
+  var pageW = doc.internal.pageSize.getWidth();   // 215.9 mm
+  var pageH = doc.internal.pageSize.getHeight();   // 279.4 mm
+  var marginL = 20;
+  var marginR = 20;
+  var contentW = pageW - marginL - marginR;
+  var y = 20;
+
+  // === COMPANY HEADER ===
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(6, 150, 215); // NW blue
+  doc.text('NORTHERN WOLVES AIR CONDITIONING', pageW / 2, y, { align: 'center' });
+  y += 8;
+
+  doc.setFontSize(12);
+  doc.setTextColor(60, 60, 60);
+  doc.text('SUBMITTAL TRANSMITTAL', pageW / 2, y, { align: 'center' });
+  y += 6;
+
+  // Line separator
+  doc.setDrawColor(6, 150, 215);
+  doc.setLineWidth(0.5);
+  doc.line(marginL, y, pageW - marginR, y);
+  y += 8;
+
+  // === PROJECT INFORMATION SECTION ===
+  doc.setFillColor(235, 235, 235);
+  doc.rect(marginL, y, contentW, 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 60);
+  doc.text('PROJECT INFORMATION', marginL + 3, y + 5);
+  y += 12;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 60);
+
+  var today = new Date();
+  var dateStr = (today.getMonth() + 1) + '/' + today.getDate() + '/' + today.getFullYear();
+
+  var infoRows = [
+    ['Project:', pInfo.name || ''],
+    ['Location:', pInfo.address || ''],
+    ['Engineer:', pInfo.engineer || ''],
+    ['Architect:', pInfo.architect || ''],
+    ['Project No:', pInfo.projectNo || ''],
+    ['Date:', dateStr]
+  ];
+
+  for (var r = 0; r < infoRows.length; r++) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(infoRows[r][0], marginL + 3, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(infoRows[r][1], marginL + 30, y);
+    y += 5.5;
+  }
+
+  y += 2;
+
+  // Submittal No and Spec Section
+  doc.setFont('helvetica', 'bold');
+  doc.text('Submittal No:', marginL + 3, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(submittal.number || '', marginL + 30, y);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Spec Section:', marginL + 80, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(submittal.specSection || '', marginL + 105, y);
+  y += 8;
+
+  // Line separator
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.line(marginL, y, pageW - marginR, y);
+  y += 6;
+
+  // === EQUIPMENT / MATERIAL SUBMITTED ===
+  doc.setFillColor(235, 235, 235);
+  doc.rect(marginL, y, contentW, 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('EQUIPMENT / MATERIAL SUBMITTED', marginL + 3, y + 5);
+  y += 12;
+
+  // Description
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  if (submittal.description) {
+    var descLines = doc.splitTextToSize(submittal.description, contentW - 6);
+    doc.text(descLines, marginL + 3, y);
+    y += descLines.length * 4.5 + 4;
+  }
+
+  // Materials table
+  if (submittal.materials && submittal.materials.length > 0) {
+    var tableBody = [];
+    for (var mi = 0; mi < submittal.materials.length; mi++) {
+      var mat = submittal.materials[mi];
+      tableBody.push([
+        mat.item || '',
+        mat.spec || '',
+        mat.manufacturer || '',
+        mat.model || ''
+      ]);
+    }
+
+    doc.autoTable({
+      startY: y,
+      margin: { left: marginL, right: marginR },
+      head: [['Item', 'Specification', 'Manufacturer', 'Model']],
+      body: tableBody,
+      styles: {
+        fontSize: 8,
+        cellPadding: 2.5,
+        lineWidth: 0.2,
+        lineColor: [200, 200, 200],
+        textColor: [60, 60, 60],
+        font: 'helvetica'
+      },
+      headStyles: {
+        fillColor: [6, 150, 215],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8
+      },
+      alternateRowStyles: {
+        fillColor: [248, 248, 248]
+      },
+      columnStyles: {
+        0: { cellWidth: contentW * 0.28 },
+        1: { cellWidth: contentW * 0.35 },
+        2: { cellWidth: contentW * 0.20 },
+        3: { cellWidth: contentW * 0.17 }
+      }
+    });
+
+    y = doc.lastAutoTable.finalY + 8;
+  }
+
+  // === COMPLIANCE NOTES ===
+  if (submittal.complianceNotes && submittal.complianceNotes.length > 0) {
+    // Check if we need a new page
+    if (y > pageH - 80) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFillColor(235, 235, 235);
+    doc.rect(marginL, y, contentW, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text('COMPLIANCE NOTES', marginL + 3, y + 5);
+    y += 12;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    for (var cn = 0; cn < submittal.complianceNotes.length; cn++) {
+      if (submittal.complianceNotes[cn]) {
+        var noteLines = doc.splitTextToSize(submittal.complianceNotes[cn], contentW - 10);
+        doc.text('\u2022', marginL + 3, y);
+        doc.text(noteLines, marginL + 8, y);
+        y += noteLines.length * 4 + 2;
+      }
+    }
+    y += 4;
+  }
+
+  // === NOTES (standard boilerplate) ===
+  if (y > pageH - 50) {
+    doc.addPage();
+    y = 20;
+  }
+
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.line(marginL, y, pageW - marginR, y);
+  y += 6;
+
+  doc.setFillColor(235, 235, 235);
+  doc.rect(marginL, y, contentW, 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 60);
+  doc.text('NOTES', marginL + 3, y + 5);
+  y += 12;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  var boilerplate = 'Submittal documents are hereby submitted for your review and approval. All materials and equipment shall comply with specifications and applicable codes.';
+  var boilerLines = doc.splitTextToSize(boilerplate, contentW - 6);
+  doc.text(boilerLines, marginL + 3, y);
+  y += boilerLines.length * 4 + 8;
+
+  // Submitted By
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('Submitted By:', marginL + 3, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Northern Wolves Air Conditioning', marginL + 30, y);
+  y += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Contact:', marginL + 3, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text('ruslan@northernwolvesac.com', marginL + 30, y);
+
+  // Footer line
+  doc.setDrawColor(6, 150, 215);
+  doc.setLineWidth(0.5);
+  doc.line(marginL, pageH - 15, pageW - marginR, pageH - 15);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(150, 150, 150);
+  doc.text('Northern Wolves Air Conditioning | northernwolvesac.com', pageW / 2, pageH - 10, { align: 'center' });
+
+  return doc.output('blob');
+}
+
+// ===== Submittal Log =====
+function renderSubmittalLog() {
+  document.getElementById('submittalLogArea').style.display = 'block';
+  var tbody = document.getElementById('submittalLogBody');
+  tbody.innerHTML = '';
+
+  for (var i = 0; i < submittals.length; i++) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + escapeHtml(submittals[i].number) + '</td>' +
+      '<td>' + escapeHtml(submittals[i].specSection || '') + '</td>' +
+      '<td style="white-space:normal;max-width:200px;">' + escapeHtml(submittals[i].title || '') + '</td>' +
+      '<td>' + escapeHtml(submittals[i].category || 'standard') + '</td>' +
+      '<td>Pending</td>';
+    tbody.appendChild(tr);
+  }
+}
+
+// ===== Save to Project =====
+async function saveToProject() {
+  var btn = document.getElementById('saveToProjectBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    syncSubmittalEdits();
+
+    // Save submittal data to Supabase as a project document
+    var submittalPackage = {
+      projectInfo: projectInfo,
+      submittals: submittals,
+      analysis: analysisData ? analysisData.analysis : null,
+      generatedAt: new Date().toISOString(),
+      totalSubmittals: submittals.length
+    };
+
+    // Save to reports table
+    var session = await supabaseClient.auth.getSession();
+    var user = session.data && session.data.session ? session.data.session.user : null;
+
+    var result = await supabaseClient.from('reports').insert({
+      report_number: 'SUB-' + Date.now(),
+      report_type: 'submittal-package',
+      report_date: new Date().toISOString().split('T')[0],
+      customer_name: projectInfo.name || '',
+      tech_name: user ? (user.user_metadata ? user.user_metadata.full_name : user.email) : 'System',
+      tech_id: user ? user.id : null,
+      status: 'completed',
+      project_id: projectId,
+      form_data: submittalPackage
+    });
+
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    // Upload PDFs to Google Drive if we have them
+    if (generatedPDFs.length > 0 && projectData) {
+      var uploadCount = 0;
+      for (var p = 0; p < generatedPDFs.length; p++) {
+        try {
+          var base64 = await blobToBase64(generatedPDFs[p].blob);
+          var driveResp = await fetch(DRIVE_PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'upload',
+              fileName: generatedPDFs[p].filename,
+              mimeType: 'application/pdf',
+              base64Data: base64.split(',')[1],
+              folderId: projectData.drive_folder_id || ''
+            })
+          });
+          var driveData = await driveResp.json();
+          if (driveData.success) uploadCount++;
+        } catch (uploadErr) {
+          console.error('Drive upload error for submittal ' + p + ':', uploadErr);
+        }
+      }
+
+      if (uploadCount > 0) {
+        showToast('Saved! ' + uploadCount + ' PDFs uploaded to Drive');
+      } else {
+        showToast('Saved to database (Drive upload skipped)');
+      }
+    } else {
+      showToast('Submittal package saved!');
+    }
+
+    btn.textContent = 'Saved!';
+    btn.style.background = 'var(--nw-success)';
+
+  } catch (err) {
+    console.error('Save error:', err);
+    showToast('Save error: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Save to Project';
+  }
+}
+
+// ===== Download All =====
+function downloadAll() {
+  if (generatedPDFs.length === 0) {
+    showToast('No PDFs generated yet', 'error');
+    return;
+  }
+
+  // Download each PDF individually (no zip dependency needed)
+  for (var i = 0; i < generatedPDFs.length; i++) {
+    var a = document.createElement('a');
+    a.href = generatedPDFs[i].url;
+    a.download = generatedPDFs[i].filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  showToast('Downloading ' + generatedPDFs.length + ' files...');
+}
+
+// ===== Utility Functions =====
+function showToast(msg, type) {
+  var toast = document.getElementById('toast');
+  toast.textContent = msg;
+  if (type === 'error') {
+    toast.style.background = 'var(--nw-danger)';
+  } else {
+    toast.style.background = 'var(--nw-dark)';
+  }
+  toast.classList.add('show');
+  setTimeout(function() {
+    toast.classList.remove('show');
+  }, 3000);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function sleep(ms) {
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+function blobToBase64(blob) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() { resolve(reader.result); };
+    reader.onerror = function() { reject(reader.error); };
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ===== Toggle Section (compat with rest of app) =====
+function toggleSection(header) {
+  header.classList.toggle('collapsed');
+  var body = header.nextElementSibling;
+  if (body) body.classList.toggle('collapsed');
+}
+</script>
+
+<script src="sw-register.js?v=52"></script>
+</body>
+</html>

@@ -560,6 +560,7 @@
     <!-- Main Tabs -->
     <div class="detail-tabs" id="detailTabs">
       <div class="detail-tab active" data-dtab="documents">Documents</div>
+      <div class="detail-tab" data-dtab="submittals">Submittals</div>
       <div class="detail-tab" data-dtab="change-orders">Change Orders</div>
       <div class="detail-tab" data-dtab="rfis">RFIs</div>
     </div>
@@ -599,6 +600,27 @@
       <div class="empty-state" id="emptyDocs" style="display:none;">
         <div class="icon" style="font-size:32px;margin-bottom:8px;">&#128196;</div>
         <p>No documents yet.<br>Tap <strong>+ Add Document</strong> to upload.</p>
+      </div>
+    </div>
+
+    <!-- SUBMITTALS TAB -->
+    <div class="detail-tab-content" id="tabSubmittals" data-dtab="submittals">
+      <div style="padding:16px;">
+        <a id="btnAISubmittals" href="#" onclick="event.preventDefault(); openSubmittalsGenerator();" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#eff6ff,#ecfccb);border:1px solid #bae6fd;border-radius:12px;text-decoration:none;color:inherit;margin-bottom:14px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#0696D7,#5D822C);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">✨</div>
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:14px;color:#1a2332;">AI Submittals Generator</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;">Upload drawings → AI reads specs → generates full submittal package</div>
+          </div>
+          <div style="color:#0696D7;font-size:20px;font-weight:700;">›</div>
+        </a>
+        <div id="submittalPackages" style="display:none;">
+          <div style="font-size:12px;font-weight:600;color:var(--nw-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Previous Packages</div>
+          <div id="submittalPackagesList"></div>
+        </div>
+        <div id="submittalsEmpty" style="text-align:center;padding:20px;color:var(--nw-muted);font-size:13px;">
+          No submittal packages yet.<br>Tap <strong>AI Submittals Generator</strong> to create one.
+        </div>
       </div>
     </div>
 
@@ -1616,6 +1638,13 @@ requireAuth().catch(function(){});
       var content = document.querySelector('.detail-tab-content[data-dtab="' + tabName + '"]');
       if (content) content.classList.add('active');
     });
+
+    // Open submittals generator
+    window.openSubmittalsGenerator = function() {
+      if (currentProjectId) {
+        window.location.href = 'submittals-generator.html?project=' + currentProjectId;
+      }
+    };
 
     // New project
     document.getElementById('btnNewProject').addEventListener('click', function() {

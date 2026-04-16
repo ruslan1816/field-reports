@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v86';
+const CACHE_NAME = 'nw-field-v87';
 const ASSETS = [
   './',
   './index.html',
@@ -30,6 +30,7 @@ const ASSETS = [
   './customer-utils.js',
   './ai-summary.js',
   './ai-chat.js',
+  './submittals-generator.html',
   './customers.html',
   './dispatch.html',
   './sw-register.js',
@@ -37,7 +38,9 @@ const ASSETS = [
   'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
 ];
 
 // CDN URLs — these rarely change, safe to cache-first
