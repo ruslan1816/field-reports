@@ -74,6 +74,7 @@ body{padding-bottom:100px}
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">👤</span> Customer<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
+    <div class="field" id="projectNameField" style="display:none;"><label>Project Name</label><input type="text" id="projectName" readonly data-save style="background:#f0f9ff;font-weight:600;color:#0696D7;"></div>
     <div class="field"><label>Customer / Company</label><input type="text" id="custName" data-save></div>
     <div class="field"><label>Address</label><input type="text" id="address" data-save></div>
     <div class="row"><div class="field"><label>Contact</label><input type="text" id="contact" data-save></div><div class="field"><label>Phone</label><input type="tel" id="phone" data-save></div></div>
@@ -214,6 +215,7 @@ if (typeof injectProjectPicker === 'function') {
 if (typeof initCustomerAutocomplete === 'function') {
   initCustomerAutocomplete({ nameFieldId: 'custName', addressFieldId: 'address' });
 }
+(function(){ var pf=document.getElementById('projectNameField'),pn=document.getElementById('projectName'); if(pf&&pn){ pn.addEventListener('input',function(){pf.style.display=this.value?'':'none';}); }})();
 if (typeof injectEquipmentList === 'function') {
   injectEquipmentList('equipmentContainer', { showRefrigerant: false, showLocation: true });
 }
@@ -455,6 +457,7 @@ function generatePDF(){
   fR([{label:'Date',value:v('woDate')},{label:'WO #',value:v('woNumber')},{label:'Technician(s)',value:v('techName')}]);
 
   sH('Customer');
+  if(v('projectName')){fR([{label:'Project',value:v('projectName')}]);}
   fR([{label:'Customer',value:v('custName')}]);
   fR([{label:'Address',value:v('address')}]);
   fR([{label:'Contact',value:v('contact')},{label:'Phone',value:v('phone')}]);
@@ -582,7 +585,7 @@ function collectData(){
   const parts=[];document.querySelectorAll('.parts-row').forEach(r=>{const d=r.querySelector('.part-desc')?.value;const q=r.querySelector('.part-qty')?.value;const c=r.querySelector('.part-cost')?.value;if(d)parts.push({desc:d,qty:q||'1',cost:c||''})});
   const labor=[];document.querySelectorAll('.labor-row').forEach(r=>{const t=r.querySelector('.labor-tech')?.value;const h=r.querySelector('.labor-hrs')?.value;const rate=r.querySelector('.labor-rate')?.value;if(t)labor.push({tech:t,hrs:h||'0',rate:rate||''})});
   return {
-    reportId: reportId,
+    reportId: reportId, projectName: v('projectName'),
     woDate: v('woDate'), woNumber: v('woNumber'),
     priority: radioVal('priority'),
     techName: v('techName'),

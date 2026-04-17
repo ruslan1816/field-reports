@@ -59,6 +59,7 @@ body{padding-bottom:100px}
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📋</span> Visit Information<span class="collapse-arrow">▼</span></div>
   <div class="section-body">
     <div class="row"><div class="field"><label>Date</label><input type="date" id="pmDate" data-save></div><div class="field"><label>Technician</label><input type="text" id="techName" data-save></div></div>
+    <div class="field" id="projectNameField" style="display:none;"><label>Project Name</label><input type="text" id="projectName" readonly data-save style="background:#f0f9ff;font-weight:600;color:#0696D7;"></div>
     <div class="field"><label>Customer / Property</label><input type="text" id="custName" data-save></div>
     <div class="field"><label>Address</label><input type="text" id="address" data-save></div>
     <div class="row"><div class="field"><label>WO #</label><input type="text" id="workOrder" data-save></div><div class="field"><label>PM Visit #</label><select id="visitNum" data-save><option>1 of 2</option><option>2 of 2</option><option>1 of 4</option><option>2 of 4</option><option>3 of 4</option><option>4 of 4</option><option>Annual</option></select></div></div>
@@ -189,6 +190,7 @@ if (typeof injectProjectPicker === 'function') {
 if (typeof initCustomerAutocomplete === 'function') {
   initCustomerAutocomplete({ nameFieldId: 'custName', addressFieldId: 'address' });
 }
+(function(){ var pf=document.getElementById('projectNameField'),pn=document.getElementById('projectName'); if(pf&&pn){ pn.addEventListener('input',function(){pf.style.display=this.value?'':'none';}); }})();
 if (typeof injectEquipmentList === 'function') {
   injectEquipmentList('equipmentContainer', { showLocation: true, startWithOne: false });
 }
@@ -479,6 +481,7 @@ function generatePDF(){
   const equipNames={split:'Split System',rtu:'RTU',ahu:'AHU',boiler:'Boiler',vrf:'VRF System',exhaust:'Exhaust Fan',minisplit:'Mini-Split',chiller:'Chiller'};
 
   sH('Visit Information');
+  if(v('projectName')){fR([{label:'Project',value:v('projectName')}]);}
   fR([{label:'Date',value:v('pmDate')},{label:'Technician',value:v('techName')},{label:'WO #',value:v('workOrder')}]);
   fR([{label:'Customer/Property',value:v('custName')}]);
   fR([{label:'Address',value:v('address')}]);
@@ -601,7 +604,7 @@ function collectData(){
   const v=id=>(document.getElementById(id)||{}).value||'';
   const radioVal=name=>{const r=document.querySelector('input[name="'+name+'"]:checked');return r?r.value:''};
   return {
-    reportId: reportId,
+    reportId: reportId, projectName: v('projectName'),
     pmDate: v('pmDate'), techName: v('techName'),
     custName: v('custName'), address: v('address'),
     workOrder: v('workOrder'), visitNum: v('visitNum'),

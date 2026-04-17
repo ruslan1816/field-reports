@@ -156,6 +156,7 @@ body {
     <span class="collapse-arrow">▼</span>
   </div>
   <div class="section-body">
+    <div class="field" id="projectNameField" style="display:none;"><label>Project Name</label><input type="text" id="projectName" readonly data-save style="background:#f0f9ff;font-weight:600;color:#0696D7;"></div>
     <div class="field">
       <label>Customer / Company Name</label>
       <input type="text" id="custName" placeholder="Name or business" data-save>
@@ -374,6 +375,7 @@ if (typeof injectProjectPicker === 'function') {
 if (typeof initCustomerAutocomplete === 'function') {
   initCustomerAutocomplete({ nameFieldId: 'custName', addressFieldId: 'custAddress', contactFieldId: 'custContact', phoneFieldId: 'custPhone', emailFieldId: 'custEmail' });
 }
+(function(){ var pf=document.getElementById('projectNameField'),pn=document.getElementById('projectName'); if(pf&&pn){ pn.addEventListener('input',function(){pf.style.display=this.value?'':'none';}); }})();
 if (typeof injectEquipmentList === 'function') {
   injectEquipmentList('equipmentContainer', { showRefrigerant: true, showLocation: true });
 }
@@ -806,7 +808,7 @@ function collectData() {
     if (d) parts.push({ desc: d, qty: q || '1' });
   });
   return {
-    reportId, callDate: v('callDate'), timeArrive: v('timeArrive'), timeDepart: v('timeDepart'),
+    reportId, projectName: v('projectName'), callDate: v('callDate'), timeArrive: v('timeArrive'), timeDepart: v('timeDepart'),
     workOrder: v('workOrder'), techName: v('techName'), callType: radioVal('callType'),
     custName: v('custName'), custAddress: v('custAddress'), custContact: v('custContact'),
     custPhone: v('custPhone'), custEmail: v('custEmail'),
@@ -916,6 +918,7 @@ function generatePDF() {
 
   // CUSTOMER
   sectionHeader('Customer Information');
+  if(d.projectName){fieldRow([{ label: 'Project', value: d.projectName }]);}
   fieldRow([
     { label: 'Customer / Company', value: d.custName },
     { label: 'Contact', value: d.custContact }

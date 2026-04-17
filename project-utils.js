@@ -326,6 +326,13 @@
       });
     }
 
+    // Auto-fill project name field if it exists on the page
+    var projNameField = document.getElementById('projectName');
+    if (projNameField && project.name) {
+      projNameField.value = project.name;
+      projNameField.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
     // Auto-fill customer and address fields if enabled
     if (_pickerOptions.autoFillCustomer !== false) {
       var custField = document.getElementById(_pickerOptions.customerFieldId || 'custName');
@@ -372,6 +379,9 @@
   function doClearSelection() {
     var hidden = document.getElementById('selectedProjectId');
     if (hidden) hidden.value = '';
+
+    var projNameField = document.getElementById('projectName');
+    if (projNameField) projNameField.value = '';
 
     var searchInput = document.getElementById('projectSearch');
     if (searchInput) {
