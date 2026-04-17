@@ -103,7 +103,6 @@ body{padding-bottom:100px}
     <p style="font-size:12px;color:var(--nw-muted);margin-bottom:12px;">Add each piece of HVAC equipment on-site.</p>
     <div id="equipList"></div>
     <button class="btn btn-secondary btn-small" onclick="addEquipment()" style="margin-top:8px">+ Add Equipment</button>
-    <div id="equipmentPhotosContainer" style="margin-top:10px;"></div>
   </div>
 </div>
 
@@ -290,7 +289,7 @@ function addEquipment(){
   equipCount++;const id='eq'+equipCount;
   const card=document.createElement('div');card.className='equip-card';card.id=id;
   card.innerHTML=`
-    <div class="equip-header"><span>Equipment #${equipCount}</span><button class="remove-equip" onclick="document.getElementById('${id}').remove()">Remove</button></div>
+    <div class="equip-header"><span>Equipment #${equipCount}</span><button class="remove-equip" onclick="delete photosByEquip['equip_${equipCount-1}'];document.getElementById('${id}').remove()">Remove</button></div>
     <div class="field"><label>Type</label><select class="eq-type" data-save><option value="">Select...</option><optgroup label="Cooling"><option>Split System</option><option>Heat Pump</option><option>Mini-Split</option><option>RTU</option><option>AHU</option><option>Chiller</option><option>VRF</option><option>WSHP</option></optgroup><optgroup label="Heating"><option>Furnace</option><option>Boiler</option><option>Unit Heater</option></optgroup><optgroup label="Ventilation"><option>DOAS</option><option>ERV/HRV</option><option>MAU</option><option>Exhaust Fan</option></optgroup><optgroup label="Other"><option>VAV</option><option>FPB</option><option>VFD</option><option>Other</option></optgroup></select></div>
     <div class="row"><div class="field"><label>Manufacturer</label><input type="text" class="eq-mfg" data-save></div><div class="field"><label>Model</label><input type="text" class="eq-model" data-save></div></div>
     <div class="row"><div class="field"><label>Serial #</label><input type="text" class="eq-serial" data-save></div><div class="field"><label>Age / Year</label><input type="text" class="eq-age" placeholder="Est. year" data-save></div></div>
@@ -303,7 +302,16 @@ function addEquipment(){
         <button class="condition-btn" onclick="selectCondition(this,'cond_${id}','End of Life')">End of Life</button>
       </div>
     </div>
-    <div class="field"><label>Notes</label><textarea class="eq-notes" placeholder="Issues, observations..." data-save></textarea></div>`;
+    <div class="field"><label>Notes</label><textarea class="eq-notes" placeholder="Issues, observations..." data-save></textarea></div>
+    <div class="photo-group" data-key="equip_${equipCount-1}" style="margin-top:8px;">
+      <div class="photo-group-header">\uD83D\uDCF8 Equipment #${equipCount} \u2014 Photos</div>
+      <div class="photo-area" onclick="this.querySelector('input').click()">
+        <div class="icon">\uD83D\uDCF8</div><p>Tap to take or upload photos</p>
+        <input type="file" accept="image/*" multiple style="display:none" onchange="handleEquipPhotos(this, 'equip_${equipCount-1}')">
+      </div>
+      <div class="photo-preview" id="photoPreview_equip_${equipCount-1}"></div>
+    </div>`;
+  if (!photosByEquip['equip_'+(equipCount-1)]) photosByEquip['equip_'+(equipCount-1)] = [];
   document.getElementById('equipList').appendChild(card);
 }
 addEquipment(); // Start with one
@@ -321,17 +329,7 @@ function getSurveyEquipLabels() {
 }
 
 function buildPhotoSections() {
-  const equipData = typeof collectEquipmentData === 'function' ? collectEquipmentData() : [];
-  const count = Math.max(equipData.length, typeof getEquipmentCount === 'function' ? getEquipmentCount() : 0);
-
-  const equipContainer = document.getElementById('equipmentPhotosContainer');
-  if (equipContainer) {
-    equipContainer.innerHTML = '';
-    for (let i = 0; i < count; i++) {
-      const equipLabel = equipData[i] ? (equipData[i].type || 'Equipment #' + (i+1)) : 'Equipment #' + (i+1);
-      equipContainer.appendChild(createPhotoGroup('equip_' + i, '📸 ' + equipLabel + ' — Photos'));
-    }
-  }
+  // Equipment photos are now inline on each equipment card
 
   const buildingContainer = document.getElementById('buildingPhotos');
   if (buildingContainer && !buildingContainer.hasChildNodes()) {
