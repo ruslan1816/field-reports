@@ -454,7 +454,7 @@ function collectData(){
   const radioVal=n=>{const r=document.querySelector(`input[name="${n}"]:checked`);return r?r.value:''};
   const condVal=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':''};
   const checkedVals=gid=>{const vals=[];document.querySelectorAll('#'+gid+' input:checked').forEach(i=>vals.push(i.value));return vals.join(', ')};
-  return{reportId,surveyDate:v('surveyDate'),custName:v('custName'),address:v('address'),contact:v('contact'),phone:v('phone'),techName:v('techName'),buildingType:v('buildingType'),floors:v('floors'),sqft:v('sqft'),scope:v('scope'),purpose:checkedVals('purposeGroup'),equipment:collectEquipment(),ductType:v('ductType'),ductCondition:condVal('ductCondition'),insCondition:condVal('insCondition'),pipeCondition:condVal('pipeCondition'),distNotes:v('distNotes'),mainService:v('mainService'),availCircuits:v('availCircuits'),elecNotes:v('elecNotes'),controlsType:v('controlsType'),accessNotes:v('accessNotes'),parkingNotes:v('parkingNotes'),crane:radioVal('crane'),tempReadings:v('tempReadings'),observedIssues:v('observedIssues'),custIssues:v('custIssues'),recommendations:v('recommendations'),priority:radioVal('priority'),techSig:techSigPad.toDataURL(),aiSummary: typeof getAISummary === 'function' ? getAISummary() : ''};
+  return{reportId,surveyDate:v('surveyDate'),custName:v('custName'),address:v('address'),contact:v('contact'),phone:v('phone'),techName:v('techName'),buildingType:v('buildingType'),floors:v('floors'),sqft:v('sqft'),scope:v('scope'),purpose:checkedVals('purposeGroup'),equipment:collectEquipment(),ductType:v('ductType'),ductCondition:condVal('ductCondition'),insCondition:condVal('insCondition'),pipeCondition:condVal('pipeCondition'),distNotes:v('distNotes'),mainService:v('mainService'),availCircuits:v('availCircuits'),elecNotes:v('elecNotes'),controlsType:v('controlsType'),accessNotes:v('accessNotes'),parkingNotes:v('parkingNotes'),crane:radioVal('crane'),tempReadings:v('tempReadings'),observedIssues:v('observedIssues'),custIssues:v('custIssues'),recommendations:v('recommendations'),priority:radioVal('priority'),techSig:techSigPad.toDataURL(),photos:getAllPhotos(),photosByEquip:photosByEquip,aiSummary: typeof getAISummary === 'function' ? getAISummary() : ''};
 }
 
 function generatePDF(){
@@ -535,6 +535,31 @@ function generatePDF(){
   doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);
   doc.text('Northern Wolves Air Conditioning — New York & New Jersey',pw/2,fY,{align:'center'});
   doc.text('Generated: '+new Date().toLocaleString(),pw/2,fY+4,{align:'center'});
+
+  // PHOTO PAGES
+  const allPhotos = photosByEquip || {};
+  const hasAnyPhotos = Object.keys(allPhotos).some(k => (allPhotos[k] || []).length > 0);
+  if (hasAnyPhotos) {
+    doc.addPage(); let py = 12;
+    doc.setFillColor(...dk); doc.rect(0, 0, pw, 14, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255,255,255);
+    doc.text('PHOTO DOCUMENTATION', pw/2, 9, {align:'center'}); py = 20;
+    const namedLabels = { building:'Building / Site', ductwork:'Ductwork & Piping', electrical:'Electrical', additional:'Additional' };
+    Object.keys(allPhotos).forEach(key => {
+      const arr = allPhotos[key] || []; if (arr.length === 0) return;
+      let label = namedLabels[key] || key;
+      if (key.indexOf('equip_') === 0) { const idx = parseInt(key.split('_')[1]); label = 'Equipment #' + (idx+1); }
+      label += ' \u2014 Photos';
+      if (py > 210) { doc.addPage(); py = 15; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...dk);
+      doc.text(label, mx, py); py += 5;
+      arr.forEach(photo => {
+        if (py > 220) { doc.addPage(); py = 15; }
+        try { doc.addImage(photo.data, 'JPEG', mx, py, 90, 68); py += 72; } catch(e) {}
+      });
+    });
+  }
+
   return doc;
 }
 

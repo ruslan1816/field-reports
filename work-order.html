@@ -548,6 +548,31 @@ function generatePDF(){
   const fY=279.4-10;doc.setDrawColor(...acc);doc.setLineWidth(.5);doc.line(mx,fY-3,mxr,fY-3);
   doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);
   doc.text('Northern Wolves Air Conditioning — New York & New Jersey',pw/2,fY,{align:'center'});
+
+  // PHOTO PAGES
+  const allPhotos = photosByEquip || {};
+  const hasAnyPhotos = Object.keys(allPhotos).some(k => (allPhotos[k] || []).length > 0);
+  if (hasAnyPhotos) {
+    doc.addPage(); let py = 12;
+    doc.setFillColor(...dk); doc.rect(0, 0, pw, 14, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255,255,255);
+    doc.text('PHOTO DOCUMENTATION', pw/2, 9, {align:'center'}); py = 20;
+    const namedLabels = { before:'Before Work', after:'After Work', workperformed:'Work Performed' };
+    Object.keys(allPhotos).forEach(key => {
+      const arr = allPhotos[key] || []; if (arr.length === 0) return;
+      let label = namedLabels[key] || key;
+      if (key.indexOf('equip_') === 0) { const idx = parseInt(key.split('_')[1]); label = 'Equipment #' + (idx+1); }
+      label += ' \u2014 Photos';
+      if (py > 210) { doc.addPage(); py = 15; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...dk);
+      doc.text(label, mx, py); py += 5;
+      arr.forEach(photo => {
+        if (py > 220) { doc.addPage(); py = 15; }
+        try { doc.addImage(photo.data, 'JPEG', mx, py, 90, 68); py += 72; } catch(e) {}
+      });
+    });
+  }
+
   return doc;
 }
 
