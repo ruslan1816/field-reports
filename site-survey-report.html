@@ -283,6 +283,9 @@ function toggleCheck(item){item.classList.toggle('selected');item.querySelector(
 function selectCondition(btn,gid,val){document.querySelectorAll('#'+gid+' .condition-btn').forEach(b=>{b.classList.remove('good','fair','poor')});btn.classList.add(val==='Good'?'good':val==='Fair'?'fair':val==='Poor'?'poor':'');btn.parentElement.dataset.value=val}
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
 
+// ========== PER-EQUIPMENT PHOTOS ==========
+var photosByEquip = { building: [], ductwork: [], electrical: [], additional: [] };
+
 // Equipment cards
 let equipCount=0;
 function addEquipment(){
@@ -315,9 +318,6 @@ function addEquipment(){
   document.getElementById('equipList').appendChild(card);
 }
 addEquipment(); // Start with one
-
-// ========== PER-EQUIPMENT PHOTOS ==========
-var photosByEquip = { building: [], ductwork: [], electrical: [], additional: [] };
 
 function getSurveyEquipLabels() {
   const labels = [];
