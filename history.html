@@ -10,12 +10,12 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=52"></script>
-<script src="auth.js?v=52"></script>
-<script src="cloud-save.js?v=52"></script>
+<script src="supabase-config.js?v=108"></script>
+<script src="auth.js?v=108"></script>
+<script src="cloud-save.js?v=108"></script>
 <title>Report History — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
-<script src="draft-utils.js?v=52"></script>
+<script src="draft-utils.js?v=108"></script>
 <style>
   body { padding-bottom: 0; }
 
@@ -208,40 +208,70 @@ requireAuth().catch(function(){});
     allReports.sort(function(a, b) { return b.sortDate - a.sortDate; });
   }
 
-  // --- Load cloud reports from Supabase and merge ---
+  // --- Merge cloud report rows into allReports (replaces any existing cloud entries) ---
+  var CLOUD_CACHE_KEY = 'nw_cloud_reports_cache';
+
+  function mergeCloudRows(rows) {
+    // Drop any existing cloud entries — we'll re-add fresh ones
+    allReports = allReports.filter(function(r) { return r.source !== 'cloud'; });
+
+    // Build a set of local report numbers to avoid showing the same report twice
+    var existingNumbers = {};
+    allReports.forEach(function(r) {
+      if (r.reportNumber) existingNumbers[r.reportNumber] = true;
+    });
+
+    rows.forEach(function(row) {
+      if (existingNumbers[row.report_number]) return;
+
+      var editLink = FORM_MAP[row.report_type] ? FORM_MAP[row.report_type] + '?edit=' + row.id : '';
+      allReports.push({
+        date: row.report_date || row.created_at || '',
+        type: row.report_type || '',
+        customer: row.customer_name || '',
+        techName: row.tech_name || '',
+        status: row.status === 'draft' ? 'draft' : 'completed',
+        source: 'cloud',
+        reportNumber: row.report_number,
+        cloudId: row.id,
+        link: editLink,
+        sortDate: new Date(row.created_at || row.report_date || 0)
+      });
+    });
+
+    allReports.sort(function(a, b) { return b.sortDate - a.sortDate; });
+  }
+
+  // --- Render instantly from cached cloud data, then refresh in background ---
   async function loadCloudReports() {
+    // 1) INSTANT: Render from localStorage cache if we have one
+    try {
+      var cached = JSON.parse(localStorage.getItem(CLOUD_CACHE_KEY) || 'null');
+      if (cached && Array.isArray(cached.rows) && cached.rows.length) {
+        mergeCloudRows(cached.rows);
+        render();
+      }
+    } catch(e) {}
+
+    // 2) BACKGROUND: Fetch fresh from Supabase, update cache, re-render
     try {
       if (typeof getCloudReports !== 'function') return;
       var result = await getCloudReports({ limit: 200 });
-      if (result.error || !result.data || result.data.length === 0) return;
+      if (result.error) {
+        console.error('[history] Cloud fetch error:', result.error);
+        return;
+      }
+      if (!result.data) return;
 
-      // Build a set of existing report numbers to avoid duplicates
-      var existingNumbers = {};
-      allReports.forEach(function(r) {
-        if (r.reportNumber) existingNumbers[r.reportNumber] = true;
-      });
+      // Save to cache for next visit (instant render)
+      try {
+        localStorage.setItem(CLOUD_CACHE_KEY, JSON.stringify({
+          ts: Date.now(),
+          rows: result.data
+        }));
+      } catch(e) { /* quota exceeded — ignore */ }
 
-      result.data.forEach(function(row) {
-        // Skip if we already have this report from localStorage
-        if (existingNumbers[row.report_number]) return;
-
-        var editLink = FORM_MAP[row.report_type] ? FORM_MAP[row.report_type] + '?edit=' + row.id : '';
-        allReports.push({
-          date: row.report_date || row.created_at || '',
-          type: row.report_type || '',
-          customer: row.customer_name || '',
-          techName: row.tech_name || '',
-          status: row.status === 'draft' ? 'draft' : 'completed',
-          source: 'cloud',
-          reportNumber: row.report_number,
-          cloudId: row.id,
-          link: editLink,
-          sortDate: new Date(row.created_at || row.report_date || 0)
-        });
-      });
-
-      // Re-sort after merge
-      allReports.sort(function(a, b) { return b.sortDate - a.sortDate; });
+      mergeCloudRows(result.data);
       render();
     } catch(err) {
       console.error('[history] Cloud load error:', err);
@@ -401,6 +431,6 @@ requireAuth().catch(function(){});
   loadCloudReports();
 })();
 </script>
-<script src="sw-register.js?v=52"></script>
+<script src="sw-register.js?v=108"></script>
 </body>
 </html>

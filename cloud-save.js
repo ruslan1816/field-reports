@@ -88,14 +88,17 @@
    * @param {string} [filters.report_type] - filter by type
    * @param {string} [filters.status] - filter by status
    * @param {number} [filters.limit] - max results (default 100)
+   * @param {string} [filters.select] - columns to select (default '*', pass slim list for list views)
    * @returns {Promise<{data: array|null, error: object|null}>}
    */
   async function getCloudReports(filters) {
     filters = filters || {};
     try {
+      // Default to slim list-view columns to avoid pulling huge form_data JSONB payloads
+      var selectCols = filters.select || 'id,report_number,report_type,report_date,customer_name,tech_name,tech_id,status,created_at';
       var query = supabaseClient
         .from('reports')
-        .select('*')
+        .select(selectCols)
         .order('created_at', { ascending: false })
         .limit(filters.limit || 100);
 
