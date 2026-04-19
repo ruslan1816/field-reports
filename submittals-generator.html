@@ -1143,6 +1143,96 @@ var DRIVE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxPvr8QooEcdcxt93
 // ===== PDF.js worker =====
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+// ===== Standard Submittals Library Mapping =====
+// Maps AI-generated submittal titles to NW's pre-built cut sheet PDFs.
+// "standard" submittals auto-attach from library; "equipment" submittals require manual upload.
+var SUBMITTAL_LIBRARY = [
+  { keywords: ['ductwork', 'duct construction', 'smacna', 'sheet metal duct'],
+    file: 'ductwork-standards.pdf', label: 'SMACNA Ductwork Standards' },
+  { keywords: ['ductmate', 'duct fitting', 'duct accessor', 'duct connection', 'duct flange'],
+    file: 'ductmate-fittings.pdf', label: 'Ductmate Fittings & Accessories' },
+  { keywords: ['duct wrap', 'duct insulation wrap', 'fiberglass wrap', 'duct insulation - wrap'],
+    file: 'duct-wrap-insulation.pdf', label: 'Duct Wrap Fiberglass Insulation' },
+  { keywords: ['duct insulation board', 'outdoor duct', 'weatherproof jacket', 'duct board'],
+    file: 'duct-insulation-board-outdoor.pdf', label: 'Outdoor Duct Insulation Board' },
+  { keywords: ['bubble wrap insulation', 'insulation r6', 'r-6 insulation'],
+    file: 'duct-insulation-r6-bubble.pdf', label: 'R6 Bubble Wrap Insulation' },
+  { keywords: ['acoustical', 'duct lining', 'duct liner', 'linacoustic', 'sound lining'],
+    file: 'acoustical-duct-lining.pdf', label: 'Acoustical Duct Lining' },
+  { keywords: ['fire wrap', 'fire rated wrap', 'fire insulation', 'ul 1978', 'ul 2221', 'grease duct wrap'],
+    file: 'fire-wrap-insulation.pdf', label: 'Fire Wrap Insulation' },
+  { keywords: ['pipe insulation hot', 'pipe insulation hw', 'fiberglass pipe insulation', 'pipe insulation - hot', 'hw pipe insul'],
+    file: 'pipe-insulation-fiberglass.pdf', label: 'Fiberglass Pipe Insulation (HW)' },
+  { keywords: ['armaflex', 'elastomeric', 'refrigerant insulation', 'pipe insulation refrig', 'pipe insulation chw', 'pipe insulation chill', 'pipe insulation - refrig', 'pipe insulation - chill', 'closed cell'],
+    file: 'pipe-insulation-armaflex.pdf', label: 'Armaflex Refrigerant/CHW Pipe Insulation' },
+  { keywords: ['refrigerant piping', 'refrigerant line', 'acr copper', 'refrig pipe', 'refrigeration piping'],
+    file: 'refrigerant-piping-package.pdf', label: 'Refrigerant Piping Package' },
+  { keywords: ['condensate drain', 'condensate pipe', 'condensation drain', 'pvc drain', 'condensate pvc'],
+    file: 'condensate-drain-pipe.pdf', label: 'Condensate Drain Piping' },
+  { keywords: ['clevis', 'pipe hanger', 'pipe support', 'hanger and support'],
+    file: 'clevis-hanger.pdf', label: 'Clevis Pipe Hangers' },
+  { keywords: ['anchor', 'concrete screw', 'tapcon', 'expansion anchor', 'dewalt', 'fastener'],
+    file: 'anchors.pdf', label: 'Anchors' },
+  { keywords: ['vibration pad', 'rubber pad', 'vibration isolation pad', 'neoprene pad'],
+    file: 'vibration-pads.pdf', label: 'Rubber Vibration Pads' },
+  { keywords: ['spring isolat', 'vibration spring', 'spring mount'],
+    file: 'spring-isolators.pdf', label: 'Spring Vibration Isolators' },
+  { keywords: ['ceiling hung isolat', 'ceiling isolat', 'hung isolat', 'indoor isolat'],
+    file: 'ceiling-hung-isolators.pdf', label: 'Ceiling Hung Vibration Isolators' },
+  { keywords: ['roof penetration', 'rtu curb', 'roof curb', 'equipment curb'],
+    file: 'roof-penetration-curb.pdf', label: 'Roof Penetration Curbs' },
+  { keywords: ['roof rail', 'equipment rail', 'support rail', 'acme support', 'equipment stand'],
+    file: 'roof-rail-curbs.pdf', label: 'Roof Rail Equipment Curbs' },
+  { keywords: ['vrf stand', 'vrf equipment stand', 'outdoor unit stand'],
+    file: 'vrf-equipment-stands.pdf', label: 'VRF Equipment Stands' },
+  { keywords: ['pipe roof support', 'non-penetrating', 'rooftop pipe support', 'pipe support roof'],
+    file: 'pipe-roof-supports.pdf', label: 'Pipe Roof Supports' },
+  { keywords: ['pipe penetration', 'pipe curb', 'penetration curb'],
+    file: 'pipe-penetration-curb.pdf', label: 'Pipe Penetration Curbs' },
+  { keywords: ['condensate pump', 'condensation pump', 'little giant', 'drain pump'],
+    file: 'condensate-pump.pdf', label: 'Condensate Pump' },
+  { keywords: ['gas vent', 'stainless vent', 'chimney', 'boiler vent', 'double wall vent', 'ss vent', 'b-vent', 'category iv vent'],
+    file: 'gas-venting-ss-double-wall.pdf', label: 'SS Double Wall Gas Venting' },
+  { keywords: ['kitchen exhaust duct', 'kitchen duct', 'kx duct', 'grease duct', 'commercial kitchen', 'type i hood duct'],
+    file: 'kitchen-exhaust-ductwork.pdf', label: 'Kitchen Exhaust Ductwork' }
+];
+
+var LIBRARY_BASE_URL = './submittals-library/';
+
+// Match a submittal to library files (returns array of matches)
+function matchLibrary(submittal) {
+  var title = (submittal.title || '').toLowerCase();
+  var desc = (submittal.description || '').toLowerCase();
+  var searchText = title + ' ' + desc;
+  var matches = [];
+
+  for (var i = 0; i < SUBMITTAL_LIBRARY.length; i++) {
+    var lib = SUBMITTAL_LIBRARY[i];
+    for (var k = 0; k < lib.keywords.length; k++) {
+      if (searchText.indexOf(lib.keywords[k].toLowerCase()) !== -1) {
+        matches.push(lib);
+        break;
+      }
+    }
+  }
+  return matches;
+}
+
+// Check if a submittal is standard (has library match) or equipment (needs upload)
+function isStandardSubmittal(submittal) {
+  // If category is explicitly 'equipment', always require upload
+  if (submittal.category === 'equipment') return false;
+  return matchLibrary(submittal).length > 0;
+}
+
+// Fetch a library PDF as ArrayBuffer
+async function fetchLibraryPDF(filename) {
+  var url = LIBRARY_BASE_URL + filename;
+  var response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch ' + filename + ' (' + response.status + ')');
+  return await response.arrayBuffer();
+}
+
 // ===== State =====
 var currentStep = 1;
 var projectId = null;
@@ -1996,10 +2086,12 @@ function createSubmittalCard(sub, idx) {
   header.className = 'submittal-card-header';
   header.onclick = function() { card.classList.toggle('expanded'); };
 
+  var headerLibMatch = matchLibrary(sub).length > 0 && sub.category !== 'equipment';
+  var statusIcon = headerLibMatch ? '<span style="color:var(--nw-success);font-size:12px;margin-left:4px;" title="Library match — auto-attached">&#9989;</span>' : (sub.category === 'equipment' ? '<span style="color:var(--nw-accent);font-size:12px;margin-left:4px;" title="Upload required">&#9888;&#65039;</span>' : '');
   header.innerHTML =
     '<span class="submittal-num">' + escapeHtml(sub.number || String(idx + 1).padStart(3, '0')) + '</span>' +
     '<span class="submittal-spec">' + escapeHtml(sub.specSection || '') + '</span>' +
-    '<span class="submittal-title">' + escapeHtml(sub.title || 'Untitled') + '</span>' +
+    '<span class="submittal-title">' + escapeHtml(sub.title || 'Untitled') + statusIcon + '</span>' +
     '<span class="submittal-badge ' + (sub.category === 'equipment' ? 'equipment' : 'standard') + '">' + escapeHtml(sub.category || 'standard') + '</span>' +
     '<span class="submittal-expand-arrow">&#9660;</span>';
 
@@ -2044,13 +2136,34 @@ function createSubmittalCard(sub, idx) {
   notesHtml += '<button onclick="addComplianceNote(' + idx + ')" style="padding:4px 10px;border:1px dashed var(--nw-border);border-radius:var(--nw-radius-btn);background:var(--nw-section);color:var(--nw-primary);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;">+ Add Note</button>';
   notesHtml += '</div>';
 
-  // Cut Sheet Upload Area
-  var csHtml = '<div class="cutsheet-area' + (sub._cutSheets && sub._cutSheets.length > 0 ? ' has-files' : '') + '" id="csArea_' + idx + '">';
-  csHtml += '<label>&#128206; Product Data / Cut Sheets</label>';
-  csHtml += '<button class="cutsheet-upload-btn" onclick="triggerCutSheetUpload(' + idx + ')">&#128196; Attach PDF</button>';
+  // Cut Sheet / Library Match Area
+  var libMatches = matchLibrary(sub);
+  var isEquipment = sub.category === 'equipment';
+  var hasLibrary = libMatches.length > 0 && !isEquipment;
+  var hasManualFiles = sub._cutSheets && sub._cutSheets.length > 0;
+
+  var csHtml = '<div class="cutsheet-area' + (hasLibrary || hasManualFiles ? ' has-files' : '') + '" id="csArea_' + idx + '">';
+
+  if (hasLibrary) {
+    // Standard submittal — library match found
+    csHtml += '<label style="color:var(--nw-success);">&#9989; NW Standard Library — Auto-Attached</label>';
+    csHtml += '<ul class="cutsheet-file-list">';
+    for (var lm = 0; lm < libMatches.length; lm++) {
+      csHtml += '<li style="border-color:var(--nw-success);background:#f0fdf4;"><span class="cs-name" style="color:var(--nw-success);">&#128215; ' + escapeHtml(libMatches[lm].label) + '</span>';
+      csHtml += '<span class="cs-pages" style="color:var(--nw-success);">Library</span></li>';
+    }
+    csHtml += '</ul>';
+    csHtml += '<div style="font-size:11px;color:var(--nw-muted);margin-top:4px;">Product data will be automatically included from NW library. You can also add more files below.</div>';
+  } else {
+    // Equipment or no match — upload required
+    csHtml += '<label style="color:var(--nw-accent);">&#9888;&#65039; Product Data Required — Upload Cut Sheets</label>';
+    csHtml += '<div style="font-size:11px;color:var(--nw-muted);margin-bottom:8px;">Attach manufacturer cut sheets / product data for this ' + (isEquipment ? 'equipment' : 'item') + '.</div>';
+  }
+
+  csHtml += '<button class="cutsheet-upload-btn" onclick="triggerCutSheetUpload(' + idx + ')">&#128196; ' + (hasLibrary ? 'Attach Additional PDF' : 'Attach PDF') + '</button>';
   csHtml += '<input type="file" accept="application/pdf" multiple style="display:none" id="csInput_' + idx + '" onchange="handleCutSheetFiles(' + idx + ', this)">';
   csHtml += '<ul class="cutsheet-file-list" id="csList_' + idx + '">';
-  if (sub._cutSheets && sub._cutSheets.length > 0) {
+  if (hasManualFiles) {
     for (var cs = 0; cs < sub._cutSheets.length; cs++) {
       csHtml += '<li><span class="cs-name">&#128196; ' + escapeHtml(sub._cutSheets[cs].name) + '</span>';
       csHtml += '<span class="cs-pages">' + sub._cutSheets[cs].pageCount + ' pg</span>';
@@ -2469,33 +2582,45 @@ async function startGeneration() {
   genItemsArea.innerHTML = '';
   var progressBar = document.getElementById('genProgress');
 
-  // Count how many have cut sheets
-  var withCutSheets = 0;
-  for (var c = 0; c < submittals.length; c++) {
-    if (submittals[c]._cutSheets && submittals[c]._cutSheets.length > 0) withCutSheets++;
-  }
-
   var statusLabel = document.getElementById('genStatusLabel');
   if (statusLabel) statusLabel.textContent = 'Generating Submittals...';
 
-  // Create items
-  var items = [];
+  // Pre-analyze each submittal: library match vs manual vs cover-only
+  var completeCount = 0;
+  var coverOnlyCount = 0;
+
+  // Create progress items
   for (var i = 0; i < submittals.length; i++) {
-    var hasCutSheets = submittals[i]._cutSheets && submittals[i]._cutSheets.length > 0;
-    var csCount = hasCutSheets ? submittals[i]._cutSheets.length : 0;
-    var csLabel = hasCutSheets ? ' <span style="font-size:10px;color:var(--nw-success);font-weight:700;">+ ' + csCount + ' cut sheet' + (csCount > 1 ? 's' : '') + '</span>' : ' <span style="font-size:10px;color:var(--nw-muted);">(cover only)</span>';
+    var libMatches = matchLibrary(submittals[i]);
+    var isEquip = submittals[i].category === 'equipment';
+    var hasLibrary = libMatches.length > 0 && !isEquip;
+    var hasManual = submittals[i]._cutSheets && submittals[i]._cutSheets.length > 0;
+    var isComplete = hasLibrary || hasManual;
+
+    var statusTag = '';
+    if (hasLibrary && hasManual) {
+      statusTag = ' <span style="font-size:10px;color:var(--nw-success);font-weight:700;">Library + ' + submittals[i]._cutSheets.length + ' uploaded</span>';
+    } else if (hasLibrary) {
+      statusTag = ' <span style="font-size:10px;color:var(--nw-success);font-weight:700;">NW Library</span>';
+    } else if (hasManual) {
+      statusTag = ' <span style="font-size:10px;color:var(--nw-primary);font-weight:700;">+ ' + submittals[i]._cutSheets.length + ' cut sheet' + (submittals[i]._cutSheets.length > 1 ? 's' : '') + '</span>';
+    } else {
+      statusTag = ' <span style="font-size:10px;color:var(--nw-muted);">(cover only)</span>';
+    }
+
+    if (isComplete) completeCount++; else coverOnlyCount++;
+
     var div = document.createElement('div');
     div.className = 'gen-item pending';
     div.id = 'genItem_' + i;
     div.innerHTML =
       '<span class="gen-status">&#9711;</span>' +
-      '<span class="gen-label">' + escapeHtml(submittals[i].number + ' — ' + submittals[i].title) + csLabel + '</span>' +
+      '<span class="gen-label">' + escapeHtml(submittals[i].number + ' — ' + submittals[i].title) + statusTag + '</span>' +
       '<span class="gen-action" id="genAction_' + i + '"></span>';
     genItemsArea.appendChild(div);
-    items.push(div);
   }
 
-  // Generate each submittal (cover page + cut sheets merged)
+  // Generate each submittal
   for (var j = 0; j < submittals.length; j++) {
     var item = document.getElementById('genItem_' + j);
     item.className = 'gen-item processing';
@@ -2508,12 +2633,33 @@ async function startGeneration() {
       // Generate cover page
       var coverBlob = generateCoverPDF(submittals[j], projectInfo);
 
-      var finalBlob;
-      var cutSheets = submittals[j]._cutSheets || [];
+      // Collect all cut sheets to merge (library + manually uploaded)
+      var allCutSheets = [];
 
-      if (cutSheets.length > 0) {
-        // Merge cover page + cut sheets into one PDF
-        finalBlob = await mergePDFs(coverBlob, cutSheets);
+      // 1. Auto-fetch from NW library if matched (and not equipment)
+      var jLibMatches = matchLibrary(submittals[j]);
+      var jIsEquip = submittals[j].category === 'equipment';
+      if (jLibMatches.length > 0 && !jIsEquip) {
+        for (var lm = 0; lm < jLibMatches.length; lm++) {
+          try {
+            var libData = await fetchLibraryPDF(jLibMatches[lm].file);
+            allCutSheets.push({ name: jLibMatches[lm].label, data: libData });
+          } catch (fetchErr) {
+            console.warn('[gen] Could not fetch library file ' + jLibMatches[lm].file + ':', fetchErr.message);
+          }
+        }
+      }
+
+      // 2. Add manually uploaded cut sheets
+      var manualSheets = submittals[j]._cutSheets || [];
+      for (var ms = 0; ms < manualSheets.length; ms++) {
+        allCutSheets.push(manualSheets[ms]);
+      }
+
+      // 3. Merge if we have cut sheets
+      var finalBlob;
+      if (allCutSheets.length > 0) {
+        finalBlob = await mergePDFs(coverBlob, allCutSheets);
       } else {
         finalBlob = coverBlob;
       }
@@ -2530,8 +2676,8 @@ async function startGeneration() {
 
       item.className = 'gen-item done';
       item.querySelector('.gen-status').innerHTML = '&#10003;';
-      var pageInfo = cutSheets.length > 0 ? ' (complete)' : '';
-      document.getElementById('genAction_' + j).innerHTML = '<a href="' + blobUrl + '" target="_blank" download="' + escapeAttr(filename) + '">Download' + pageInfo + '</a>';
+      var dlLabel = allCutSheets.length > 0 ? 'Download' : 'Download';
+      document.getElementById('genAction_' + j).innerHTML = '<a href="' + blobUrl + '" target="_blank" download="' + escapeAttr(filename) + '">' + dlLabel + '</a>';
     } catch (err) {
       console.error('Error generating PDF for submittal ' + j + ':', err);
       item.className = 'gen-item done';
@@ -2540,7 +2686,7 @@ async function startGeneration() {
     }
 
     // Brief pause for visual effect
-    await sleep(50);
+    await sleep(100);
   }
 
   progressBar.style.width = '100%';
@@ -2552,12 +2698,9 @@ async function startGeneration() {
   // Show actions
   document.getElementById('genActionsArea').style.display = 'block';
 
-  var completeCount = withCutSheets;
-  var coverOnlyCount = submittals.length - withCutSheets;
-  var toastMsg = completeCount > 0
-    ? completeCount + ' complete submittal' + (completeCount > 1 ? 's' : '') + ' generated' + (coverOnlyCount > 0 ? ' (' + coverOnlyCount + ' cover only)' : '') + '!'
-    : 'All cover pages generated! Attach cut sheets in Review for complete submittals.';
-  showToast(toastMsg);
+  var toastMsg = completeCount + ' complete submittal' + (completeCount !== 1 ? 's' : '');
+  if (coverOnlyCount > 0) toastMsg += ', ' + coverOnlyCount + ' cover only';
+  showToast(toastMsg + ' generated!');
 }
 
 // ===== jsPDF Cover Page Generation =====
@@ -2798,13 +2941,17 @@ function renderSubmittalLog() {
   tbody.innerHTML = '';
 
   for (var i = 0; i < submittals.length; i++) {
+    var libMatch = matchLibrary(submittals[i]).length > 0 && submittals[i].category !== 'equipment';
+    var hasManual = submittals[i]._cutSheets && submittals[i]._cutSheets.length > 0;
+    var statusText = (libMatch || hasManual) ? 'Complete' : 'Cover Only';
+    var statusColor = (libMatch || hasManual) ? 'color:var(--nw-success);font-weight:700;' : 'color:var(--nw-accent);';
     var tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + escapeHtml(submittals[i].number) + '</td>' +
       '<td>' + escapeHtml(submittals[i].specSection || '') + '</td>' +
       '<td style="white-space:normal;max-width:200px;">' + escapeHtml(submittals[i].title || '') + '</td>' +
       '<td>' + escapeHtml(submittals[i].category || 'standard') + '</td>' +
-      '<td>Pending</td>';
+      '<td style="' + statusColor + '">' + statusText + '</td>';
     tbody.appendChild(tr);
   }
 }
