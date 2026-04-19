@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v102';
+const CACHE_NAME = 'nw-field-v103';
 const ASSETS = [
   './',
   './index.html',
@@ -41,11 +41,12 @@ const ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+  'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js'
 ];
 
 // CDN URLs — these rarely change, safe to cache-first
-const CDN_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com'];
+const CDN_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'unpkg.com'];
 
 function isCDN(url) {
   try {

@@ -14,6 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>AI Submittals Generator — Northern Wolves AC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -510,6 +511,94 @@ body { padding-bottom: 100px; }
   flex-shrink: 0;
 }
 
+/* Cut sheet upload area */
+.cutsheet-area {
+  margin: 10px 0 6px;
+  padding: 10px;
+  border: 2px dashed var(--nw-border);
+  border-radius: 8px;
+  background: var(--nw-section);
+}
+
+.cutsheet-area label {
+  font-size: 10px !important;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--nw-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.cutsheet-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--nw-primary);
+  border-radius: var(--nw-radius-btn);
+  background: #fff;
+  color: var(--nw-primary);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cutsheet-upload-btn:hover {
+  background: var(--nw-primary);
+  color: #fff;
+}
+
+.cutsheet-file-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.cutsheet-file-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid var(--nw-border);
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.cutsheet-file-list li .cs-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--nw-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutsheet-file-list li .cs-pages {
+  font-size: 11px;
+  color: var(--nw-muted);
+  white-space: nowrap;
+}
+
+.cutsheet-file-list li .cs-remove {
+  border: none;
+  background: none;
+  color: var(--nw-danger);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
+
+.cutsheet-area.has-files {
+  border-color: var(--nw-success);
+  border-style: solid;
+  background: #f0fdf4;
+}
+
 .submittal-actions {
   display: flex;
   gap: 6px;
@@ -1003,7 +1092,7 @@ body { padding-bottom: 100px; }
 
     <!-- Generation Progress -->
     <div class="generate-progress" id="genProgressArea">
-      <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--nw-text);">Generating Cover Pages...</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--nw-text);" id="genStatusLabel">Generating Submittals...</div>
       <div class="progress-bar-wrap" style="margin-bottom:16px;">
         <div class="progress-bar-fill" id="genProgress"></div>
       </div>
@@ -1032,7 +1121,7 @@ body { padding-bottom: 100px; }
     <!-- Action Buttons -->
     <div id="genActionsArea" style="display:none;padding:16px;">
       <button class="btn btn-success" onclick="saveToProject()" id="saveToProjectBtn">Save to Project</button>
-      <button class="btn btn-primary" onclick="downloadAll()" style="margin-top:8px;" id="downloadAllBtn">Download All Cover Pages</button>
+      <button class="btn btn-primary" onclick="downloadAll()" style="margin-top:8px;" id="downloadAllBtn">Download All Submittals</button>
       <button class="btn btn-secondary" onclick="goToStep(3)" style="margin-top:8px;">Back to Review</button>
     </div>
   </div>
@@ -1955,6 +2044,21 @@ function createSubmittalCard(sub, idx) {
   notesHtml += '<button onclick="addComplianceNote(' + idx + ')" style="padding:4px 10px;border:1px dashed var(--nw-border);border-radius:var(--nw-radius-btn);background:var(--nw-section);color:var(--nw-primary);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;">+ Add Note</button>';
   notesHtml += '</div>';
 
+  // Cut Sheet Upload Area
+  var csHtml = '<div class="cutsheet-area' + (sub._cutSheets && sub._cutSheets.length > 0 ? ' has-files' : '') + '" id="csArea_' + idx + '">';
+  csHtml += '<label>&#128206; Product Data / Cut Sheets</label>';
+  csHtml += '<button class="cutsheet-upload-btn" onclick="triggerCutSheetUpload(' + idx + ')">&#128196; Attach PDF</button>';
+  csHtml += '<input type="file" accept="application/pdf" multiple style="display:none" id="csInput_' + idx + '" onchange="handleCutSheetFiles(' + idx + ', this)">';
+  csHtml += '<ul class="cutsheet-file-list" id="csList_' + idx + '">';
+  if (sub._cutSheets && sub._cutSheets.length > 0) {
+    for (var cs = 0; cs < sub._cutSheets.length; cs++) {
+      csHtml += '<li><span class="cs-name">&#128196; ' + escapeHtml(sub._cutSheets[cs].name) + '</span>';
+      csHtml += '<span class="cs-pages">' + sub._cutSheets[cs].pageCount + ' pg</span>';
+      csHtml += '<button class="cs-remove" onclick="removeCutSheet(' + idx + ',' + cs + ')">&#10005;</button></li>';
+    }
+  }
+  csHtml += '</ul></div>';
+
   // Actions
   var actionsHtml = '<div class="submittal-actions">';
   if (idx > 0) {
@@ -1976,6 +2080,10 @@ function createSubmittalCard(sub, idx) {
   var notesDiv = document.createElement('div');
   notesDiv.innerHTML = notesHtml;
   body.appendChild(notesDiv);
+
+  var csDiv = document.createElement('div');
+  csDiv.innerHTML = csHtml;
+  body.appendChild(csDiv);
 
   var actDiv = document.createElement('div');
   actDiv.innerHTML = actionsHtml;
@@ -2215,6 +2323,103 @@ function addComplianceNote(subIdx) {
   if (cards[subIdx]) cards[subIdx].classList.add('expanded');
 }
 
+// ===== Cut Sheet Upload Functions =====
+function triggerCutSheetUpload(subIdx) {
+  document.getElementById('csInput_' + subIdx).click();
+}
+
+async function handleCutSheetFiles(subIdx, input) {
+  if (!input.files || input.files.length === 0) return;
+
+  if (!submittals[subIdx]._cutSheets) submittals[subIdx]._cutSheets = [];
+
+  for (var f = 0; f < input.files.length; f++) {
+    var file = input.files[f];
+    if (file.type !== 'application/pdf') {
+      showToast('Only PDF files accepted', 'error');
+      continue;
+    }
+
+    try {
+      var arrayBuffer = await file.arrayBuffer();
+      // Get page count using pdf.js
+      var pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+
+      submittals[subIdx]._cutSheets.push({
+        name: file.name,
+        pageCount: pdf.numPages,
+        data: arrayBuffer
+      });
+
+      showToast(file.name + ' attached (' + pdf.numPages + ' pages)');
+    } catch (err) {
+      console.error('Error reading cut sheet:', err);
+      showToast('Error reading ' + file.name, 'error');
+    }
+  }
+
+  // Re-render the file list
+  renderCutSheetList(subIdx);
+  input.value = '';
+}
+
+function renderCutSheetList(subIdx) {
+  var list = document.getElementById('csList_' + subIdx);
+  var area = document.getElementById('csArea_' + subIdx);
+  var sheets = submittals[subIdx]._cutSheets || [];
+
+  if (sheets.length > 0) {
+    area.classList.add('has-files');
+  } else {
+    area.classList.remove('has-files');
+  }
+
+  var html = '';
+  for (var i = 0; i < sheets.length; i++) {
+    html += '<li><span class="cs-name">&#128196; ' + escapeHtml(sheets[i].name) + '</span>';
+    html += '<span class="cs-pages">' + sheets[i].pageCount + ' pg</span>';
+    html += '<button class="cs-remove" onclick="removeCutSheet(' + subIdx + ',' + i + ')">&#10005;</button></li>';
+  }
+  list.innerHTML = html;
+}
+
+function removeCutSheet(subIdx, csIdx) {
+  if (!submittals[subIdx]._cutSheets) return;
+  submittals[subIdx]._cutSheets.splice(csIdx, 1);
+  renderCutSheetList(subIdx);
+  showToast('Cut sheet removed');
+}
+
+// Merge cover page PDF + cut sheet PDFs using pdf-lib
+async function mergePDFs(coverBlob, cutSheets) {
+  var PDFLib = window.PDFLib;
+  var mergedDoc = await PDFLib.PDFDocument.create();
+
+  // Add cover page
+  var coverBytes = await coverBlob.arrayBuffer();
+  var coverDoc = await PDFLib.PDFDocument.load(coverBytes);
+  var coverPages = await mergedDoc.copyPages(coverDoc, coverDoc.getPageIndices());
+  for (var c = 0; c < coverPages.length; c++) {
+    mergedDoc.addPage(coverPages[c]);
+  }
+
+  // Add each cut sheet
+  for (var s = 0; s < cutSheets.length; s++) {
+    try {
+      var csDoc = await PDFLib.PDFDocument.load(cutSheets[s].data);
+      var csPages = await mergedDoc.copyPages(csDoc, csDoc.getPageIndices());
+      for (var p = 0; p < csPages.length; p++) {
+        mergedDoc.addPage(csPages[p]);
+      }
+    } catch (err) {
+      console.error('Error merging cut sheet ' + cutSheets[s].name + ':', err);
+    }
+  }
+
+  var mergedBytes = await mergedDoc.save();
+  return new Blob([mergedBytes], { type: 'application/pdf' });
+}
+
 // ===== Sync Edits Back to Data =====
 function syncSubmittalEdits() {
   for (var i = 0; i < submittals.length; i++) {
@@ -2264,21 +2469,33 @@ async function startGeneration() {
   genItemsArea.innerHTML = '';
   var progressBar = document.getElementById('genProgress');
 
+  // Count how many have cut sheets
+  var withCutSheets = 0;
+  for (var c = 0; c < submittals.length; c++) {
+    if (submittals[c]._cutSheets && submittals[c]._cutSheets.length > 0) withCutSheets++;
+  }
+
+  var statusLabel = document.getElementById('genStatusLabel');
+  if (statusLabel) statusLabel.textContent = 'Generating Submittals...';
+
   // Create items
   var items = [];
   for (var i = 0; i < submittals.length; i++) {
+    var hasCutSheets = submittals[i]._cutSheets && submittals[i]._cutSheets.length > 0;
+    var csCount = hasCutSheets ? submittals[i]._cutSheets.length : 0;
+    var csLabel = hasCutSheets ? ' <span style="font-size:10px;color:var(--nw-success);font-weight:700;">+ ' + csCount + ' cut sheet' + (csCount > 1 ? 's' : '') + '</span>' : ' <span style="font-size:10px;color:var(--nw-muted);">(cover only)</span>';
     var div = document.createElement('div');
     div.className = 'gen-item pending';
     div.id = 'genItem_' + i;
     div.innerHTML =
       '<span class="gen-status">&#9711;</span>' +
-      '<span class="gen-label">' + escapeHtml(submittals[i].number + ' — ' + submittals[i].title) + '</span>' +
+      '<span class="gen-label">' + escapeHtml(submittals[i].number + ' — ' + submittals[i].title) + csLabel + '</span>' +
       '<span class="gen-action" id="genAction_' + i + '"></span>';
     genItemsArea.appendChild(div);
     items.push(div);
   }
 
-  // Generate each cover page
+  // Generate each submittal (cover page + cut sheets merged)
   for (var j = 0; j < submittals.length; j++) {
     var item = document.getElementById('genItem_' + j);
     item.className = 'gen-item processing';
@@ -2288,19 +2505,33 @@ async function startGeneration() {
     progressBar.style.width = pct + '%';
 
     try {
-      var pdfBlob = generateCoverPDF(submittals[j], projectInfo);
-      var blobUrl = URL.createObjectURL(pdfBlob);
+      // Generate cover page
+      var coverBlob = generateCoverPDF(submittals[j], projectInfo);
+
+      var finalBlob;
+      var cutSheets = submittals[j]._cutSheets || [];
+
+      if (cutSheets.length > 0) {
+        // Merge cover page + cut sheets into one PDF
+        finalBlob = await mergePDFs(coverBlob, cutSheets);
+      } else {
+        finalBlob = coverBlob;
+      }
+
+      var blobUrl = URL.createObjectURL(finalBlob);
+      var filename = 'Submittal_' + submittals[j].number + '_' + submittals[j].title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 40) + '.pdf';
 
       generatedPDFs.push({
         submittal: submittals[j],
-        blob: pdfBlob,
+        blob: finalBlob,
         url: blobUrl,
-        filename: 'Submittal_' + submittals[j].number + '_' + submittals[j].title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 40) + '.pdf'
+        filename: filename
       });
 
       item.className = 'gen-item done';
       item.querySelector('.gen-status').innerHTML = '&#10003;';
-      document.getElementById('genAction_' + j).innerHTML = '<a href="' + blobUrl + '" target="_blank" download="' + escapeAttr(generatedPDFs[generatedPDFs.length - 1].filename) + '">Download</a>';
+      var pageInfo = cutSheets.length > 0 ? ' (complete)' : '';
+      document.getElementById('genAction_' + j).innerHTML = '<a href="' + blobUrl + '" target="_blank" download="' + escapeAttr(filename) + '">Download' + pageInfo + '</a>';
     } catch (err) {
       console.error('Error generating PDF for submittal ' + j + ':', err);
       item.className = 'gen-item done';
@@ -2321,7 +2552,12 @@ async function startGeneration() {
   // Show actions
   document.getElementById('genActionsArea').style.display = 'block';
 
-  showToast('All cover pages generated!');
+  var completeCount = withCutSheets;
+  var coverOnlyCount = submittals.length - withCutSheets;
+  var toastMsg = completeCount > 0
+    ? completeCount + ' complete submittal' + (completeCount > 1 ? 's' : '') + ' generated' + (coverOnlyCount > 0 ? ' (' + coverOnlyCount + ' cover only)' : '') + '!'
+    : 'All cover pages generated! Attach cut sheets in Review for complete submittals.';
+  showToast(toastMsg);
 }
 
 // ===== jsPDF Cover Page Generation =====
