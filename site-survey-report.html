@@ -493,7 +493,23 @@ function generatePDF(){
 
   function sH(t){if(y>255){doc.addPage();y=15}doc.setFillColor(...dk);doc.rect(mx,y,mxr-mx,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text(t.toUpperCase(),mx+3,y+5);y+=10}
   function fR(fields){const cw=(mxr-mx)/fields.length;fields.forEach((f,i)=>{const x=mx+i*cw;doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,116,139);doc.text(f.label,x+2,y);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...txt);doc.text(String(f.value||'—'),x+2,y+4.5)});y+=9}
-  function textBlock(label,text){if(!text)return;doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,116,139);doc.text(label+':',mx+3,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...txt);const lines=doc.splitTextToSize(text,mxr-mx-6);doc.text(lines,mx+3,y);y+=lines.length*4.5+4}
+  // Strip invisible/exotic Unicode that makes jsPDF mis-measure lines and stretch letters
+  function sanitizePdfText(t){
+    if(!t) return '';
+    return String(t)
+      .replace(/[\u2018\u2019\u201A\u201B]/g,"'")
+      .replace(/[\u201C\u201D\u201E\u201F]/g,'"')
+      .replace(/[\u2013\u2014\u2015]/g,'-')
+      .replace(/[\u2010\u2011]/g,'-')
+      .replace(/\u2026/g,'...')
+      .replace(/[\u00A0\u2007\u202F]/g,' ')
+      .replace(/[\u2000-\u2006\u2008-\u200A]/g,' ')
+      .replace(/[\u200B-\u200D\u200E\u200F\uFEFF]/g,'')
+      .replace(/\u00AD/g,'')
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,'')
+      .replace(/\r\n?/g,'\n');
+  }
+  function textBlock(label,text){if(!text)return;text=sanitizePdfText(text);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,116,139);doc.text(label+':',mx+3,y);y+=4;doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...txt);const lines=doc.splitTextToSize(text,mxr-mx-6);doc.text(lines,mx+3,y);y+=lines.length*4.5+4}
 
   sH('Site Information');
   if(v('projectName')){fR([{label:'Project',value:v('projectName')}]);}
