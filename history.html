@@ -34,6 +34,21 @@
   .history-table .table-clean tr[data-link] { cursor: pointer; }
   .history-table .table-clean tr[data-link]:hover { background: #e8f4fd; }
 
+  /* Edit indicator for cloud reports */
+  .edit-indicator {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--nw-primary);
+    font-weight: 600;
+    vertical-align: middle;
+  }
+  .history-card .edit-indicator {
+    float: right;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
   /* Mobile card view */
   .history-cards { display: none; padding: 0 12px 24px; }
   .history-card {
@@ -210,6 +225,7 @@ requireAuth().catch(function(){});
         // Skip if we already have this report from localStorage
         if (existingNumbers[row.report_number]) return;
 
+        var editLink = FORM_MAP[row.report_type] ? FORM_MAP[row.report_type] + '?edit=' + row.id : '';
         allReports.push({
           date: row.report_date || row.created_at || '',
           type: row.report_type || '',
@@ -218,7 +234,8 @@ requireAuth().catch(function(){});
           status: row.status === 'draft' ? 'draft' : 'completed',
           source: 'cloud',
           reportNumber: row.report_number,
-          link: '',
+          cloudId: row.id,
+          link: editLink,
           sortDate: new Date(row.created_at || row.report_date || 0)
         });
       });
@@ -299,13 +316,14 @@ requireAuth().catch(function(){});
       var typeLabel = TYPE_MAP[r.type] || r.type || '—';
       var badgeClass = r.status === 'draft' ? 'badge-draft' : r.status === 'submitted' ? 'badge-submitted' : 'badge-completed';
       var badgeText = r.status === 'draft' ? 'Draft' : r.status === 'submitted' ? 'Submitted' : 'Completed';
-      var linkAttr = r.status === 'draft' && r.link ? ' data-link="' + r.link + '"' : '';
+      var linkAttr = r.link ? ' data-link="' + r.link + '"' : '';
+      var editHtml = (r.source === 'cloud' && r.link) ? ' <span class="edit-indicator">✎ Edit</span>' : '';
       rowsHtml += '<tr' + linkAttr + '>' +
         '<td>' + fmtDate(r.date) + '</td>' +
         '<td>' + typeLabel + '</td>' +
         '<td>' + (r.customer || '—') + '</td>' +
         '<td>' + (r.techName || '—') + '</td>' +
-        '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+        '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span>' + editHtml + '</td>' +
         '</tr>';
     });
     tableBody.innerHTML = rowsHtml;
@@ -316,14 +334,15 @@ requireAuth().catch(function(){});
       var typeLabel = TYPE_MAP[r.type] || r.type || '—';
       var badgeClass = r.status === 'draft' ? 'badge-draft' : r.status === 'submitted' ? 'badge-submitted' : 'badge-completed';
       var badgeText = r.status === 'draft' ? 'Draft' : r.status === 'submitted' ? 'Submitted' : 'Completed';
-      var tag = r.status === 'draft' && r.link ? 'a' : 'div';
-      var hrefAttr = r.status === 'draft' && r.link ? ' href="' + r.link + '"' : '';
+      var tag = r.link ? 'a' : 'div';
+      var hrefAttr = r.link ? ' href="' + r.link + '"' : '';
+      var cardEditHtml = (r.source === 'cloud' && r.link) ? '<span class="edit-indicator">✎ Edit</span>' : '';
       cardsHtml += '<' + tag + ' class="history-card"' + hrefAttr + '>' +
         '<div class="history-card-top">' +
           '<span class="history-card-type">' + typeLabel + '</span>' +
           '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
         '</div>' +
-        '<div class="history-card-date">' + fmtDate(r.date) + '</div>' +
+        '<div class="history-card-date">' + fmtDate(r.date) + cardEditHtml + '</div>' +
         '<div class="history-card-row">Customer: <span>' + (r.customer || '—') + '</span></div>' +
         '<div class="history-card-row">Tech: <span>' + (r.techName || '—') + '</span></div>' +
         '</' + tag + '>';

@@ -11,6 +11,7 @@
 <script src="supabase-config.js?v=52"></script>
 <script src="auth.js?v=52"></script>
 <script src="cloud-save.js?v=52"></script>
+<script src="edit-utils.js?v=1"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Work Order — Northern Wolves AC</title>
 <script src="draft-utils.js?v=52"></script>
@@ -433,6 +434,9 @@ const equipListEl = document.getElementById('equipmentContainer');
 if (equipListEl) equipObserver.observe(equipListEl, { childList: true, subtree: true });
 setTimeout(() => { buildPhotoSections(); buildStatusSections(); }, 200);
 
+// Edit mode: load submitted report if ?edit= param present
+if (typeof initEditMode === 'function') { setTimeout(function(){ initEditMode('work-order'); }, 300); }
+
 class SigPad{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');this.drawing=false;this.has=false;this.resize();window.addEventListener('resize',()=>this.resize());this.canvas.addEventListener('pointerdown',e=>this.start(e));this.canvas.addEventListener('pointermove',e=>this.draw(e));this.canvas.addEventListener('pointerup',()=>this.stop());this.canvas.addEventListener('pointerleave',()=>this.stop())}resize(){const r=this.canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=r.width*d;this.canvas.height=r.height*d;this.ctx.scale(d,d);this.ctx.strokeStyle='#1e293b';this.ctx.lineWidth=2;this.ctx.lineCap='round'}getPos(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}start(e){e.preventDefault();this.drawing=true;this.has=true;const p=this.getPos(e);this.ctx.beginPath();this.ctx.moveTo(p.x,p.y)}draw(e){if(!this.drawing)return;e.preventDefault();const p=this.getPos(e);this.ctx.lineTo(p.x,p.y);this.ctx.stroke()}stop(){this.drawing=false}clear(){this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);this.has=false}toDataURL(){return this.has?this.canvas.toDataURL():null}}
 const techSigPad=new SigPad('techSig'),custSigPad=new SigPad('custSig');
 
@@ -619,7 +623,7 @@ async function generateAndEmailWithHistory(){
   }
   try {
   const d=collectData?collectData():{};
-  if(typeof saveToHistory==='function') saveToHistory('work-order', d);
+  if(!isEditMode() && typeof saveToHistory==='function') saveToHistory('work-order', d);
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
     const v = id => (document.getElementById(id) || {}).value || '';
@@ -629,12 +633,12 @@ async function generateAndEmailWithHistory(){
       reportId: reportId
     });
   }
-  saveReportToCloud('work-order', d, { reportId: reportId, projectId: projId });
+  saveOrUpdateReport('work-order', d, { reportId: reportId, projectId: projId });
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn=`WorkOrder_${v('custName').replace(/\s+/g,'_')||'WO'}_${v('woDate')}.pdf`;
   var result = await sendReportToManagement({
     reportType: 'Work Order',
-    subject: `Work Order - ${v('custName')} - ${v('woDate')}`,
+    subject: (isEditMode()?'REVISED: ':'') + `Work Order - ${v('custName')} - ${v('woDate')}`,
     bodyText: `Work Order\n\nCustomer: ${v('custName')}\nDate: ${v('woDate')}\nTechnician: ${v('techName')}`,
     customerName: v('custName'),
     techName: v('techName'),

@@ -11,6 +11,7 @@
 <script src="supabase-config.js?v=52"></script>
 <script src="auth.js?v=52"></script>
 <script src="cloud-save.js?v=52"></script>
+<script src="edit-utils.js?v=1"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Start-Up Report — Northern Wolves AC</title>
 <script src="draft-utils.js?v=52"></script>
@@ -562,6 +563,8 @@ function clearSig(id){id==='techSig'?techSigPad.clear():custSigPad.clear()}
 // Autosave
 function autoSave(){const d={};document.querySelectorAll('[data-save]').forEach(el=>{if(el.type==='radio'){if(el.checked)d[el.name+'_radio']=el.value}else d[el.id||el.className]=el.value});d._equipment=typeof collectEquipmentData==='function'?collectEquipmentData():[];d._startupReadings=collectAllStartupReadings();d._photosByEquip=photosByEquip;d._statusByEquip=collectStatusData();try{localStorage.setItem(SAVE_KEY_DRAFT,JSON.stringify(d))}catch(e){}document.getElementById('autosaveIndicator').classList.add('show');setTimeout(()=>document.getElementById('autosaveIndicator').classList.remove('show'),1500)}
 document.addEventListener('input',()=>{clearTimeout(window._st);window._st=setTimeout(autoSave,1000)});
+// Edit mode: load submitted report if ?edit= param present
+if (typeof initEditMode === 'function') { setTimeout(function(){ initEditMode('startup'); }, 300); }
 function saveDraftAndClose(){
   autoSave();
   saveDraftEntry('startup', 'startup-report.html');
@@ -772,7 +775,7 @@ async function generateAndEmailWithHistory(){
   }
   try {
   const d=collectData();
-  saveToHistory('startup', d);
+  if (!isEditMode()) { saveToHistory('startup', d); }
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
     const v = id => (document.getElementById(id) || {}).value || '';
@@ -782,12 +785,12 @@ async function generateAndEmailWithHistory(){
       reportId: reportId
     });
   }
-  saveReportToCloud('startup', d, { reportId: reportId, projectId: projId });
+  saveOrUpdateReport('startup', d, { reportId: reportId, projectId: projId });
   const doc=generatePDF();const v=id=>(document.getElementById(id)||{}).value||'';
   const fn=`StartUp_${v('projectName').replace(/\s+/g,'_')||'Report'}_${v('suDate')}.pdf`;
   var result = await sendReportToManagement({
     reportType: 'Start-Up Report',
-    subject: `Start-Up Report - ${v('projectName')} - ${v('suDate')}`,
+    subject: (isEditMode()?'REVISED: ':'') + `Start-Up Report - ${v('projectName')} - ${v('suDate')}`,
     bodyText: `Start-Up Report\n\nProject: ${v('projectName')}\nDate: ${v('suDate')}\nTechnician: ${v('techName')}`,
     customerName: v('projectName'),
     techName: v('techName'),

@@ -12,6 +12,7 @@
 <script src="supabase-config.js?v=52"></script>
 <script src="auth.js?v=52"></script>
 <script src="cloud-save.js?v=52"></script>
+<script src="edit-utils.js?v=1"></script>
 <title>Service Call Report — Northern Wolves AC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="styles.css">
@@ -782,6 +783,9 @@ function autoSave() {
 // Auto-save on input
 document.addEventListener('input', () => { clearTimeout(window._saveTimeout); window._saveTimeout = setTimeout(autoSave, 1000); });
 
+// Edit mode: load submitted report if ?edit= param present
+if (typeof initEditMode === 'function') { setTimeout(function(){ initEditMode('service-call'); }, 300); }
+
 function saveDraftAndClose() {
   autoSave();
   saveDraftEntry('service-call', 'service-call-report.html');
@@ -1187,7 +1191,7 @@ async function generateAndEmailWithHistory() {
   }
   try {
   const d = collectData();
-  saveToHistory('service-call', d);
+  if (!isEditMode()) { saveToHistory('service-call', d); }
   // Link to project
   const projId = typeof getSelectedProjectId === 'function' ? getSelectedProjectId() : null;
   if (projId) {
@@ -1198,13 +1202,13 @@ async function generateAndEmailWithHistory() {
       reportId: reportId
     });
   }
-  saveReportToCloud('service-call', d, { reportId: reportId, projectId: projId });
+  saveOrUpdateReport('service-call', d, { reportId: reportId, projectId: projId });
 
   const doc = generatePDF();
   const filename = `ServiceCall_${d.custName.replace(/\s+/g,'_') || 'Report'}_${d.callDate}.pdf`;
   var result = await sendReportToManagement({
     reportType: 'Service Call Report',
-    subject: `Service Call Report - ${d.custName} - ${d.callDate}`,
+    subject: (isEditMode()?'REVISED: ':'') + `Service Call Report - ${d.custName} - ${d.callDate}`,
     bodyText: `Service Call Report\n\nCustomer: ${d.custName}\nDate: ${d.callDate}\nEquipment: ${d.equipType}\nTechnician: ${d.techName}\nStatus: ${d.systemStatus}`,
     customerName: d.custName,
     techName: d.techName,
