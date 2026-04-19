@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
 <script src="ai-summary.js?v=52"></script>
+<script src="ai-chat.js?v=1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,6 +44,17 @@ body{padding-bottom:100px}
   </div>
 </header>
 <div class="toast" id="toast"></div>
+
+<div style="padding:0 16px">
+  <div class="ai-chat-banner" onclick="openChangeOrderAIChat()">
+    <div class="icon">✨</div>
+    <div class="txt">
+      <b>AI Assistant</b>
+      <span>Describe the change — I'll draft the CO for you</span>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+</div>
 
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📁</span> Project<span class="collapse-arrow">▼</span></div>
@@ -1022,6 +1034,51 @@ function buildHtmlEmail(v, bodyText){
     if(!line.trim()) return '<br>';
     return '<p style="margin:0 0 4px;font-size:14px;color:#1e293b;line-height:1.6">'+line.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>';
   }).join('');
+}
+
+// ========== AI CHAT ASSISTANT ==========
+function openChangeOrderAIChat() {
+  openAIChat({
+    mode: 'form-fill',
+    reportType: 'change-order',
+    fields: [
+      {id:'coDate', label:'Date (YYYY-MM-DD)'},
+      {id:'originalRef', label:'Original Contract / WO Reference'},
+      {id:'custName', label:'Customer / Company Name'},
+      {id:'address', label:'Job Site Address'},
+      {id:'contact', label:'Contact Person'},
+      {id:'phone', label:'Contact Phone'},
+      {id:'priority', label:'Priority (Critical/High/Standard/Low)'},
+      {id:'changeReason', label:'Reason for Change (textarea)'},
+      {id:'changeDesc', label:'Description of Change (textarea)'},
+      {id:'impactDesc', label:'Impact on Existing Work (textarea)'},
+      {id:'addDays', label:'Additional Days Needed'},
+      {id:'newTarget', label:'New Target Completion Date (YYYY-MM-DD)'},
+      {id:'scheduleNotes', label:'Schedule Impact Notes (textarea)'},
+      {id:'requestedBy', label:'Requested By'},
+      {id:'approvedBy', label:'Approved By'}
+    ],
+    onFill: function(data) {
+      Object.keys(data).forEach(function(key) {
+        var val = data[key];
+        if (key === 'priority') {
+          var chips = document.querySelectorAll('.priority-chip');
+          chips.forEach(function(c) {
+            if (c.textContent.trim().toLowerCase() === String(val).toLowerCase()) {
+              c.click();
+            }
+          });
+          return;
+        }
+        var el = document.getElementById(key);
+        if (!el) return;
+        el.value = val;
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+      if (typeof showToast === 'function') showToast('AI filled ' + Object.keys(data).length + ' fields');
+    }
+  });
 }
 </script>
 <script src="sw-register.js?v=52"></script>

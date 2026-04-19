@@ -18,6 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
 <script src="ai-summary.js?v=52"></script>
+<script src="ai-chat.js?v=1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,6 +38,17 @@ body{padding-bottom:100px}
   </div>
 </header>
 <div class="toast" id="toast"></div>
+
+<div style="padding:0 16px">
+  <div class="ai-chat-banner" onclick="openRfiAIChat()">
+    <div class="icon">✨</div>
+    <div class="txt">
+      <b>AI Assistant</b>
+      <span>Describe your question — I'll draft the RFI for you</span>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+</div>
 
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📁</span> Project<span class="collapse-arrow">▼</span></div>
@@ -322,6 +334,42 @@ async function generateAndEmailWithHistory(){
   } finally {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = origText; }
   }
+}
+
+// ========== AI CHAT ASSISTANT ==========
+function openRfiAIChat() {
+  openAIChat({
+    mode: 'form-fill',
+    reportType: 'rfi',
+    fields: [
+      {id:'rfiDate', label:'Date (YYYY-MM-DD)'},
+      {id:'rfiSubject', label:'RFI Subject / Title'},
+      {id:'fromCompany', label:'From Company'},
+      {id:'fromName', label:'From Name'},
+      {id:'fromEmail', label:'From Email'},
+      {id:'fromPhone', label:'From Phone'},
+      {id:'toCompany', label:'To Company (GC, Engineer, etc.)'},
+      {id:'toName', label:'To Contact Name'},
+      {id:'toEmail', label:'To Email'},
+      {id:'rfiPriority', label:'Priority (Urgent/High/Standard/Low)'},
+      {id:'responseDate', label:'Response Needed By (YYYY-MM-DD)'},
+      {id:'specSection', label:'Spec Section Reference'},
+      {id:'drawingRef', label:'Drawing Reference'},
+      {id:'question', label:'Question / Request (textarea)'},
+      {id:'suggestion', label:'Suggested Solution (textarea)'}
+    ],
+    onFill: function(data) {
+      Object.keys(data).forEach(function(key) {
+        var val = data[key];
+        var el = document.getElementById(key);
+        if (!el) return;
+        el.value = val;
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+      if (typeof showToast === 'function') showToast('AI filled ' + Object.keys(data).length + ' fields');
+    }
+  });
 }
 </script>
 <script src="sw-register.js?v=52"></script>

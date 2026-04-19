@@ -25,7 +25,9 @@
     'startup':       'HVAC equipment start-up/commissioning.',
     'pm-checklist':  'HVAC preventive maintenance visit.',
     'site-survey':   'HVAC site survey / assessment for new install or replacement.',
-    'work-order':    'HVAC work order — assigned repair/install/modification.'
+    'work-order':    'HVAC work order — assigned repair/install/modification.',
+    'change-order':  'Construction/HVAC change order — scope change, cost adjustment, schedule impact.',
+    'rfi':           'Request for Information — clarification on drawings, specs, or project scope.'
   };
 
   // Inject shared styles once

@@ -21,6 +21,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
 <script src="ai-summary.js?v=52"></script>
+<script src="ai-chat.js?v=1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,6 +47,17 @@ body{padding-bottom:100px}
   </div>
 </header>
 <div class="toast" id="toast"></div>
+
+<div style="padding:0 16px">
+  <div class="ai-chat-banner" onclick="openWorkOrderAIChat()">
+    <div class="icon">✨</div>
+    <div class="txt">
+      <b>AI Assistant</b>
+      <span>Describe the work — I'll fill out the order for you</span>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+</div>
 
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📁</span> Project<span class="collapse-arrow">▼</span></div>
@@ -654,6 +666,66 @@ async function generateAndEmailWithHistory(){
   } finally {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = origText; }
   }
+}
+
+// ========== AI CHAT ASSISTANT ==========
+function openWorkOrderAIChat() {
+  openAIChat({
+    mode: 'form-fill',
+    reportType: 'work-order',
+    fields: [
+      {id:'woDate', label:'Date (YYYY-MM-DD)'},
+      {id:'woNumber', label:'Work Order #'},
+      {id:'priority', label:'Priority (Emergency/Urgent/Standard/Low)'},
+      {id:'techName', label:'Technician Name'},
+      {id:'custName', label:'Customer / Company Name'},
+      {id:'address', label:'Site Address'},
+      {id:'contact', label:'Contact Person'},
+      {id:'phone', label:'Contact Phone'},
+      {id:'workDesc', label:'Work Description / Scope (textarea)'},
+      {id:'workDone', label:'Work Performed (textarea)'},
+      {id:'refLbs', label:'Refrigerant Added (lbs)'},
+      {id:'completionNotes', label:'Completion Notes (textarea)'},
+      {id:'statusNotes', label:'Additional Notes (textarea)'},
+      {id:'status', label:'Status (Complete/Parts Needed/Return Trip/Referred)'}
+    ],
+    onFill: function(data) {
+      Object.keys(data).forEach(function(key) {
+        var val = data[key];
+        // Priority chips
+        if (key === 'priority') {
+          var chips = document.querySelectorAll('.priority-chip');
+          chips.forEach(function(c) {
+            if (c.textContent.toLowerCase().indexOf(String(val).toLowerCase()) !== -1) {
+              c.click();
+            }
+          });
+          return;
+        }
+        // Status radios
+        if (key === 'status') {
+          var radios = document.querySelectorAll('input[name="status"]');
+          radios.forEach(function(r) {
+            if (r.value.toLowerCase() === String(val).toLowerCase()) {
+              r.checked = true;
+              var item = r.closest('.check-item');
+              if (item) {
+                document.querySelectorAll('#statusGroup .check-item').forEach(function(l){l.classList.remove('selected');});
+                item.classList.add('selected');
+              }
+            }
+          });
+          return;
+        }
+        var el = document.getElementById(key);
+        if (!el) return;
+        el.value = val;
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+      if (typeof showToast === 'function') showToast('AI filled ' + Object.keys(data).length + ' fields');
+    }
+  });
 }
 </script>
 <script src="sw-register.js?v=52"></script>

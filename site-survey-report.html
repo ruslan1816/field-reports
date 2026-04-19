@@ -20,6 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
 <script src="ai-summary.js?v=52"></script>
+<script src="ai-chat.js?v=1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,6 +43,17 @@ body{padding-bottom:100px}
   </div>
 </header>
 <div class="toast" id="toast"></div>
+
+<div style="padding:0 16px">
+  <div class="ai-chat-banner" onclick="openSurveyAIChat()">
+    <div class="icon">✨</div>
+    <div class="txt">
+      <b>AI Assistant</b>
+      <span>Describe the site — I'll fill out the survey for you</span>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+</div>
 
 <div class="section">
   <div class="section-header" onclick="toggleSection(this)"><span class="icon">📁</span> Project<span class="collapse-arrow">▼</span></div>
@@ -614,6 +626,103 @@ async function generateAndEmailWithHistory(){
   } finally {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = origText; }
   }
+}
+
+// ========== AI CHAT ASSISTANT ==========
+function openSurveyAIChat() {
+  openAIChat({
+    mode: 'form-fill',
+    reportType: 'site-survey',
+    fields: [
+      {id:'surveyDate', label:'Date (YYYY-MM-DD)'},
+      {id:'techName', label:'Technician Name'},
+      {id:'custName', label:'Customer / Company Name'},
+      {id:'address', label:'Site Address'},
+      {id:'contact', label:'On-site Contact Person'},
+      {id:'phone', label:'Contact Phone'},
+      {id:'buildingType', label:'Building Type'},
+      {id:'floors', label:'Number of Floors'},
+      {id:'sqft', label:'Approximate Square Footage'},
+      {id:'purpose', label:'Survey Purpose (Replacement Quote, New Install, PM Contract, Condition Assessment, Energy Audit, Complaint Investigation)'},
+      {id:'scope', label:'Project Scope / Description (textarea)'},
+      {id:'ductType', label:'Ductwork Type (Metal, Flex, Fiberglass, Mixed)'},
+      {id:'ductCondition', label:'Duct Condition (Good/Fair/Poor/End of Life)'},
+      {id:'insCondition', label:'Insulation Condition (Good/Fair/Poor/End of Life)'},
+      {id:'pipeCondition', label:'Piping Condition (Good/Fair/Poor/End of Life)'},
+      {id:'distNotes', label:'Distribution Notes (textarea)'},
+      {id:'mainService', label:'Main Electrical Service'},
+      {id:'availCircuits', label:'Available Circuits'},
+      {id:'elecNotes', label:'Electrical Notes (textarea)'},
+      {id:'controlsType', label:'Controls Type'},
+      {id:'accessNotes', label:'Access / Rigging Notes (textarea)'},
+      {id:'crane', label:'Crane Needed (No/Yes/TBD)'},
+      {id:'parkingNotes', label:'Parking / Staging Notes (textarea)'},
+      {id:'observedIssues', label:'Observed Issues (textarea)'},
+      {id:'custIssues', label:'Customer Reported Issues (textarea)'},
+      {id:'recommendations', label:'Recommendations (textarea)'},
+      {id:'priority', label:'Priority (Urgent/High/Standard/Low)'}
+    ],
+    onFill: function(data) {
+      Object.keys(data).forEach(function(key) {
+        var val = data[key];
+        // Radio: crane
+        if (key === 'crane') {
+          var radios = document.querySelectorAll('input[name="crane"]');
+          radios.forEach(function(r) {
+            if (r.value.toLowerCase() === String(val).toLowerCase()) {
+              r.checked = true;
+              var item = r.closest('.check-item');
+              if (item) {
+                document.querySelectorAll('#craneGroup .check-item').forEach(function(l){l.classList.remove('selected');});
+                item.classList.add('selected');
+              }
+            }
+          });
+          return;
+        }
+        // Radio: priority
+        if (key === 'priority') {
+          var radios = document.querySelectorAll('input[name="priority"]');
+          radios.forEach(function(r) {
+            if (r.value.toLowerCase() === String(val).toLowerCase()) {
+              r.checked = true;
+              var item = r.closest('.check-item');
+              if (item) {
+                document.querySelectorAll('#priorityGroup .check-item').forEach(function(l){l.classList.remove('selected');});
+                item.classList.add('selected');
+              }
+            }
+          });
+          return;
+        }
+        // Checkboxes: purpose
+        if (key === 'purpose') {
+          String(val).split(',').forEach(function(p) {
+            p = p.trim();
+            var cb = document.querySelector('#purposeGroup input[value="' + p + '"]');
+            if (cb) { cb.checked = true; var item = cb.closest('.check-item'); if(item) item.classList.add('selected'); }
+          });
+          return;
+        }
+        // Condition selectors
+        if (key === 'ductCondition' || key === 'insCondition' || key === 'pipeCondition') {
+          var el = document.getElementById(key);
+          if (el) {
+            el.querySelectorAll('.condition-btn').forEach(function(btn) {
+              if (btn.textContent.trim().toLowerCase() === String(val).toLowerCase()) btn.click();
+            });
+          }
+          return;
+        }
+        var el = document.getElementById(key);
+        if (!el) return;
+        el.value = val;
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+      if (typeof showToast === 'function') showToast('AI filled ' + Object.keys(data).length + ' fields');
+    }
+  });
 }
 </script>
 <script src="sw-register.js?v=52"></script>
