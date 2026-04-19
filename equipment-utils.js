@@ -83,6 +83,7 @@
     '<option>R-407C</option>' +
     '<option>R-134a</option>' +
     '<option>R-404A</option>' +
+    '<option>R-454B</option>' +
     '<option>R-32</option>' +
     '<option>Other</option>';
 
