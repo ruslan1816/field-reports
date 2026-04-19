@@ -1147,53 +1147,70 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 // Maps AI-generated submittal titles to NW's pre-built cut sheet PDFs.
 // "standard" submittals auto-attach from library; "equipment" submittals require manual upload.
 var SUBMITTAL_LIBRARY = [
-  { keywords: ['ductwork', 'duct construction', 'smacna', 'sheet metal duct'],
+  { keywords: ['ductwork construction', 'ductwork standard', 'duct construction standard', 'smacna'],
+    exclude: ['insulation', 'wrap', 'lining', 'liner', 'fire wrap', 'kitchen', 'exhaust'],
     file: 'ductwork-standards.pdf', label: 'SMACNA Ductwork Standards' },
   { keywords: ['ductmate', 'duct fitting', 'duct accessor', 'duct connection', 'duct flange'],
+    exclude: ['insulation', 'wrap'],
     file: 'ductmate-fittings.pdf', label: 'Ductmate Fittings & Accessories' },
-  { keywords: ['duct wrap', 'duct insulation wrap', 'fiberglass wrap', 'duct insulation - wrap'],
+  { keywords: ['duct wrap', 'duct insulation wrap', 'wrap insulation', 'interior wrap', 'fiberglass wrap', 'duct insulation - wrap'],
+    exclude: ['fire wrap', 'bubble', 'board', 'lining'],
     file: 'duct-wrap-insulation.pdf', label: 'Duct Wrap Fiberglass Insulation' },
-  { keywords: ['duct insulation board', 'outdoor duct', 'weatherproof jacket', 'duct board'],
+  { keywords: ['duct insulation board', 'outdoor duct insulation', 'weatherproof jacket', 'duct board insul', 'exterior duct insul'],
+    exclude: ['wrap', 'lining'],
     file: 'duct-insulation-board-outdoor.pdf', label: 'Outdoor Duct Insulation Board' },
-  { keywords: ['bubble wrap insulation', 'insulation r6', 'r-6 insulation'],
+  { keywords: ['bubble wrap insulation', 'insulation r6', 'r-6 insulation', 'r6 bubble'],
     file: 'duct-insulation-r6-bubble.pdf', label: 'R6 Bubble Wrap Insulation' },
-  { keywords: ['acoustical', 'duct lining', 'duct liner', 'linacoustic', 'sound lining'],
+  { keywords: ['acoustical lining', 'acoustical duct', 'duct lining', 'duct liner', 'linacoustic', 'sound lining'],
+    exclude: ['fire', 'wrap insulation'],
     file: 'acoustical-duct-lining.pdf', label: 'Acoustical Duct Lining' },
-  { keywords: ['fire wrap', 'fire rated wrap', 'fire insulation', 'ul 1978', 'ul 2221', 'grease duct wrap'],
+  { keywords: ['fire wrap', 'fire rated wrap', 'ul 1978', 'ul 2221', 'grease duct wrap', 'fire-rated wrap'],
     file: 'fire-wrap-insulation.pdf', label: 'Fire Wrap Insulation' },
-  { keywords: ['pipe insulation hot', 'pipe insulation hw', 'fiberglass pipe insulation', 'pipe insulation - hot', 'hw pipe insul'],
+  { keywords: ['pipe insulation hot', 'pipe insulation hw', 'pipe insulation - hot', 'hw pipe insul', 'fiberglass pipe insulation'],
+    exclude: ['refriger', 'armaflex', 'chill', 'chw', 'condensat'],
     file: 'pipe-insulation-fiberglass.pdf', label: 'Fiberglass Pipe Insulation (HW)' },
-  { keywords: ['armaflex', 'elastomeric', 'refrigerant insulation', 'pipe insulation refrig', 'pipe insulation chw', 'pipe insulation chill', 'pipe insulation - refrig', 'pipe insulation - chill', 'closed cell'],
+  { keywords: ['armaflex', 'elastomeric', 'pipe insulation refrig', 'pipe insulation chw', 'pipe insulation chill', 'pipe insulation - refrig', 'pipe insulation - chill', 'closed cell pipe', 'refrigerant insulation'],
     file: 'pipe-insulation-armaflex.pdf', label: 'Armaflex Refrigerant/CHW Pipe Insulation' },
-  { keywords: ['refrigerant piping', 'refrigerant line', 'acr copper', 'refrig pipe', 'refrigeration piping'],
+  { keywords: ['refrigerant piping', 'refrigerant line', 'acr copper', 'refrigeration piping', 'refrigerant condensate piping'],
+    exclude: ['insulation', 'armaflex'],
     file: 'refrigerant-piping-package.pdf', label: 'Refrigerant Piping Package' },
-  { keywords: ['condensate drain', 'condensate pipe', 'condensation drain', 'pvc drain', 'condensate pvc'],
+  { keywords: ['condensate drain', 'condensate pipe', 'condensation drain', 'condensate pvc'],
+    exclude: ['pump', 'insulation'],
     file: 'condensate-drain-pipe.pdf', label: 'Condensate Drain Piping' },
-  { keywords: ['clevis', 'pipe hanger', 'pipe support', 'hanger and support'],
+  { keywords: ['clevis hanger', 'pipe hanger', 'hanger and support', 'hangers and support'],
+    exclude: ['duct hanger', 'seismic', 'roof'],
     file: 'clevis-hanger.pdf', label: 'Clevis Pipe Hangers' },
-  { keywords: ['anchor', 'concrete screw', 'tapcon', 'expansion anchor', 'dewalt', 'fastener'],
+  { keywords: ['anchor', 'concrete screw', 'tapcon', 'expansion anchor', 'dewalt hanger', 'mechanical fastener'],
+    exclude: ['seismic', 'vibration'],
     file: 'anchors.pdf', label: 'Anchors' },
-  { keywords: ['vibration pad', 'rubber pad', 'vibration isolation pad', 'neoprene pad'],
+  { keywords: ['vibration pad', 'rubber pad', 'vibration isolation pad', 'neoprene pad', 'rubber isolat'],
+    exclude: ['spring', 'ceiling', 'hung'],
     file: 'vibration-pads.pdf', label: 'Rubber Vibration Pads' },
-  { keywords: ['spring isolat', 'vibration spring', 'spring mount'],
+  { keywords: ['spring isolat', 'vibration spring', 'spring mount', 'spring vibration'],
+    exclude: ['ceiling', 'hung', 'pad'],
     file: 'spring-isolators.pdf', label: 'Spring Vibration Isolators' },
-  { keywords: ['ceiling hung isolat', 'ceiling isolat', 'hung isolat', 'indoor isolat'],
+  { keywords: ['ceiling hung isolat', 'ceiling isolat', 'hung isolat', 'indoor unit isolat'],
     file: 'ceiling-hung-isolators.pdf', label: 'Ceiling Hung Vibration Isolators' },
-  { keywords: ['roof penetration', 'rtu curb', 'roof curb', 'equipment curb'],
+  { keywords: ['roof penetration curb', 'rtu curb', 'roof curb', 'equipment curb'],
+    exclude: ['rail', 'pipe penetration', 'pipe curb'],
     file: 'roof-penetration-curb.pdf', label: 'Roof Penetration Curbs' },
-  { keywords: ['roof rail', 'equipment rail', 'support rail', 'acme support', 'equipment stand'],
+  { keywords: ['roof rail', 'equipment rail', 'support rail', 'acme support'],
+    exclude: ['penetration', 'pipe'],
     file: 'roof-rail-curbs.pdf', label: 'Roof Rail Equipment Curbs' },
-  { keywords: ['vrf stand', 'vrf equipment stand', 'outdoor unit stand'],
+  { keywords: ['vrf stand', 'vrf equipment stand', 'outdoor unit stand', 'vrv stand'],
     file: 'vrf-equipment-stands.pdf', label: 'VRF Equipment Stands' },
-  { keywords: ['pipe roof support', 'non-penetrating', 'rooftop pipe support', 'pipe support roof'],
+  { keywords: ['pipe roof support', 'non-penetrating pipe', 'rooftop pipe support'],
     file: 'pipe-roof-supports.pdf', label: 'Pipe Roof Supports' },
-  { keywords: ['pipe penetration', 'pipe curb', 'penetration curb'],
+  { keywords: ['pipe penetration curb', 'refrigerant penetration'],
     file: 'pipe-penetration-curb.pdf', label: 'Pipe Penetration Curbs' },
   { keywords: ['condensate pump', 'condensation pump', 'little giant', 'drain pump'],
+    exclude: ['piping', 'drain pipe'],
     file: 'condensate-pump.pdf', label: 'Condensate Pump' },
-  { keywords: ['gas vent', 'stainless vent', 'chimney', 'boiler vent', 'double wall vent', 'ss vent', 'b-vent', 'category iv vent'],
+  { keywords: ['gas vent', 'stainless vent', 'chimney vent', 'boiler vent', 'double wall vent', 'ss vent', 'b-vent', 'gas flue'],
+    exclude: ['kitchen', 'exhaust fan'],
     file: 'gas-venting-ss-double-wall.pdf', label: 'SS Double Wall Gas Venting' },
-  { keywords: ['kitchen exhaust duct', 'kitchen duct', 'kx duct', 'grease duct', 'commercial kitchen', 'type i hood duct'],
+  { keywords: ['kitchen exhaust duct', 'kitchen duct', 'kx duct', 'grease duct', 'commercial kitchen duct', 'type i hood duct'],
+    exclude: ['fan', 'insulation'],
     file: 'kitchen-exhaust-ductwork.pdf', label: 'Kitchen Exhaust Ductwork' }
 ];
 
@@ -1208,11 +1225,27 @@ function matchLibrary(submittal) {
 
   for (var i = 0; i < SUBMITTAL_LIBRARY.length; i++) {
     var lib = SUBMITTAL_LIBRARY[i];
+    var keywordHit = false;
     for (var k = 0; k < lib.keywords.length; k++) {
       if (searchText.indexOf(lib.keywords[k].toLowerCase()) !== -1) {
-        matches.push(lib);
+        keywordHit = true;
         break;
       }
+    }
+    if (!keywordHit) continue;
+
+    // Check exclude list — if any exclude term appears, skip this entry
+    var excluded = false;
+    if (lib.exclude && lib.exclude.length) {
+      for (var e = 0; e < lib.exclude.length; e++) {
+        if (searchText.indexOf(lib.exclude[e].toLowerCase()) !== -1) {
+          excluded = true;
+          break;
+        }
+      }
+    }
+    if (!excluded) {
+      matches.push(lib);
     }
   }
   return matches;
