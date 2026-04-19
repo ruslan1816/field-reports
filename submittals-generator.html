@@ -2087,7 +2087,8 @@ function createSubmittalCard(sub, idx) {
   header.onclick = function() { card.classList.toggle('expanded'); };
 
   var headerLibMatch = matchLibrary(sub).length > 0 && sub.category !== 'equipment';
-  var statusIcon = headerLibMatch ? '<span style="color:var(--nw-success);font-size:12px;margin-left:4px;" title="Library match — auto-attached">&#9989;</span>' : (sub.category === 'equipment' ? '<span style="color:var(--nw-accent);font-size:12px;margin-left:4px;" title="Upload required">&#9888;&#65039;</span>' : '');
+  var headerHasManual = sub._cutSheets && sub._cutSheets.length > 0;
+  var statusIcon = headerLibMatch ? '<span style="color:var(--nw-success);font-size:12px;margin-left:4px;" title="Library match — auto-attached">&#9989;</span>' : (headerHasManual ? '<span style="color:var(--nw-primary);font-size:12px;margin-left:4px;" title="Cut sheet attached">&#128206;</span>' : '<span style="color:var(--nw-accent);font-size:12px;margin-left:4px;" title="Upload required">&#9888;&#65039;</span>');
   header.innerHTML =
     '<span class="submittal-num">' + escapeHtml(sub.number || String(idx + 1).padStart(3, '0')) + '</span>' +
     '<span class="submittal-spec">' + escapeHtml(sub.specSection || '') + '</span>' +
