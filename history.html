@@ -10,12 +10,12 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=112"></script>
-<script src="auth.js?v=112"></script>
-<script src="cloud-save.js?v=112"></script>
+<script src="supabase-config.js?v=116"></script>
+<script src="auth.js?v=116"></script>
+<script src="cloud-save.js?v=116"></script>
 <title>Report History — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
-<script src="draft-utils.js?v=112"></script>
+<script src="draft-utils.js?v=116"></script>
 <style>
   body { padding-bottom: 0; }
 
@@ -173,10 +173,7 @@ requireAuth().catch(function(){});
   // --- Load and normalize data ---
   function loadReports() {
     var drafts = [];
-    var history = [];
-
     try { drafts = JSON.parse(localStorage.getItem('nw_drafts') || '[]'); } catch(e) {}
-    try { history = JSON.parse(localStorage.getItem('nw_history') || '[]'); } catch(e) {}
 
     allReports = [];
 
@@ -195,20 +192,11 @@ requireAuth().catch(function(){});
       });
     });
 
-    history.forEach(function(h) {
-      allReports.push({
-        date: h.completedAt || h.date || '',
-        type: h.type || '',
-        customer: h.customer || h.title || '',
-        projectName: h.projectName || h.project || '',
-        projectAddress: h.address || h.projectAddress || h.siteAddress || '',
-        techName: h.techName || '',
-        status: 'completed',
-        source: 'local',
-        link: '',
-        sortDate: new Date(h.completedAt || h.date || 0)
-      });
-    });
+    // Local nw_history is intentionally SKIPPED — cloud (Supabase) is now the
+    // source of truth for completed reports (every submit upserts there).
+    // Including local history just creates un-clickable twins of cloud rows.
+    // Local drafts above are still loaded because drafts haven't hit the
+    // cloud yet.
 
     // Sort newest first
     allReports.sort(function(a, b) { return b.sortDate - a.sortDate; });
@@ -462,6 +450,6 @@ requireAuth().catch(function(){});
   loadCloudReports();
 })();
 </script>
-<script src="sw-register.js?v=112"></script>
+<script src="sw-register.js?v=116"></script>
 </body>
 </html>
