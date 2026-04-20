@@ -23,6 +23,7 @@
 <script src="ai-chat.js?v=1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="pdf-utils.js?v=110"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="styles.css">
 <style>
@@ -530,7 +531,8 @@ function generatePDF(){
       columnStyles:{0:{cellWidth:8,halign:'center'},6:{fontStyle:'bold'}}});
     y=doc.lastAutoTable.finalY+2;
     equip.forEach((e,i)=>{if(e.notes){doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(100,116,139);
-      doc.text(`#${i+1} Notes: ${e.notes}`,mx+3,y);y+=4}});
+      const noteLines=doc.splitTextToSize(`#${i+1} Notes: ${e.notes}`,mxr-mx-6);
+      doc.text(noteLines,mx+3,y);y+=noteLines.length*3.2+0.8;}});
     y+=2;
   }
 
