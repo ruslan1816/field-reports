@@ -10,12 +10,12 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=119"></script>
-<script src="auth.js?v=119"></script>
-<script src="cloud-save.js?v=119"></script>
+<script src="supabase-config.js?v=122"></script>
+<script src="auth.js?v=122"></script>
+<script src="cloud-save.js?v=122"></script>
 <title>Report History — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
-<script src="draft-utils.js?v=119"></script>
+<script src="draft-utils.js?v=122"></script>
 <style>
   body { padding-bottom: 0; }
 
@@ -105,6 +105,129 @@
     .history-table { display: none; }
     .history-cards { display: block; }
   }
+
+  /* Create New report button (big, prominent) */
+  .create-new-bar {
+    margin: 0 16px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .create-new-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #0696D7, #0479B2);
+    color: #fff;
+    border: none;
+    border-radius: var(--nw-radius-card);
+    padding: 16px 20px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(6, 150, 215, 0.25);
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+  }
+  .create-new-btn:hover {
+    box-shadow: 0 6px 16px rgba(6, 150, 215, 0.35);
+  }
+  .create-new-btn:active {
+    transform: translateY(1px);
+  }
+  .create-new-btn .plus-icon {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* Project folder grouping */
+  .project-group {
+    margin: 0 16px 16px;
+    border: var(--nw-border-width) solid var(--nw-border);
+    border-radius: var(--nw-radius-card);
+    background: var(--nw-card);
+    overflow: hidden;
+  }
+  .project-group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #f8fafc;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--nw-border);
+    transition: background 0.15s ease;
+  }
+  .project-group-header:hover { background: #f1f5f9; }
+  .project-group-header.collapsed { border-bottom: none; }
+  .project-group-chevron {
+    font-size: 14px;
+    color: var(--nw-muted);
+    transition: transform 0.2s ease;
+    width: 14px;
+  }
+  .project-group-header.collapsed .project-group-chevron {
+    transform: rotate(-90deg);
+  }
+  .project-group-icon {
+    font-size: 18px;
+  }
+  .project-group-name {
+    flex: 1;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--nw-text);
+  }
+  .project-group-subtitle {
+    font-size: 12px;
+    color: var(--nw-muted);
+    font-weight: 400;
+    margin-left: 6px;
+  }
+  .project-group-count {
+    background: var(--nw-primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 10px;
+    min-width: 22px;
+    text-align: center;
+  }
+  .project-group-body {
+    overflow: hidden;
+  }
+  .project-group-header.collapsed + .project-group-body {
+    display: none;
+  }
+  /* Inside a project group, the table/cards are borderless */
+  .project-group-body .history-table,
+  .project-group-body .history-cards {
+    margin: 0;
+  }
+  .project-group-body .history-table .table-clean {
+    border: none;
+    border-radius: 0;
+  }
+  .project-group-body .history-card {
+    border: none;
+    border-bottom: 1px solid var(--nw-border);
+    border-radius: 0;
+    margin: 0;
+  }
+  .project-group-body .history-card:last-child {
+    border-bottom: none;
+  }
+
+  /* Hide Type column in the desktop table when we're filtering by one type */
+  body.single-type .history-table .table-clean th:nth-child(2),
+  body.single-type .history-table .table-clean td:nth-child(2) {
+    display: none;
+  }
 </style>
 </head>
 <body>
@@ -115,9 +238,17 @@
   <div class="header">
     <a href="index.html" class="back-btn">&#8592;</a>
     <div class="header-content">
-      <h1>Report History</h1>
+      <h1 id="pageTitle">Report History</h1>
     </div>
     <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <!-- Create New report — shown only when URL has ?type=X -->
+  <div class="create-new-bar" id="createNewBar" style="display:none">
+    <a class="create-new-btn" id="createNewBtn" href="#">
+      <span class="plus-icon">+</span>
+      <span id="createNewLabel">Create New Report</span>
+    </a>
   </div>
 
   <!-- Status Tabs -->
@@ -196,6 +327,32 @@ requireAuth().catch(function(){});
   var activeFilter = 'all';
   var searchTerm = '';
   var debounceTimer = null;
+
+  // --- URL param: ?type=X filters to one report type + enables "+ New" button ---
+  var typeFilter = null;
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    var t = params.get('type');
+    if (t && FORM_MAP[t]) {
+      typeFilter = t;
+      document.body.classList.add('single-type');
+      // Update page title
+      var label = TYPE_MAP[t] || t;
+      var titleEl = document.getElementById('pageTitle');
+      if (titleEl) titleEl.textContent = label + 's';
+      document.title = label + 's — Northern Wolves AC';
+
+      // Show + New button
+      var bar = document.getElementById('createNewBar');
+      var btn = document.getElementById('createNewBtn');
+      var lbl = document.getElementById('createNewLabel');
+      if (bar && btn && lbl) {
+        bar.style.display = '';
+        btn.href = FORM_MAP[t];
+        lbl.textContent = 'Create New ' + label;
+      }
+    }
+  })();
 
   // --- Load and normalize data ---
   function loadReports() {
@@ -322,6 +479,11 @@ requireAuth().catch(function(){});
   function getFiltered() {
     var filtered = allReports;
 
+    // URL-param type filter
+    if (typeFilter) {
+      filtered = filtered.filter(function(r) { return r.type === typeFilter; });
+    }
+
     if (activeFilter === 'draft') {
       filtered = filtered.filter(function(r) { return r.status === 'draft'; });
     } else if (activeFilter === 'submitted') {
@@ -360,15 +522,34 @@ requireAuth().catch(function(){});
     var cardContainer = document.getElementById('cardContainer');
     var emptyState = document.getElementById('emptyState');
     var summaryText = document.getElementById('summaryText');
+    var tableWrap = document.querySelector('.history-table');
+    var cardsWrap = document.getElementById('cardContainer');
 
-    // Counts
-    var draftCount = allReports.filter(function(r) { return r.status === 'draft'; }).length;
-    var submittedCount = allReports.filter(function(r) { return r.status === 'submitted'; }).length;
-    var completedCount = allReports.filter(function(r) { return r.status === 'completed'; }).length;
-    document.getElementById('countAll').textContent = allReports.length;
+    // For tab counts, honor the type filter (so Drafts/Submitted/Completed tabs
+    // reflect only the currently-viewed report type when ?type=X is set)
+    var forCounts = typeFilter
+      ? allReports.filter(function(r) { return r.type === typeFilter; })
+      : allReports;
+    var draftCount = forCounts.filter(function(r) { return r.status === 'draft'; }).length;
+    var submittedCount = forCounts.filter(function(r) { return r.status === 'submitted'; }).length;
+    var completedCount = forCounts.filter(function(r) { return r.status === 'completed'; }).length;
+    document.getElementById('countAll').textContent = forCounts.length;
     document.getElementById('countDrafts').textContent = draftCount;
     document.getElementById('countSubmitted').textContent = submittedCount;
     document.getElementById('countCompleted').textContent = completedCount;
+
+    // --- Project-grouped render when type is filtered ---
+    if (typeFilter) {
+      renderGroupedByProject(filtered, cardContainer, tableBody, tableWrap);
+      if (filtered.length === 0) {
+        emptyState.style.display = '';
+        summaryText.textContent = '';
+      } else {
+        emptyState.style.display = 'none';
+        summaryText.textContent = 'Showing ' + filtered.length + ' ' + (TYPE_MAP[typeFilter] || typeFilter).toLowerCase() + (filtered.length === 1 ? ' report' : ' reports');
+      }
+      return;
+    }
 
     // Empty state
     if (filtered.length === 0) {
@@ -382,17 +563,11 @@ requireAuth().catch(function(){});
     emptyState.style.display = 'none';
     summaryText.textContent = 'Showing ' + filtered.length + ' of ' + allReports.length + ' reports';
 
-    // Build an identifier we can use to look the row back up on delete.
-    // Cloud rows use cloudId; local drafts use their localStorage id prefixed with "local:".
-    function rowKey(r) {
-      if (r.cloudId) return 'cloud:' + r.cloudId;
-      if (r.source === 'local' && r.link) {
-        // Extract ?draft=ID from the link
-        var m = (r.link.match(/[?&]draft=([^&]+)/) || []);
-        if (m[1]) return 'local:' + decodeURIComponent(m[1]);
-      }
-      return '';
-    }
+    // rowKey() is defined at outer scope — shared with renderGroupedByProject
+
+    // Show the flat containers (hidden by grouped render)
+    if (tableWrap) tableWrap.style.display = '';
+    cardsWrap.style.display = '';
 
     // Desktop table
     var rowsHtml = '';
@@ -448,6 +623,178 @@ requireAuth().catch(function(){});
         '</' + tag + '>';
     });
     cardContainer.innerHTML = cardsHtml;
+  }
+
+  // --- Render filtered reports grouped by project (used when ?type=X) ---
+  function renderGroupedByProject(filtered, cardContainer, tableBody, tableWrap) {
+    // Clear the flat containers — we build our own grouped layout below
+    tableBody.innerHTML = '';
+    cardContainer.innerHTML = '';
+
+    // Remove old groups
+    var existingGroups = document.querySelectorAll('.project-group');
+    existingGroups.forEach(function(g) { g.remove(); });
+
+    if (!filtered.length) return;
+
+    // Hide the flat table + cards while in grouped mode
+    if (tableWrap) tableWrap.style.display = 'none';
+    cardContainer.style.display = 'none';
+
+    // Build groups keyed by project name (fallback: "No Project")
+    var groups = {};
+    var groupOrder = [];
+    filtered.forEach(function(r) {
+      var key = (r.projectName && r.projectName.trim()) ? r.projectName.trim() : '__no_project__';
+      if (!groups[key]) {
+        groups[key] = {
+          name: key === '__no_project__' ? 'No Project' : key,
+          address: r.projectAddress || '',
+          reports: [],
+          isNoProject: key === '__no_project__'
+        };
+        groupOrder.push(key);
+      }
+      groups[key].reports.push(r);
+      // Prefer any non-empty address for the group subtitle
+      if (r.projectAddress && !groups[key].address) groups[key].address = r.projectAddress;
+    });
+
+    // Sort groups: real projects first (alphabetically), "No Project" last
+    groupOrder.sort(function(a, b) {
+      if (a === '__no_project__') return 1;
+      if (b === '__no_project__') return -1;
+      return groups[a].name.localeCompare(groups[b].name);
+    });
+
+    // Insert each group after the summary text
+    var after = document.getElementById('summaryText');
+    var anchor = after;
+    groupOrder.forEach(function(gk) {
+      var g = groups[gk];
+      var groupEl = document.createElement('div');
+      groupEl.className = 'project-group';
+      groupEl.innerHTML =
+        '<div class="project-group-header" data-group-key="' + escapeAttr(gk) + '">' +
+          '<span class="project-group-chevron">▼</span>' +
+          '<span class="project-group-icon">' + (g.isNoProject ? '📋' : '📁') + '</span>' +
+          '<span class="project-group-name">' + escapeHtml(g.name) +
+            (g.address ? '<span class="project-group-subtitle">' + escapeHtml(g.address) + '</span>' : '') +
+          '</span>' +
+          '<span class="project-group-count">' + g.reports.length + '</span>' +
+        '</div>' +
+        '<div class="project-group-body">' +
+          '<div class="history-table"><table class="table-clean">' +
+            '<thead><tr>' +
+              '<th>Date</th><th>Type</th><th>Customer</th><th>Address</th><th>Technician</th><th>Status</th>' +
+              '<th style="width:40px"></th>' +
+            '</tr></thead>' +
+            '<tbody>' + buildRowsHtml(g.reports) + '</tbody>' +
+          '</table></div>' +
+          '<div class="history-cards">' + buildCardsHtml(g.reports) + '</div>' +
+        '</div>';
+      // Insert after the last anchor
+      if (anchor && anchor.parentNode) {
+        anchor.parentNode.insertBefore(groupEl, anchor.nextSibling);
+        anchor = groupEl;
+      } else {
+        document.querySelector('.history-wrap').appendChild(groupEl);
+      }
+    });
+
+    // Wire up collapse toggles
+    document.querySelectorAll('.project-group-header').forEach(function(h) {
+      h.addEventListener('click', function() {
+        h.classList.toggle('collapsed');
+      });
+    });
+
+    // Wire up delete buttons + row click inside groups (delegated)
+    document.querySelectorAll('.project-group-body').forEach(function(gb) {
+      gb.addEventListener('click', function(e) {
+        var delBtn = e.target.closest('.delete-btn');
+        if (delBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          var key = delBtn.getAttribute('data-del-key');
+          deleteReportByKey(key, findReportByKey(key));
+          return;
+        }
+        var row = e.target.closest('tr[data-link]');
+        if (row) {
+          window.location.href = row.getAttribute('data-link');
+        }
+      });
+    });
+  }
+
+  // Shared row-html builder used by flat + grouped renders
+  function buildRowsHtml(rows) {
+    var html = '';
+    rows.forEach(function(r) {
+      var typeLabel = TYPE_MAP[r.type] || r.type || '—';
+      var badgeClass = r.status === 'draft' ? 'badge-draft' : r.status === 'submitted' ? 'badge-submitted' : 'badge-completed';
+      var badgeText = r.status === 'draft' ? 'Draft' : r.status === 'submitted' ? 'Submitted' : 'Completed';
+      var linkAttr = r.link ? ' data-link="' + r.link + '"' : '';
+      var editHtml = (r.source === 'cloud' && r.link) ? ' <span class="edit-indicator">✎ Edit</span>' : '';
+      var k = rowKey(r);
+      var del = k ? '<button class="delete-btn" data-del-key="' + k + '" title="Delete">&times;</button>' : '';
+      html += '<tr' + linkAttr + '>' +
+        '<td>' + fmtDate(r.date) + '</td>' +
+        '<td>' + typeLabel + '</td>' +
+        '<td>' + (r.customer || '—') + '</td>' +
+        '<td>' + (r.projectAddress || '—') + '</td>' +
+        '<td>' + (r.techName || '—') + '</td>' +
+        '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span>' + editHtml + '</td>' +
+        '<td>' + del + '</td>' +
+        '</tr>';
+    });
+    return html;
+  }
+
+  function buildCardsHtml(rows) {
+    var html = '';
+    rows.forEach(function(r) {
+      var typeLabel = TYPE_MAP[r.type] || r.type || '—';
+      var badgeClass = r.status === 'draft' ? 'badge-draft' : r.status === 'submitted' ? 'badge-submitted' : 'badge-completed';
+      var badgeText = r.status === 'draft' ? 'Draft' : r.status === 'submitted' ? 'Submitted' : 'Completed';
+      var tag = r.link ? 'a' : 'div';
+      var hrefAttr = r.link ? ' href="' + r.link + '"' : '';
+      var cardEditHtml = (r.source === 'cloud' && r.link) ? '<span class="edit-indicator">✎ Edit</span>' : '';
+      var k = rowKey(r);
+      var del = k ? '<button class="delete-btn" data-del-key="' + k + '" title="Delete">&times;</button>' : '';
+      html += '<' + tag + ' class="history-card"' + hrefAttr + '>' +
+        '<div class="history-card-top">' +
+          '<span class="history-card-type">' + typeLabel + '</span>' +
+          '<span style="display:inline-flex;gap:6px;align-items:center">' +
+            '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
+            del +
+          '</span>' +
+        '</div>' +
+        '<div class="history-card-date">' + fmtDate(r.date) + cardEditHtml + '</div>' +
+        '<div class="history-card-row">Customer: <span>' + (r.customer || '—') + '</span></div>' +
+        (r.projectAddress ? '<div class="history-card-row">Address: <span>' + r.projectAddress + '</span></div>' : '') +
+        '<div class="history-card-row">Tech: <span>' + (r.techName || '—') + '</span></div>' +
+        '</' + tag + '>';
+    });
+    return html;
+  }
+
+  // rowKey is used by both flat and grouped renders, delete handler, etc.
+  function rowKey(r) {
+    if (r.cloudId) return 'cloud:' + r.cloudId;
+    if (r.source === 'local' && r.link) {
+      var m = (r.link.match(/[?&]draft=([^&]+)/) || []);
+      if (m[1]) return 'local:' + decodeURIComponent(m[1]);
+    }
+    return '';
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escapeAttr(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   // --- Delete a report (local draft or cloud) ---
@@ -590,6 +937,6 @@ requireAuth().catch(function(){});
   loadCloudReports();
 })();
 </script>
-<script src="sw-register.js?v=119"></script>
+<script src="sw-register.js?v=122"></script>
 </body>
 </html>
