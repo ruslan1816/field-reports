@@ -950,7 +950,11 @@ async function confirmSendEmail(){
       d._revisionNumber = _revisionNumber;
       d._coStatus = 'revised';
       _coStatus = 'revised';
-      updateReportInCloud(_editCloudId, { form_data: d, status: 'revised' });
+      var revResult = await updateReportInCloud(_editCloudId, { form_data: d, status: 'revised' });
+      if (revResult && revResult.error) {
+        console.error('[change-order] revision save failed:', revResult.error);
+        if (typeof showToast === 'function') showToast('⚠️ Cloud save failed — email still sent. Check console.');
+      }
       console.log('[CO] Updated existing CO:', _editCloudId, 'Rev:', _revisionNumber);
     } else {
       d._coStatus = 'submitted';

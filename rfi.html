@@ -165,6 +165,8 @@ requireAuth().catch(function(){});
 // ========== DRAFT INITIALIZATION ==========
 const draftId = initializeDraftForm('rfi', 'rfi.html');
 const SAVE_KEY_DRAFT = 'nw_draft_' + draftId;
+// If URL has ?edit=CLOUD_ID, restore from Supabase after DOM is fully set up
+if (typeof initEditMode === 'function') { setTimeout(function(){ initEditMode('rfi'); }, 300); }
 const reportId='RFI-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).substr(2,4).toUpperCase();
 document.getElementById('reportId').textContent=reportId;
 document.getElementById('rfiDate').value=new Date().toISOString().slice(0,10);
