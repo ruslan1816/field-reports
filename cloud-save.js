@@ -59,14 +59,27 @@
 
       console.log('[cloud-save] Saving report:', row.report_number, row.report_type);
 
+      // Use UPSERT keyed on report_number so re-submissions of the SAME
+      // report (double-click Send, back+resubmit, network retry) update
+      // the existing row instead of creating duplicates. Requires a
+      // UNIQUE constraint on reports.report_number in Supabase.
       var result = await supabaseClient
         .from('reports')
-        .insert(row)
+        .upsert(row, { onConflict: 'report_number' })
         .select()
         .single();
 
       if (result.error) {
         console.error('[cloud-save] Save error:', result.error.message);
+        // If upsert fails because the UNIQUE constraint doesn't exist yet,
+        // fall back to a plain insert so we don't lose the report. Russ
+        // will need to add `UNIQUE (report_number)` on the reports table
+        // for dedup to actually kick in.
+        if (result.error.code === '42P10' || /on conflict/i.test(result.error.message || '')) {
+          console.warn('[cloud-save] UNIQUE(report_number) not configured — falling back to INSERT. Please add the constraint in Supabase to enable dedup.');
+          var fallback = await supabaseClient.from('reports').insert(row).select().single();
+          return { data: fallback.data, error: fallback.error };
+        }
         return { data: null, error: result.error };
       }
 
