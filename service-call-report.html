@@ -1176,11 +1176,19 @@ function generatePDF() {
 }
 
 function generateAndDownload() {
-  const doc = generatePDF();
-  const d = collectData();
-  const filename = `ServiceCall_${d.custName.replace(/\s+/g,'_') || 'Report'}_${d.callDate}.pdf`;
-  doc.save(filename);
-  showToast('PDF downloaded!');
+  try {
+    const doc = generatePDF();
+    const d = collectData();
+    const safeName = (d.custName || 'Report').replace(/\s+/g, '_');
+    const safeDate = d.callDate || new Date().toISOString().split('T')[0];
+    const filename = `ServiceCall_${safeName}_${safeDate}.pdf`;
+    doc.save(filename);
+    showToast('PDF downloaded!');
+  } catch (err) {
+    console.error('[PDF] generateAndDownload failed:', err);
+    alert('PDF generation failed:\n\n' + (err && err.message ? err.message : err) +
+      '\n\nOpen browser console (F12) and share the full error if it keeps happening.');
+  }
 }
 
 async function generateAndEmailWithHistory() {
