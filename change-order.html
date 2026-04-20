@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Change Order — Northern Wolves AC</title>
 <script src="draft-utils.js?v=52"></script>
+<script src="edit-utils.js?v=118"></script>
 <script src="project-utils.js?v=52"></script>
 <script src="customer-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -872,7 +873,18 @@ function generatePDF(){
   return doc;
 }
 
-function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`ChangeOrder_${v('custName').replace(/\s+/g,'_')||'CO'}_${v('coDate')}.pdf`);showToast('PDF downloaded!')}
+function generateAndDownload(){
+  try {
+    const v=id=>(document.getElementById(id)||{}).value||'';
+    const safeName=(v('custName')||'CO').replace(/\s+/g,'_');
+    const safeDate=v('coDate')||new Date().toISOString().split('T')[0];
+    generatePDF().save(`ChangeOrder_${safeName}_${safeDate}.pdf`);
+    showToast('PDF downloaded!');
+  } catch (err) {
+    console.error('[PDF] generateAndDownload failed:', err);
+    alert('PDF generation failed:\n\n'+(err&&err.message?err.message:err)+'\n\nOpen console (F12) and share the error if this keeps happening.');
+  }
+}
 
 function openEmailPreview(){
   const v=id=>(document.getElementById(id)||{}).value||'';
@@ -943,7 +955,13 @@ async function confirmSendEmail(){
     } else {
       d._coStatus = 'submitted';
       d._revisionNumber = 1;
-      saveReportToCloud('change-order', d, { reportId: reportId, projectId: projId });
+      var cloudResult = await (typeof saveOrUpdateReport === 'function'
+        ? saveOrUpdateReport('change-order', d, { reportId: reportId, projectId: projId })
+        : saveReportToCloud('change-order', d, { reportId: reportId, projectId: projId }));
+      if (cloudResult && cloudResult.error) {
+        console.error('[change-order] cloud save failed:', cloudResult.error);
+        if (typeof showToast === 'function') showToast('⚠️ Cloud save failed — email still sent. Check console.');
+      }
     }
     const v=id=>(document.getElementById(id)||{}).value||'';
     const doc=generatePDF();

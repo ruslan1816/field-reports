@@ -12,7 +12,7 @@
 <script src="supabase-config.js?v=52"></script>
 <script src="auth.js?v=52"></script>
 <script src="cloud-save.js?v=52"></script>
-<script src="edit-utils.js?v=113"></script>
+<script src="edit-utils.js?v=118"></script>
 <title>Service Call Report — Northern Wolves AC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="styles.css">
@@ -812,18 +812,22 @@ function collectData() {
     const q = row.querySelector('.part-qty')?.value;
     if (d) parts.push({ desc: d, qty: q || '1' });
   });
+  // Collect equipment array ONCE (was being called 4x before, any exception
+  // inside killed the whole collectData silently).
+  const _equipList = (typeof collectEquipmentData === 'function') ? collectEquipmentData() : [];
+  const _eq0 = _equipList[0] || {};
   return {
     reportId, projectName: v('projectName'), callDate: v('callDate'), timeArrive: v('timeArrive'), timeDepart: v('timeDepart'),
     workOrder: v('workOrder'), techName: v('techName'), callType: radioVal('callType'),
     custName: v('custName'), custAddress: v('custAddress'), custContact: v('custContact'),
     custPhone: v('custPhone'), custEmail: v('custEmail'),
-    equipment: typeof collectEquipmentData === 'function' ? collectEquipmentData() : [],
-    equipType: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].type : '',
-    equipMfg: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].mfg : '',
-    equipModel: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].model : '',
-    equipSerial: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].serial : '',
-    refrigerant: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].refrigerant : '',
-    equipLocation: (typeof collectEquipmentData === 'function' && collectEquipmentData().length > 0) ? collectEquipmentData()[0].location : '',
+    equipment: _equipList,
+    equipType: _eq0.type || '',
+    equipMfg: _eq0.mfg || '',
+    equipModel: _eq0.model || '',
+    equipSerial: _eq0.serial || '',
+    refrigerant: _eq0.refrigerant || '',
+    equipLocation: _eq0.location || '',
     complaint: v('complaint'),
     readings: collectAllReadings(),
     diagnosis: v('diagnosis'), workPerformed: v('workPerformed'), recommendations: v('recommendations'),
@@ -832,7 +836,8 @@ function collectData() {
     systemStatus: radioVal('systemStatus'), statusNotes: v('statusNotes'), statusByEquip: collectStatusData(),
     regHours: v('regHours'), otHours: v('otHours'), travelTime: v('travelTime'),
     custPrintName: v('custPrintName'),
-    techSig: techSigPad.toDataURL(), custSig: custSigPad.toDataURL(),
+    techSig: (typeof techSigPad !== 'undefined' && techSigPad && techSigPad.toDataURL) ? techSigPad.toDataURL() : '',
+    custSig: (typeof custSigPad !== 'undefined' && custSigPad && custSigPad.toDataURL) ? custSigPad.toDataURL() : '',
     photos: getAllPhotos(),
     photosByEquip: photosByEquip,
     aiSummary: typeof getAISummary === 'function' ? getAISummary() : ''
@@ -1211,7 +1216,11 @@ async function generateAndEmailWithHistory() {
       reportId: reportId
     });
   }
-  saveOrUpdateReport('service-call', d, { reportId: reportId, projectId: projId });
+  var cloudResult = await saveOrUpdateReport('service-call', d, { reportId: reportId, projectId: projId });
+  if (cloudResult && cloudResult.error) {
+    console.error('[service-call] cloud save failed:', cloudResult.error);
+    if (typeof showToast === 'function') showToast('⚠️ Cloud save failed — email still sent. Check console.');
+  }
 
   const doc = generatePDF();
   const filename = `ServiceCall_${d.custName.replace(/\s+/g,'_') || 'Report'}_${d.callDate}.pdf`;

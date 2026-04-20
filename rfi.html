@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>RFI — Northern Wolves AC</title>
 <script src="draft-utils.js?v=52"></script>
+<script src="edit-utils.js?v=118"></script>
 <script src="project-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
@@ -294,7 +295,18 @@ function generatePDF(){
   return doc;
 }
 
-function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save('RFI_'+(v('toCompany').replace(/\s+/g,'_')||'RFI')+'_'+v('rfiDate')+'.pdf');showToast('PDF downloaded!')}
+function generateAndDownload(){
+  try {
+    const v=id=>(document.getElementById(id)||{}).value||'';
+    const safeName=(v('toCompany')||'RFI').replace(/\s+/g,'_');
+    const safeDate=v('rfiDate')||new Date().toISOString().split('T')[0];
+    generatePDF().save('RFI_'+safeName+'_'+safeDate+'.pdf');
+    showToast('PDF downloaded!');
+  } catch (err) {
+    console.error('[PDF] generateAndDownload failed:', err);
+    alert('PDF generation failed:\n\n'+(err&&err.message?err.message:err)+'\n\nOpen console (F12) and share the error if this keeps happening.');
+  }
+}
 async function generateAndEmailWithHistory(){
   var sendBtn = document.querySelector('.btn-success[onclick*="generateAndEmail"]');
   var origText = sendBtn ? sendBtn.innerHTML : '';
@@ -314,7 +326,13 @@ async function generateAndEmailWithHistory(){
       reportId: reportId
     });
   }
-  saveReportToCloud('rfi', d, { reportId: reportId, projectId: projId });
+  var cloudResult = await (typeof saveOrUpdateReport === 'function'
+    ? saveOrUpdateReport('rfi', d, { reportId: reportId, projectId: projId })
+    : saveReportToCloud('rfi', d, { reportId: reportId, projectId: projId }));
+  if (cloudResult && cloudResult.error) {
+    console.error('[rfi] cloud save failed:', cloudResult.error);
+    if (typeof showToast === 'function') showToast('⚠️ Cloud save failed — email still sent. Check console.');
+  }
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn='RFI_'+(v('toCompany').replace(/\s+/g,'_')||'RFI')+'_'+v('rfiDate')+'.pdf';
   var result = await sendReportToManagement({

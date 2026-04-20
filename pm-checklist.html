@@ -11,7 +11,7 @@
 <script src="supabase-config.js?v=52"></script>
 <script src="auth.js?v=52"></script>
 <script src="cloud-save.js?v=52"></script>
-<script src="edit-utils.js?v=113"></script>
+<script src="edit-utils.js?v=118"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Maintenance — Northern Wolves AC</title>
 <script src="draft-utils.js?v=52"></script>
@@ -635,14 +635,26 @@ function collectData(){
     statusByEquip: collectStatusData(),
     statusNotes: v('statusNotes'),
     custPrintName: v('custPrintName'),
-    techSig: techSigPad.toDataURL(), custSig: custSigPad.toDataURL(),
+    techSig: (typeof techSigPad !== 'undefined' && techSigPad && techSigPad.toDataURL) ? techSigPad.toDataURL() : '',
+    custSig: (typeof custSigPad !== 'undefined' && custSigPad && custSigPad.toDataURL) ? custSigPad.toDataURL() : '',
     photos: getAllPhotos(),
     photosByEquip: photosByEquip,
     aiSummary: typeof getAISummary==='function'?getAISummary():''
   };
 }
 
-function generateAndDownload(){const v=id=>(document.getElementById(id)||{}).value||'';generatePDF().save(`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`);showToast('PDF downloaded!')}
+function generateAndDownload(){
+  try {
+    const v=id=>(document.getElementById(id)||{}).value||'';
+    const safeName=(v('custName')||'Checklist').replace(/\s+/g,'_');
+    const safeDate=v('pmDate')||new Date().toISOString().split('T')[0];
+    generatePDF().save(`PM_${safeName}_${safeDate}.pdf`);
+    showToast('PDF downloaded!');
+  } catch (err) {
+    console.error('[PDF] generateAndDownload failed:', err);
+    alert('PDF generation failed:\n\n'+(err&&err.message?err.message:err)+'\n\nOpen console (F12) and share the error if this keeps happening.');
+  }
+}
 async function generateAndEmailWithHistory(){
   var sendBtn = document.querySelector('.btn-success[onclick*="generateAndEmail"]');
   var origText = sendBtn ? sendBtn.innerHTML : '';
@@ -662,7 +674,11 @@ async function generateAndEmailWithHistory(){
       reportId: reportId
     });
   }
-  saveOrUpdateReport('pm-checklist', d, { reportId: reportId, projectId: projId });
+  var cloudResult = await saveOrUpdateReport('pm-checklist', d, { reportId: reportId, projectId: projId });
+  if (cloudResult && cloudResult.error) {
+    console.error('[pm-checklist] cloud save failed:', cloudResult.error);
+    if (typeof showToast === 'function') showToast('⚠️ Cloud save failed — email still sent. Check console.');
+  }
   const v=id=>(document.getElementById(id)||{}).value||'';const doc=generatePDF();
   const fn=`PM_${v('custName').replace(/\s+/g,'_')||'Checklist'}_${v('pmDate')}.pdf`;
   var result = await sendReportToManagement({

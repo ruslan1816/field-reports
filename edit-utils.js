@@ -1,13 +1,14 @@
 /**
  * edit-utils.js — Northern Wolves AC
  * ====================================
- * Enables editing/revising submitted reports.
+ * Restores a submitted report from Supabase into the form for editing.
  *
- * Usage: Include in any report HTML, then call initEditMode('service-call')
- * after the form loads. Detects ?edit=CLOUD_ID in the URL, fetches the
- * report from Supabase, and fills the form.
+ * Each report type saves a JSONB form_data blob with different field names.
+ * This file knows about every shape and restores each piece back onto the DOM
+ * so the tech can edit and resubmit without retyping.
  *
- * On re-submit, forms call saveOrUpdateReport() instead of saveReportToCloud().
+ * Usage: included in each report HTML. On load, each report calls
+ *        initEditMode('<type>') after the form's DOM is ready.
  */
 
 var _editingCloudId = null;
@@ -26,10 +27,16 @@ async function initEditMode(formType) {
   try {
     if (typeof showToast === 'function') showToast('Loading report...');
 
+    if (typeof getReportById !== 'function') {
+      console.error('[edit-utils] getReportById not available — cloud-save.js not loaded?');
+      if (typeof showToast === 'function') showToast('Cannot load — cloud module missing');
+      return false;
+    }
+
     var result = await getReportById(editId);
-    if (!result.data || !result.data.form_data) {
+    if (!result || !result.data || !result.data.form_data) {
       if (typeof showToast === 'function') showToast('Could not load report');
-      console.error('[edit-utils] Report not found:', editId);
+      console.error('[edit-utils] Report not found:', editId, result && result.error);
       return false;
     }
 
@@ -39,40 +46,55 @@ async function initEditMode(formType) {
 
     var fd = result.data.form_data;
 
-    // 1. Restore report ID
+    // 1. Restore reportId (displayed at the top)
     if (fd.reportId) {
       var reportIdEl = document.getElementById('reportId');
       if (reportIdEl) reportIdEl.textContent = fd.reportId;
       if (typeof window.reportId !== 'undefined') window.reportId = fd.reportId;
     }
 
-    // 2. Restore simple fields (inputs, selects, textareas)
+    // 2. Simple fields (inputs, selects, textareas)
     _restoreSimpleFields(fd);
 
-    // 3. Restore radio buttons
+    // 3. Radio groups (priority, status, callType, result, etc.)
     _restoreRadios(fd);
 
-    // 4. Restore condition selectors (site-survey style)
+    // 4. Condition selectors (site-survey ductwork/insulation/piping)
     _restoreConditions(fd);
 
-    // 5. Restore checkbox groups
+    // 5. Checkbox multi-select groups (purpose)
     _restoreCheckboxes(fd);
 
-    // 6. Restore equipment array (site-survey) — MUST run BEFORE _restorePhotos
-    //    so the equip_N photo preview containers exist before we try to
-    //    populate them.
+    // 6. Equipment cards — MUST run before photos & readings & per-equipment
+    //    status, because those reference equip_N containers that addEquipment()
+    //    seeds.
     _restoreEquipment(fd);
 
-    // 7. Restore parts / labor / readings (service-call, startup, work-order)
+    // 7. Parts and labor dynamic rows
     _restorePartsAndLabor(fd);
 
-    // 8. Restore photos (now that equipment cards exist)
+    // 8. Readings tables (service-call .reading-input, startup cool/heat)
+    _restoreReadings(fd);
+
+    // 9. Per-equipment operational status (service-call/work-order/pm-checklist/startup)
+    _restoreStatusByEquip(fd);
+
+    // 10. PM-checklist pass/fail/na items
+    _restoreChecklistResults(fd);
+
+    // 11. Photos (equipment cards now exist so equip_N containers are present)
     _restorePhotos(fd);
 
-    // 9. Restore project selection
+    // 12. Signatures (redraw the saved PNG base64 into the sig pad canvas)
+    _restoreSignatures(fd);
+
+    // 13. AI summary panel text
+    _restoreAISummary(fd);
+
+    // 14. Project selection
     _restoreProject(result.data);
 
-    // 8. Show edit mode badge
+    // 15. Edit-mode UI (badge + button text)
     _showEditBadge();
 
     if (typeof showToast === 'function') showToast('Report loaded — edit and resend');
@@ -81,7 +103,7 @@ async function initEditMode(formType) {
 
   } catch (err) {
     console.error('[edit-utils] Error loading report:', err);
-    if (typeof showToast === 'function') showToast('Error loading report');
+    if (typeof showToast === 'function') showToast('Error loading report: ' + (err && err.message ? err.message : 'unknown'));
     return false;
   }
 }
@@ -89,19 +111,31 @@ async function initEditMode(formType) {
 // ========== FIELD RESTORATION ==========
 
 function _restoreSimpleFields(fd) {
-  var skip = ['reportId', 'equipment', 'photos', 'photosByEquip', 'parts',
-              'readings', 'techSig', 'custSig', 'aiSummary', 'statusByEquip',
-              '_parts', '_equipment', '_readings', '_photosByEquip', '_statusByEquip',
-              '_photos', '_projectId'];
+  // Keys handled by dedicated restorers (skip in the simple-field loop)
+  var skip = {
+    reportId: 1, equipment: 1, photos: 1, photosByEquip: 1,
+    parts: 1, labor: 1, readings: 1, coolReadings: 1, heatReadings: 1,
+    techSig: 1, custSig: 1, submitterSig: 1, fmSig: 1,
+    aiSummary: 1, statusByEquip: 1, checklistResults: 1,
+    _parts: 1, _labor: 1, _equipment: 1, _readings: 1,
+    _photosByEquip: 1, _statusByEquip: 1, _photos: 1,
+    _projectId: 1, _cloudId: 1, _revisionNumber: 1,
+    _coStatus: 1, _rfiStatus: 1
+  };
 
   Object.keys(fd).forEach(function(key) {
-    if (skip.indexOf(key) !== -1) return;
+    if (skip[key]) return;
     var value = fd[key];
     if (typeof value !== 'string' && typeof value !== 'number') return;
 
     var el = document.getElementById(key);
     if (!el) return;
-    if (el.type === 'checkbox' || el.type === 'radio') return; // handle separately
+    if (el.type === 'checkbox' || el.type === 'radio') return; // handled separately
+    // <span>/<div> cost totals etc. — set textContent, not value
+    if (el.tagName === 'SPAN' || el.tagName === 'DIV') {
+      el.textContent = String(value);
+      return;
+    }
 
     el.value = String(value);
     el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -109,24 +143,41 @@ function _restoreSimpleFields(fd) {
 }
 
 function _restoreRadios(fd) {
-  // Common radio group names across forms
-  var radioNames = ['callType', 'systemStatus', 'priority', 'crane', 'unitOperable'];
+  // Every radio group name that appears across the 7 report forms.
+  // If a form doesn't have the radio, the querySelector just returns null and
+  // we skip silently.
+  var radioNames = [
+    'callType',        // service-call
+    'systemStatus',    // legacy — harmless
+    'priority',        // site-survey + work-order
+    'crane',           // site-survey
+    'unitOperable',    // legacy — harmless
+    'result',          // startup (PASS/CONDITIONAL/FAIL)
+    'status',          // work-order
+    'coStatus',        // change-order
+    'rfiStatus',       // rfi
+    'rfiPriority'      // rfi
+  ];
 
   radioNames.forEach(function(name) {
-    if (!fd[name]) return;
-    var radio = document.querySelector('input[name="' + name + '"][value="' + fd[name] + '"]');
-    if (radio) {
-      radio.checked = true;
-      // Trigger visual selection on parent .check-item
-      var item = radio.closest('.check-item');
-      if (item) item.classList.add('selected');
-    }
+    var val = fd[name];
+    if (val == null || val === '') return;
+    var radio = document.querySelector('input[name="' + name + '"][value="' + String(val).replace(/"/g, '\\"') + '"]');
+    if (!radio) return;
+    radio.checked = true;
+    var item = radio.closest('.check-item');
+    if (item) item.classList.add('selected');
   });
 }
 
 function _restoreConditions(fd) {
-  // Condition selectors use dataset.value on parent div
+  // Site-survey-style condition selectors: <div id="xxxCondition" data-value="">
+  //   with child buttons that get the good/fair/poor/eol/na classes.
   var conditionIds = ['ductCondition', 'insCondition', 'pipeCondition'];
+  var classMap = {
+    'Good': 'good', 'Fair': 'fair', 'Poor': 'poor',
+    'End of Life': 'eol', 'EOL': 'eol', 'N/A': 'na'
+  };
 
   conditionIds.forEach(function(id) {
     var val = fd[id];
@@ -134,25 +185,22 @@ function _restoreConditions(fd) {
     var el = document.getElementById(id);
     if (!el) return;
     el.dataset.value = val;
-    // Highlight the matching button
     el.querySelectorAll('.condition-btn').forEach(function(btn) {
-      btn.classList.remove('good', 'fair', 'poor', 'eol');
+      btn.classList.remove('good', 'fair', 'poor', 'eol', 'na');
       if (btn.textContent.trim() === val) {
-        if (val === 'Good') btn.classList.add('good');
-        else if (val === 'Fair') btn.classList.add('fair');
-        else if (val === 'Poor') btn.classList.add('poor');
-        else if (val === 'End of Life') btn.classList.add('eol');
+        var cls = classMap[val];
+        if (cls) btn.classList.add(cls);
       }
     });
   });
 }
 
 function _restoreCheckboxes(fd) {
-  // Purpose checkboxes (site-survey)
+  // site-survey Purpose checkboxes
   if (fd.purpose) {
-    var purposes = fd.purpose.split(', ');
+    var purposes = String(fd.purpose).split(', ');
     purposes.forEach(function(val) {
-      var cb = document.querySelector('#purposeGroup input[value="' + val + '"]');
+      var cb = document.querySelector('#purposeGroup input[value="' + val.replace(/"/g, '\\"') + '"]');
       if (cb) {
         cb.checked = true;
         var item = cb.closest('.check-item');
@@ -162,65 +210,70 @@ function _restoreCheckboxes(fd) {
   }
 }
 
+/**
+ * Restore photos across all forms.
+ * - Main key: fd.photosByEquip
+ * - Legacy: fd._photosByEquip (older saves)
+ * - Change-order: fd._photos (flat array, different key)
+ */
 function _restorePhotos(fd) {
-  var photoData = fd.photosByEquip || fd._photosByEquip;
-  if (!photoData || typeof window.photosByEquip === 'undefined') return;
+  if (typeof window.photosByEquip === 'undefined') return;
 
-  Object.keys(photoData).forEach(function(key) {
-    var arr = photoData[key];
-    if (!arr || !arr.length) return;
-    // REPLACE (don't append) — otherwise re-opening a report for edit
-    // would duplicate the default-initialized empty arrays or existing
-    // saved photos.
-    window.photosByEquip[key] = [];
-    arr.forEach(function(photo) {
-      if (photo && photo.data) {
-        window.photosByEquip[key].push({ name: photo.name || '', data: photo.data });
-      }
+  var source = fd.photosByEquip || fd._photosByEquip || null;
+  if (source && typeof source === 'object') {
+    Object.keys(source).forEach(function(key) {
+      var arr = source[key];
+      if (!arr || !arr.length) return;
+      window.photosByEquip[key] = [];  // REPLACE, don't append
+      arr.forEach(function(photo) {
+        if (photo && photo.data) {
+          window.photosByEquip[key].push({ name: photo.name || '', data: photo.data });
+        }
+      });
     });
-  });
+  }
 
-  // Re-render all photo previews
+  // Change-order uses a flat array at fd._photos keyed to the 'additional' bucket.
+  if (Array.isArray(fd._photos) && fd._photos.length) {
+    window.photosByEquip['additional'] = [];
+    fd._photos.forEach(function(p) {
+      if (p && p.data) window.photosByEquip['additional'].push({ name: p.name || '', data: p.data });
+    });
+  }
+
   if (typeof renderEquipPhotos === 'function') {
     Object.keys(window.photosByEquip).forEach(function(key) {
-      renderEquipPhotos(key);
+      try { renderEquipPhotos(key); } catch(e) {}
     });
   }
 }
 
 /**
- * Restore the equipment array (site-survey-style forms that use
- * addEquipment() + .equip-card + photosByEquip.equip_N).
- *
- * Site-survey seeds the page with one empty equipment card on load.
- * We wipe it and recreate one card per item in fd.equipment, filling in
- * every field (type, mfg, model, serial, age/year, capacity, location,
- * condition, notes). photosByEquip.equip_N keys are re-initialized
- * empty — _restorePhotos (called next) populates them with actual photos.
+ * Restore the equipment array (site-survey-style forms use addEquipment() +
+ * .equip-card). Clears the default empty card and recreates one per saved item.
  */
 function _restoreEquipment(fd) {
   if (!Array.isArray(fd.equipment) || !fd.equipment.length) return;
-  if (typeof window.addEquipment !== 'function') return; // form doesn't have equipment
+  if (typeof window.addEquipment !== 'function') return;
 
   var list = document.getElementById('equipList');
   if (!list) return;
 
-  // Clear existing cards (page load creates one default empty one)
   list.innerHTML = '';
-  // Reset the equipment counter if the form exposes it
   if (typeof window.equipCount !== 'undefined') window.equipCount = 0;
-  // Clear existing equip_N keys from photosByEquip (will be reseeded by addEquipment)
   if (window.photosByEquip) {
     Object.keys(window.photosByEquip).forEach(function(k) {
       if (k.indexOf('equip_') === 0) delete window.photosByEquip[k];
     });
   }
 
-  var condClassMap = { 'Good': 'good', 'Fair': 'fair', 'Poor': 'poor', 'End of Life': 'eol' };
+  var condClassMap = {
+    'Good': 'good', 'Fair': 'fair', 'Poor': 'poor',
+    'End of Life': 'eol', 'EOL': 'eol', 'N/A': 'na'
+  };
 
   fd.equipment.forEach(function(eq) {
     window.addEquipment();
-    // Find the just-added card (it's the last .equip-card in the list)
     var cards = list.querySelectorAll('.equip-card');
     var card = cards[cards.length - 1];
     if (!card) return;
@@ -237,18 +290,16 @@ function _restoreEquipment(fd) {
     setField('eq-cap', eq.capacity);
     setField('eq-loc', eq.location);
     setField('eq-notes', eq.notes);
+    setField('eq-refrigerant', eq.refrigerant);
 
-    // Condition — dataset.value + highlight matching button
     if (eq.condition) {
       var condEl = card.querySelector('[id^="cond_"]');
       if (condEl) {
         condEl.dataset.value = eq.condition;
         var cls = condClassMap[eq.condition];
         condEl.querySelectorAll('.condition-btn').forEach(function(btn) {
-          btn.classList.remove('good', 'fair', 'poor', 'eol');
-          if (cls && btn.textContent.trim() === eq.condition) {
-            btn.classList.add(cls);
-          }
+          btn.classList.remove('good', 'fair', 'poor', 'eol', 'na');
+          if (cls && btn.textContent.trim() === eq.condition) btn.classList.add(cls);
         });
       }
     }
@@ -256,35 +307,54 @@ function _restoreEquipment(fd) {
 }
 
 /**
- * Restore dynamic parts / labor / readings rows for forms that have them
- * (service-call has addPart + addLabor, work-order has addPartRow, etc.).
- * Each row container is cleared and repopulated from the saved arrays.
+ * Restore dynamic parts / labor rows.
+ *   service-call: addPart() + .parts-row + .part-desc/.part-qty
+ *                 addLabor() + .labor-row + .labor-tech/.labor-hrs/.labor-rate
+ *   work-order:   addPartRow() + generic inputs[] order
+ *   change-order: same as work-order but data lives under fd._parts
  */
 function _restorePartsAndLabor(fd) {
-  // Service Call style: .parts-row in #partsList via addPart()
-  if (Array.isArray(fd.parts) && fd.parts.length && typeof window.addPart === 'function') {
-    var partsList = document.getElementById('partsList');
-    if (partsList) partsList.innerHTML = '';
-    fd.parts.forEach(function(p) {
-      window.addPart();
-      var rows = partsList ? partsList.querySelectorAll('.parts-row') : [];
-      var row = rows[rows.length - 1];
-      if (!row) return;
-      var set = function(cls, val) {
-        var el = row.querySelector('.' + cls);
-        if (el && val != null) el.value = String(val);
-      };
-      set('part-desc', p.desc || p.description);
-      set('part-qty', p.qty || p.quantity);
-      set('part-cost', p.cost || p.price);
-    });
+  // Combine both key names change-order and work-order use
+  var parts = fd.parts || fd._parts || null;
+  var labor = fd.labor || fd._labor || null;
+
+  if (Array.isArray(parts) && parts.length) {
+    if (typeof window.addPart === 'function') {
+      var partsList = document.getElementById('partsList');
+      if (partsList) partsList.innerHTML = '';
+      parts.forEach(function(p) {
+        window.addPart();
+        var rows = partsList ? partsList.querySelectorAll('.parts-row') : [];
+        var row = rows[rows.length - 1];
+        if (!row) return;
+        var set = function(cls, val) {
+          var el = row.querySelector('.' + cls);
+          if (el && val != null) el.value = String(val);
+        };
+        set('part-desc', p.desc || p.description);
+        set('part-qty', p.qty || p.quantity);
+        set('part-cost', p.cost || p.price);
+      });
+    } else if (typeof window.addPartRow === 'function') {
+      var woList = document.getElementById('partsList');
+      if (woList) woList.innerHTML = '';
+      parts.forEach(function(p) {
+        window.addPartRow();
+        var rows = woList ? woList.children : [];
+        var row = rows[rows.length - 1];
+        if (!row) return;
+        var inputs = row.querySelectorAll('input');
+        if (inputs[0]) inputs[0].value = String(p.desc || p.description || '');
+        if (inputs[1]) inputs[1].value = String(p.qty || p.quantity || '');
+        if (inputs[2]) inputs[2].value = String(p.cost || '');
+      });
+    }
   }
 
-  // Labor rows (service-call): .labor-row in #laborList via addLabor()
-  if (Array.isArray(fd.labor) && fd.labor.length && typeof window.addLabor === 'function') {
+  if (Array.isArray(labor) && labor.length && typeof window.addLabor === 'function') {
     var laborList = document.getElementById('laborList');
     if (laborList) laborList.innerHTML = '';
-    fd.labor.forEach(function(l) {
+    labor.forEach(function(l) {
       window.addLabor();
       var rows = laborList ? laborList.querySelectorAll('.labor-row') : [];
       var row = rows[rows.length - 1];
@@ -299,68 +369,225 @@ function _restorePartsAndLabor(fd) {
     });
   }
 
-  // Work-Order style: addPartRow() -> #partsList rows with different class names.
-  // We try the common shape and fall back gracefully if fields don't match.
-  if (Array.isArray(fd.parts) && fd.parts.length && typeof window.addPartRow === 'function' && typeof window.addPart !== 'function') {
-    var woList = document.getElementById('partsList');
-    if (woList) woList.innerHTML = '';
-    fd.parts.forEach(function(p) {
-      window.addPartRow();
-      var rows = woList ? woList.children : [];
-      var row = rows[rows.length - 1];
-      if (!row) return;
-      var inputs = row.querySelectorAll('input');
-      if (inputs[0] && p.desc != null) inputs[0].value = String(p.desc || p.description || '');
-      if (inputs[1] && p.qty != null) inputs[1].value = String(p.qty || p.quantity || '');
-      if (inputs[2] && p.cost != null) inputs[2].value = String(p.cost || '');
-    });
-  }
-
-  // Cost calc refresh if available
   if (typeof window.calcCosts === 'function') {
-    try { window.calcCosts(); } catch(e) {}
+    try { window.calcCosts(); } catch (e) {}
   }
 }
 
+/**
+ * Restore per-equipment readings tables.
+ *
+ * service-call: fd.readings = { '0': {pressure_before:'150', pressure_after:'155', ...}, ... }
+ *               reads `.reading-input` with data-equip=N, data-key=X, data-when=before|after
+ *
+ * startup:      fd.coolReadings and fd.heatReadings have the same shape, but scoped to
+ *               cooling vs heating sub-tables. The element IDs / datasets vary per form,
+ *               we try the generic selector and fall through silently if no match.
+ */
+function _restoreReadings(fd) {
+  function apply(readings) {
+    if (!readings || typeof readings !== 'object') return;
+    Object.keys(readings).forEach(function(equipIdx) {
+      var perEquip = readings[equipIdx] || {};
+      Object.keys(perEquip).forEach(function(keyWhen) {
+        var m = keyWhen.match(/^(.+)_(before|after|cool|heat|actual)$/);
+        if (!m) return;
+        var key = m[1];
+        var when = m[2];
+        var selector = '.reading-input[data-equip="' + equipIdx + '"][data-key="' + key + '"][data-when="' + when + '"]';
+        var input = document.querySelector(selector);
+        if (input) input.value = String(perEquip[keyWhen] || '');
+      });
+    });
+  }
+  apply(fd.readings);
+  apply(fd.coolReadings);
+  apply(fd.heatReadings);
+}
+
+/**
+ * Restore per-equipment operational status.
+ *
+ * statusByEquip = { '0': {status: 'Operational', notes: '...'}, '1': {...} }
+ * Each equipment gets dynamic radios named `eqStatus_0`, `eqStatus_1`, etc.
+ * Plus a .eq-status-notes textarea inside the same equipment card.
+ */
+function _restoreStatusByEquip(fd) {
+  var sbe = fd.statusByEquip || fd._statusByEquip;
+  if (!sbe || typeof sbe !== 'object') return;
+
+  Object.keys(sbe).forEach(function(idx) {
+    var entry = sbe[idx] || {};
+    if (entry.status) {
+      var radioName = 'eqStatus_' + idx;
+      var radio = document.querySelector('input[name="' + radioName + '"][value="' + String(entry.status).replace(/"/g, '\\"') + '"]');
+      if (radio) {
+        radio.checked = true;
+        var item = radio.closest('.check-item');
+        if (item) item.classList.add('selected');
+      }
+    }
+    if (entry.notes) {
+      // Scope note lookup to the equipment card container matching this index
+      var cards = document.querySelectorAll('.equip-card, [data-equip-index]');
+      var card = cards[Number(idx)];
+      if (card) {
+        var notesEl = card.querySelector('.eq-status-notes, textarea[data-role="eq-status-notes"]');
+        if (notesEl) notesEl.value = String(entry.notes);
+      } else {
+        // Fallback: global match by id
+        var byId = document.getElementById('eqStatusNotes_' + idx);
+        if (byId) byId.value = String(entry.notes);
+      }
+    }
+  });
+}
+
+/**
+ * Restore PM checklist results — array of { item: 'X', result: 'pass'|'fail'|'na' }.
+ * Matches list items by matching the label/text against each saved entry.
+ */
+function _restoreChecklistResults(fd) {
+  if (!Array.isArray(fd.checklistResults) || !fd.checklistResults.length) return;
+
+  var items = document.querySelectorAll('#checklistItems li, .checklist-item');
+  fd.checklistResults.forEach(function(r) {
+    if (!r || !r.item || !r.result) return;
+    // Find the li whose text content matches r.item (prefix match is more tolerant)
+    var target = null;
+    items.forEach(function(li) {
+      if (target) return;
+      var text = (li.textContent || '').trim();
+      if (text.indexOf(r.item) === 0 || text === r.item) target = li;
+    });
+    if (!target) return;
+    target.classList.remove('pass', 'fail', 'na');
+    target.classList.add(r.result); // expects 'pass' | 'fail' | 'na'
+    // Also reflect via any .chk buttons inside
+    target.querySelectorAll('.chk').forEach(function(chk) {
+      chk.classList.remove('pass', 'fail', 'na', 'selected');
+      if ((chk.dataset.val || chk.textContent.trim().toLowerCase()).indexOf(r.result) !== -1) {
+        chk.classList.add('selected', r.result);
+      }
+    });
+  });
+}
+
+/**
+ * Restore the signature pads from their saved PNG base64.
+ *
+ * Each form instantiates a SignaturePad wrapper over a <canvas>. We iterate
+ * all the keys we know about (techSig, custSig, submitterSig, fmSig) and if
+ * we have both the saved base64 and a live pad object, redraw.
+ */
+function _restoreSignatures(fd) {
+  var pads = [
+    ['techSig', window.techSigPad],
+    ['custSig', window.custSigPad],
+    ['submitterSig', window.submitterSigPad],
+    ['fmSig', window.fmSigPad]
+  ];
+  pads.forEach(function(pair) {
+    var key = pair[0], pad = pair[1];
+    var data = fd[key];
+    if (!data || typeof data !== 'string' || !pad) return;
+    // Detect blank data URLs that real signatures can produce (all-white PNG)
+    if (data.length < 200) return;
+    try {
+      _drawDataUrlIntoPad(pad, data);
+    } catch (e) {
+      console.warn('[edit-utils] Could not restore signature', key, e);
+    }
+  });
+}
+
+function _drawDataUrlIntoPad(pad, dataUrl) {
+  // Our SignaturePad wrapper exposes a `.canvas` property. Draw the saved PNG
+  // onto the canvas so it looks the same as when originally signed.
+  var canvas = pad && pad.canvas;
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  var img = new Image();
+  img.onload = function() {
+    // Preserve aspect by fitting image into canvas (same approach as original draw)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // Some wrappers track "isEmpty" — mark as not-empty so collectData() keeps the value
+    if (typeof pad._isEmpty === 'boolean') pad._isEmpty = false;
+    if (typeof pad.isEmpty === 'function' && pad._isEmpty !== undefined) {
+      // keep override set above
+    }
+  };
+  img.onerror = function() { /* bad base64 — silently ignore */ };
+  img.src = dataUrl;
+}
+
+function _restoreAISummary(fd) {
+  if (!fd.aiSummary) return;
+  var el = document.getElementById('aiSummaryText');
+  if (el) {
+    // ai-summary.js reads the contents of #aiSummaryText; keep it in sync
+    if ('value' in el) el.value = fd.aiSummary;
+    else el.textContent = fd.aiSummary;
+  }
+  // Show the AI summary panel if it was hidden
+  var panel = document.getElementById('aiSummarySection');
+  if (panel) panel.style.display = '';
+}
+
 function _restoreProject(reportRow) {
-  // If report was linked to a project, try to re-select it
   var fd = reportRow.form_data;
   var projectId = fd._projectId;
   if (projectId && typeof selectProject === 'function') {
-    try { selectProject(projectId); } catch(e) { console.log('[edit-utils] Could not restore project:', e); }
+    try { selectProject(projectId); } catch(e) {
+      console.log('[edit-utils] Could not restore project:', e);
+    }
   }
 }
 
 // ========== EDIT MODE UI ==========
 
 function _showEditBadge() {
-  // Badge below header
   var badge = document.createElement('div');
   badge.id = 'editModeBadge';
-  badge.style.cssText = 'position:sticky;top:48px;z-index:100;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;text-align:center;padding:10px 16px;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.15);';
-  badge.innerHTML = '<span style="font-size:15px;vertical-align:middle;margin-right:6px">&#9998;</span> Editing: ' +
-    _editingReportNumber +
+  badge.style.cssText =
+    'position:sticky;top:0;z-index:99;' +
+    'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;' +
+    'text-align:center;padding:10px 16px;font-size:13px;font-weight:700;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,.15);';
+  badge.innerHTML =
+    '<span style="font-size:15px;vertical-align:middle;margin-right:6px">&#9998;</span>' +
+    'Editing: ' + (_editingReportNumber || '') +
     ' <span style="font-weight:400;opacity:.85;margin-left:6px">\u2014 changes will update the existing report</span>';
 
-  var header = document.querySelector('header');
-  if (header && header.nextSibling) {
-    header.parentNode.insertBefore(badge, header.nextSibling);
+  // Insert right after the header element (works for <header> or .header)
+  var header = document.querySelector('header') || document.querySelector('.header');
+  if (header && header.parentNode) {
+    if (header.nextSibling) header.parentNode.insertBefore(badge, header.nextSibling);
+    else header.parentNode.appendChild(badge);
   } else {
     document.body.insertBefore(badge, document.body.firstChild);
   }
 
-  // Change send button text to "Update & Resend"
-  var sendBtns = document.querySelectorAll('.btn-success');
+  // Change the main Send button text — but ONLY the one wired to the email
+  // sender, not every .btn-success on the page. We match by onclick attribute
+  // pattern to avoid renaming e.g. "Save Changes" or "Add Row" buttons that
+  // happen to share the success class.
+  var sendBtns = document.querySelectorAll(
+    '.btn-success[onclick*="generateAndEmail"],' +
+    '.btn-success[onclick*="sendReport"],' +
+    '.btn-success[onclick*="generateAndSend"],' +
+    '.btn-success[onclick*="submit"]'
+  );
   sendBtns.forEach(function(btn) {
-    if (btn.textContent.indexOf('Send') !== -1 || btn.onclick) {
-      btn.innerHTML = '&#9998; Update &amp; Resend';
-    }
+    btn.innerHTML = '&#9998; Update &amp; Resend';
   });
 
-  // Change "Draft" button to "Save Changes" if exists
-  var draftBtns = document.querySelectorAll('.btn-primary');
-  draftBtns.forEach(function(btn) {
-    if (btn.textContent.indexOf('Draft') !== -1) {
+  // Draft button -> Save Changes (match only buttons whose label actually says "Draft")
+  document.querySelectorAll('.btn-primary, .btn-secondary, button').forEach(function(btn) {
+    var txt = (btn.textContent || '').trim();
+    if (/\bDraft\b/.test(txt)) {
       btn.innerHTML = '&#128190; Save Changes';
     }
   });
@@ -368,17 +595,9 @@ function _showEditBadge() {
 
 // ========== PUBLIC API ==========
 
-function isEditMode() {
-  return !!_editingCloudId;
-}
-
-function getEditingCloudId() {
-  return _editingCloudId;
-}
-
-function getEditingReportNumber() {
-  return _editingReportNumber;
-}
+function isEditMode() { return !!_editingCloudId; }
+function getEditingCloudId() { return _editingCloudId; }
+function getEditingReportNumber() { return _editingReportNumber; }
 
 /**
  * Save or update a report depending on edit mode.
@@ -388,9 +607,10 @@ async function saveOrUpdateReport(formType, formData, options) {
   if (isEditMode()) {
     console.log('[edit-utils] Updating existing report:', _editingCloudId);
     var customerName = formData.custName || formData.customerName || formData.customer || '';
-    var techName = formData.techName || formData.fromName || '';
+    var techName = formData.techName || formData.fromName || formData.requestedBy || '';
     var reportDate = formData.callDate || formData.suDate || formData.pmDate || formData.coDate ||
-                     formData.surveyDate || formData.rfiDate || formData.woDate || new Date().toISOString().split('T')[0];
+                     formData.surveyDate || formData.rfiDate || formData.woDate ||
+                     new Date().toISOString().split('T')[0];
     return updateReportInCloud(_editingCloudId, {
       form_data: formData,
       status: 'submitted',
@@ -398,7 +618,6 @@ async function saveOrUpdateReport(formType, formData, options) {
       tech_name: techName,
       report_date: reportDate
     });
-  } else {
-    return saveReportToCloud(formType, formData, options);
   }
+  return saveReportToCloud(formType, formData, options);
 }

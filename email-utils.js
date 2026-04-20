@@ -115,13 +115,22 @@ function showEmailPreview(params) {
   var overlay = document.getElementById('emailPreviewOverlay');
   overlay.style.display = 'block';
 
-  // Get tech email from profile if available
-  var fromEmail = '';
+  // Get tech email from profile if available.
+  // getCurrentUser returns a Promise { data: user, error } — we resolve it
+  // async and update the preview field after. Keep a synchronous fallback
+  // so the field never shows empty.
+  var fromEmail = params.techName || 'Technician';
   if (typeof getCurrentUser === 'function') {
-    var user = getCurrentUser();
-    if (user && user.email) fromEmail = user.email;
+    Promise.resolve(getCurrentUser())
+      .then(function(result) {
+        var u = result && result.data ? result.data : result;
+        if (u && u.email) {
+          var el = document.getElementById('emailPreviewFrom');
+          if (el) el.value = u.email;
+        }
+      })
+      .catch(function() { /* ignore */ });
   }
-  if (!fromEmail) fromEmail = params.techName || 'Technician';
 
   document.getElementById('emailPreviewFrom').value = fromEmail;
   document.getElementById('emailPreviewTo').value = EMAIL_CONFIG.MANAGEMENT_EMAILS.join(', ');

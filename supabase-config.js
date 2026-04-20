@@ -38,7 +38,9 @@ var REPORT_TYPE_PREFIX = {
     'startup':       'SU',
     'pm-checklist':  'PM',
     'site-survey':   'SS',
-    'work-order':    'WO'
+    'work-order':    'WO',
+    'change-order':  'CO',
+    'rfi':           'RFI'
 };
 
 // ---------------------------------------------------------------------------
@@ -166,7 +168,11 @@ function onAuthChange(callback) {
 // ---------------------------------------------------------------------------
 
 /**
- * Generate a report number like "SC-20260402-A3F7".
+ * Generate a report number like "SC-20260402-A3F7B2".
+ *
+ * Uses crypto.getRandomValues when available (modern browsers) for a 6-hex
+ * suffix — ~16M combos × 7 prefixes × 365 days gives practically zero
+ * collision risk. Falls back to Math.random if crypto is missing.
  */
 function generateReportNumber(reportType) {
     var prefix = REPORT_TYPE_PREFIX[reportType] || 'RPT';
@@ -174,7 +180,22 @@ function generateReportNumber(reportType) {
     var dateStr = today.getFullYear().toString() +
         String(today.getMonth() + 1).padStart(2, '0') +
         String(today.getDate()).padStart(2, '0');
-    var rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    var rand;
+    try {
+        var bytes = new Uint8Array(3);
+        if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+            crypto.getRandomValues(bytes);
+        } else {
+            for (var i = 0; i < 3; i++) bytes[i] = Math.floor(Math.random() * 256);
+        }
+        rand = Array.prototype.map.call(bytes, function(b) {
+            return ('0' + b.toString(16)).slice(-2);
+        }).join('').toUpperCase();
+    } catch (e) {
+        rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
+
     return prefix + '-' + dateStr + '-' + rand;
 }
 
