@@ -210,6 +210,37 @@
     }
   }
 
+  /**
+   * Delete a report from Supabase (hard delete).
+   * Also attempts to delete related report_photos rows if RLS allows.
+   *
+   * @param {string} cloudId - the Supabase row id to delete
+   * @returns {Promise<{data: null, error: object|null}>}
+   */
+  async function deleteCloudReport(cloudId) {
+    if (!cloudId) return { data: null, error: new Error('cloudId required') };
+    try {
+      // Best-effort: cascade delete related rows first (ignore errors — FK may not exist)
+      try { await supabaseClient.from('report_photos').delete().eq('report_id', cloudId); } catch (e) {}
+      try { await supabaseClient.from('report_signatures').delete().eq('report_id', cloudId); } catch (e) {}
+
+      var result = await supabaseClient
+        .from('reports')
+        .delete()
+        .eq('id', cloudId);
+
+      if (result.error) {
+        console.error('[cloud-save] deleteCloudReport error:', result.error.message);
+        return { data: null, error: result.error };
+      }
+      console.log('[cloud-save] Report deleted:', cloudId);
+      return { data: null, error: null };
+    } catch (err) {
+      console.error('[cloud-save] deleteCloudReport exception:', err);
+      return { data: null, error: err };
+    }
+  }
+
   // Expose on window
   window.saveReportToCloud = saveReportToCloud;
   window.getCloudReports = getCloudReports;
@@ -217,5 +248,6 @@
   window.getReportById = getReportById;
   window.getProjectChangeOrders = getProjectChangeOrders;
   window.getProjectRFIs = getProjectRFIs;
+  window.deleteCloudReport = deleteCloudReport;
 
 })();

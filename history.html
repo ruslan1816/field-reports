@@ -10,12 +10,12 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=116"></script>
-<script src="auth.js?v=116"></script>
-<script src="cloud-save.js?v=116"></script>
+<script src="supabase-config.js?v=119"></script>
+<script src="auth.js?v=119"></script>
+<script src="cloud-save.js?v=119"></script>
 <title>Report History — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
-<script src="draft-utils.js?v=116"></script>
+<script src="draft-utils.js?v=119"></script>
 <style>
   body { padding-bottom: 0; }
 
@@ -69,6 +69,32 @@
   .history-card-row { font-size: 13px; color: var(--nw-muted); margin-top: 2px; }
   .history-card-row span { color: var(--nw-text); }
 
+  /* Delete button — small trash icon */
+  .delete-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #b91c1c;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    opacity: 0.55;
+    transition: all 0.15s ease;
+    line-height: 1;
+  }
+  .delete-btn:hover {
+    background: #fee2e2;
+    border-color: #fecaca;
+    opacity: 1;
+  }
+  .history-card .delete-btn {
+    float: right;
+    margin-left: 4px;
+    margin-top: -2px;
+  }
+  /* Stop the row click from firing when you click the delete button */
+  .history-table tr td .delete-btn { vertical-align: middle; }
+
   .summary-text {
     padding: 8px 16px;
     font-size: 12px;
@@ -119,6 +145,7 @@
           <th>Address</th>
           <th>Technician</th>
           <th>Status</th>
+          <th style="width:40px"></th>
         </tr>
       </thead>
       <tbody id="tableBody"></tbody>
@@ -355,6 +382,18 @@ requireAuth().catch(function(){});
     emptyState.style.display = 'none';
     summaryText.textContent = 'Showing ' + filtered.length + ' of ' + allReports.length + ' reports';
 
+    // Build an identifier we can use to look the row back up on delete.
+    // Cloud rows use cloudId; local drafts use their localStorage id prefixed with "local:".
+    function rowKey(r) {
+      if (r.cloudId) return 'cloud:' + r.cloudId;
+      if (r.source === 'local' && r.link) {
+        // Extract ?draft=ID from the link
+        var m = (r.link.match(/[?&]draft=([^&]+)/) || []);
+        if (m[1]) return 'local:' + decodeURIComponent(m[1]);
+      }
+      return '';
+    }
+
     // Desktop table
     var rowsHtml = '';
     filtered.forEach(function(r) {
@@ -363,6 +402,10 @@ requireAuth().catch(function(){});
       var badgeText = r.status === 'draft' ? 'Draft' : r.status === 'submitted' ? 'Submitted' : 'Completed';
       var linkAttr = r.link ? ' data-link="' + r.link + '"' : '';
       var editHtml = (r.source === 'cloud' && r.link) ? ' <span class="edit-indicator">✎ Edit</span>' : '';
+      var key = rowKey(r);
+      var deleteBtn = key
+        ? '<button class="delete-btn" data-del-key="' + key + '" title="Delete this report">&times;</button>'
+        : '';
       rowsHtml += '<tr' + linkAttr + '>' +
         '<td>' + fmtDate(r.date) + '</td>' +
         '<td>' + typeLabel + '</td>' +
@@ -371,6 +414,7 @@ requireAuth().catch(function(){});
         '<td>' + (r.projectAddress || '—') + '</td>' +
         '<td>' + (r.techName || '—') + '</td>' +
         '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span>' + editHtml + '</td>' +
+        '<td>' + deleteBtn + '</td>' +
         '</tr>';
     });
     tableBody.innerHTML = rowsHtml;
@@ -384,10 +428,17 @@ requireAuth().catch(function(){});
       var tag = r.link ? 'a' : 'div';
       var hrefAttr = r.link ? ' href="' + r.link + '"' : '';
       var cardEditHtml = (r.source === 'cloud' && r.link) ? '<span class="edit-indicator">✎ Edit</span>' : '';
+      var key = rowKey(r);
+      var cardDeleteHtml = key
+        ? '<button class="delete-btn" data-del-key="' + key + '" title="Delete">&times;</button>'
+        : '';
       cardsHtml += '<' + tag + ' class="history-card"' + hrefAttr + '>' +
         '<div class="history-card-top">' +
           '<span class="history-card-type">' + typeLabel + '</span>' +
-          '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
+          '<span style="display:inline-flex;gap:6px;align-items:center">' +
+            '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
+            cardDeleteHtml +
+          '</span>' +
         '</div>' +
         '<div class="history-card-date">' + fmtDate(r.date) + cardEditHtml + '</div>' +
         '<div class="history-card-row">Customer: <span>' + (r.customer || '—') + '</span></div>' +
@@ -399,11 +450,100 @@ requireAuth().catch(function(){});
     cardContainer.innerHTML = cardsHtml;
   }
 
+  // --- Delete a report (local draft or cloud) ---
+  async function deleteReportByKey(key, row) {
+    if (!key) return;
+
+    var isLocal = key.indexOf('local:') === 0;
+    var id = key.replace(/^(local|cloud):/, '');
+
+    // Figure out the label for the confirmation prompt
+    var label = row ? [
+      TYPE_MAP[row.type] || row.type || 'Report',
+      row.customer ? ' for ' + row.customer : '',
+      row.date ? ' (' + fmtDate(row.date) + ')' : ''
+    ].join('') : 'this report';
+
+    if (!confirm('Delete ' + label + '?\n\nThis cannot be undone.')) return;
+
+    try {
+      if (isLocal) {
+        // Remove from nw_drafts list + the companion nw_draft_<id> payload
+        var drafts = [];
+        try { drafts = JSON.parse(localStorage.getItem('nw_drafts') || '[]'); } catch(e) {}
+        drafts = drafts.filter(function(d) { return d.id !== id; });
+        localStorage.setItem('nw_drafts', JSON.stringify(drafts));
+        localStorage.removeItem('nw_draft_' + id);
+      } else {
+        // Cloud — call Supabase
+        if (typeof deleteCloudReport !== 'function') throw new Error('deleteCloudReport not available');
+        var res = await deleteCloudReport(id);
+        if (res && res.error) throw res.error;
+        // Purge from cache so the refresh doesn't bring it back instantly
+        try {
+          var cached = JSON.parse(localStorage.getItem(CLOUD_CACHE_KEY) || 'null');
+          if (cached && Array.isArray(cached.rows)) {
+            cached.rows = cached.rows.filter(function(r) { return r.id !== id; });
+            localStorage.setItem(CLOUD_CACHE_KEY, JSON.stringify(cached));
+          }
+        } catch(e) {}
+      }
+
+      // Remove from the in-memory list + rerender immediately
+      allReports = allReports.filter(function(r) {
+        var rk = r.cloudId
+          ? 'cloud:' + r.cloudId
+          : (r.source === 'local' && r.link)
+            ? 'local:' + decodeURIComponent((r.link.match(/[?&]draft=([^&]+)/) || [])[1] || '')
+            : '';
+        return rk !== key;
+      });
+      render();
+    } catch (err) {
+      console.error('[history] delete failed:', err);
+      alert('Delete failed:\n\n' + (err && err.message ? err.message : err));
+    }
+  }
+
+  // Helper: find the allReports entry that matches a given key
+  function findReportByKey(key) {
+    for (var i = 0; i < allReports.length; i++) {
+      var r = allReports[i];
+      var rk = r.cloudId
+        ? 'cloud:' + r.cloudId
+        : (r.source === 'local' && r.link)
+          ? 'local:' + decodeURIComponent((r.link.match(/[?&]draft=([^&]+)/) || [])[1] || '')
+          : '';
+      if (rk === key) return r;
+    }
+    return null;
+  }
+
   // --- Row click handler (desktop) ---
   document.getElementById('tableBody').addEventListener('click', function(e) {
+    // Delete button first — takes priority over row navigation
+    var delBtn = e.target.closest('.delete-btn');
+    if (delBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      var key = delBtn.getAttribute('data-del-key');
+      deleteReportByKey(key, findReportByKey(key));
+      return;
+    }
     var row = e.target.closest('tr[data-link]');
     if (row) {
       window.location.href = row.getAttribute('data-link');
+    }
+  });
+
+  // --- Delete handler for mobile cards (they use <a> so we need preventDefault too) ---
+  document.getElementById('cardContainer').addEventListener('click', function(e) {
+    var delBtn = e.target.closest('.delete-btn');
+    if (delBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      var key = delBtn.getAttribute('data-del-key');
+      deleteReportByKey(key, findReportByKey(key));
     }
   });
 
@@ -450,6 +590,6 @@ requireAuth().catch(function(){});
   loadCloudReports();
 })();
 </script>
-<script src="sw-register.js?v=116"></script>
+<script src="sw-register.js?v=119"></script>
 </body>
 </html>
