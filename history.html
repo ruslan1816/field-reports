@@ -10,19 +10,19 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=108"></script>
-<script src="auth.js?v=108"></script>
-<script src="cloud-save.js?v=108"></script>
+<script src="supabase-config.js?v=111"></script>
+<script src="auth.js?v=111"></script>
+<script src="cloud-save.js?v=111"></script>
 <title>Report History — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
-<script src="draft-utils.js?v=108"></script>
+<script src="draft-utils.js?v=111"></script>
 <style>
   body { padding-bottom: 0; }
 
   .header .profile-circle { margin-left: auto; }
 
   .history-wrap {
-    max-width: 700px;
+    max-width: 1100px;
     margin: 0 auto;
   }
 
@@ -104,7 +104,7 @@
 
   <!-- Search -->
   <div class="search-bar">
-    <input type="text" id="searchInput" placeholder="Search by customer, tech, or type...">
+    <input type="text" id="searchInput" placeholder="Search by customer, project, address, tech, or type...">
   </div>
 
   <!-- Desktop Table View -->
@@ -115,6 +115,8 @@
           <th>Date</th>
           <th>Type</th>
           <th>Customer</th>
+          <th>Project</th>
+          <th>Address</th>
           <th>Technician</th>
           <th>Status</th>
         </tr>
@@ -183,6 +185,8 @@ requireAuth().catch(function(){});
         date: d.lastModified || d.date || '',
         type: d.type || '',
         customer: d.customer || d.title || '',
+        projectName: d.projectName || d.project || '',
+        projectAddress: d.address || d.projectAddress || d.siteAddress || '',
         techName: d.techName || '',
         status: 'draft',
         source: 'local',
@@ -196,6 +200,8 @@ requireAuth().catch(function(){});
         date: h.completedAt || h.date || '',
         type: h.type || '',
         customer: h.customer || h.title || '',
+        projectName: h.projectName || h.project || '',
+        projectAddress: h.address || h.projectAddress || h.siteAddress || '',
         techName: h.techName || '',
         status: 'completed',
         source: 'local',
@@ -209,7 +215,17 @@ requireAuth().catch(function(){});
   }
 
   // --- Merge cloud report rows into allReports (replaces any existing cloud entries) ---
-  var CLOUD_CACHE_KEY = 'nw_cloud_reports_cache';
+  // Cache key bumped to v2 so old caches (which lack project fields) get invalidated.
+  var CLOUD_CACHE_KEY = 'nw_cloud_reports_cache_v2';
+
+  // Slim select that also pulls project_name and project_address out of the
+  // form_data JSONB blob without returning the whole blob (keeps payload small).
+  // Various report types use different form-field names — we try the most
+  // common ones and coalesce at render time.
+  var CLOUD_SELECT_COLS =
+    'id,report_number,report_type,report_date,customer_name,tech_name,tech_id,status,created_at,' +
+    'project_name:form_data->>projectName,' +
+    'project_address:form_data->>address';
 
   function mergeCloudRows(rows) {
     // Drop any existing cloud entries — we'll re-add fresh ones
@@ -229,6 +245,8 @@ requireAuth().catch(function(){});
         date: row.report_date || row.created_at || '',
         type: row.report_type || '',
         customer: row.customer_name || '',
+        projectName: row.project_name || '',
+        projectAddress: row.project_address || '',
         techName: row.tech_name || '',
         status: row.status === 'draft' ? 'draft' : 'completed',
         source: 'cloud',
@@ -256,7 +274,7 @@ requireAuth().catch(function(){});
     // 2) BACKGROUND: Fetch fresh from Supabase, update cache, re-render
     try {
       if (typeof getCloudReports !== 'function') return;
-      var result = await getCloudReports({ limit: 200 });
+      var result = await getCloudReports({ limit: 200, select: CLOUD_SELECT_COLS });
       if (result.error) {
         console.error('[history] Cloud fetch error:', result.error);
         return;
@@ -296,6 +314,8 @@ requireAuth().catch(function(){});
         var typeLabel = (TYPE_MAP[r.type] || r.type || '').toLowerCase();
         return (r.customer || '').toLowerCase().indexOf(q) !== -1 ||
                (r.techName || '').toLowerCase().indexOf(q) !== -1 ||
+               (r.projectName || '').toLowerCase().indexOf(q) !== -1 ||
+               (r.projectAddress || '').toLowerCase().indexOf(q) !== -1 ||
                typeLabel.indexOf(q) !== -1;
       });
     }
@@ -352,6 +372,8 @@ requireAuth().catch(function(){});
         '<td>' + fmtDate(r.date) + '</td>' +
         '<td>' + typeLabel + '</td>' +
         '<td>' + (r.customer || '—') + '</td>' +
+        '<td>' + (r.projectName || '—') + '</td>' +
+        '<td>' + (r.projectAddress || '—') + '</td>' +
         '<td>' + (r.techName || '—') + '</td>' +
         '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span>' + editHtml + '</td>' +
         '</tr>';
@@ -374,6 +396,8 @@ requireAuth().catch(function(){});
         '</div>' +
         '<div class="history-card-date">' + fmtDate(r.date) + cardEditHtml + '</div>' +
         '<div class="history-card-row">Customer: <span>' + (r.customer || '—') + '</span></div>' +
+        (r.projectName ? '<div class="history-card-row">Project: <span>' + r.projectName + '</span></div>' : '') +
+        (r.projectAddress ? '<div class="history-card-row">Address: <span>' + r.projectAddress + '</span></div>' : '') +
         '<div class="history-card-row">Tech: <span>' + (r.techName || '—') + '</span></div>' +
         '</' + tag + '>';
     });
@@ -431,6 +455,6 @@ requireAuth().catch(function(){});
   loadCloudReports();
 })();
 </script>
-<script src="sw-register.js?v=108"></script>
+<script src="sw-register.js?v=111"></script>
 </body>
 </html>
