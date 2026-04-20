@@ -1,0 +1,24 @@
+# Claude Code worktrees, session state, plan files
+.claude/
+
+# Mechanical Engineering reference library — shouldn't be in the PWA repo
+Northern Wolves Mechanical Engineer/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Office lock files
+~$*
+.~lock.*
+
+# IDE
+.vscode/
+.idea/
+
+# Backup / tmp
+*.bak
+*.tmp.html
+
+# Node (if we ever add a build step)
+node_modules/
