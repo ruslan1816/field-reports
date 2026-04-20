@@ -10,12 +10,12 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=111"></script>
-<script src="auth.js?v=111"></script>
-<script src="cloud-save.js?v=111"></script>
+<script src="supabase-config.js?v=112"></script>
+<script src="auth.js?v=112"></script>
+<script src="cloud-save.js?v=112"></script>
 <title>Report History — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
-<script src="draft-utils.js?v=111"></script>
+<script src="draft-utils.js?v=112"></script>
 <style>
   body { padding-bottom: 0; }
 
@@ -215,17 +215,18 @@ requireAuth().catch(function(){});
   }
 
   // --- Merge cloud report rows into allReports (replaces any existing cloud entries) ---
-  // Cache key bumped to v2 so old caches (which lack project fields) get invalidated.
-  var CLOUD_CACHE_KEY = 'nw_cloud_reports_cache_v2';
+  // Cache key bumped to v3 so any prior caches get invalidated.
+  var CLOUD_CACHE_KEY = 'nw_cloud_reports_cache_v3';
 
-  // Slim select that also pulls project_name and project_address out of the
-  // form_data JSONB blob without returning the whole blob (keeps payload small).
-  // Various report types use different form-field names — we try the most
-  // common ones and coalesce at render time.
+  // Slim select — top-level columns only. (Previous attempt to extract
+  // project_name / project_address from form_data JSONB via PostgREST aliases
+  // caused the query to error out silently and wiped the entire cloud list.
+  // We'll populate project info via a proper schema migration — adding
+  // project_name and project_address columns on the reports table — in a
+  // follow-up. For cloud rows, those two columns in the UI will show '—'
+  // until the migration lands. Local drafts/history still show project info.)
   var CLOUD_SELECT_COLS =
-    'id,report_number,report_type,report_date,customer_name,tech_name,tech_id,status,created_at,' +
-    'project_name:form_data->>projectName,' +
-    'project_address:form_data->>address';
+    'id,report_number,report_type,report_date,customer_name,tech_name,tech_id,status,created_at';
 
   function mergeCloudRows(rows) {
     // Drop any existing cloud entries — we'll re-add fresh ones
@@ -262,14 +263,20 @@ requireAuth().catch(function(){});
 
   // --- Render instantly from cached cloud data, then refresh in background ---
   async function loadCloudReports() {
-    // 1) INSTANT: Render from localStorage cache if we have one
-    try {
-      var cached = JSON.parse(localStorage.getItem(CLOUD_CACHE_KEY) || 'null');
-      if (cached && Array.isArray(cached.rows) && cached.rows.length) {
-        mergeCloudRows(cached.rows);
-        render();
-      }
-    } catch(e) {}
+    // 1) INSTANT: Render from localStorage cache if we have one (current key
+    //    first, then older keys as a fallback so an SW upgrade doesn't leave
+    //    users staring at an empty list while the fresh fetch is in flight).
+    var cacheKeysToTry = [CLOUD_CACHE_KEY, 'nw_cloud_reports_cache_v2', 'nw_cloud_reports_cache'];
+    for (var i = 0; i < cacheKeysToTry.length; i++) {
+      try {
+        var cached = JSON.parse(localStorage.getItem(cacheKeysToTry[i]) || 'null');
+        if (cached && Array.isArray(cached.rows) && cached.rows.length) {
+          mergeCloudRows(cached.rows);
+          render();
+          break;
+        }
+      } catch(e) {}
+    }
 
     // 2) BACKGROUND: Fetch fresh from Supabase, update cache, re-render
     try {
@@ -455,6 +462,6 @@ requireAuth().catch(function(){});
   loadCloudReports();
 })();
 </script>
-<script src="sw-register.js?v=111"></script>
+<script src="sw-register.js?v=112"></script>
 </body>
 </html>
