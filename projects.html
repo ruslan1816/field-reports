@@ -560,6 +560,7 @@
     <!-- Main Tabs -->
     <div class="detail-tabs" id="detailTabs">
       <div class="detail-tab active" data-dtab="documents">Documents</div>
+      <div class="detail-tab" data-dtab="reports">Reports</div>
       <div class="detail-tab" data-dtab="submittals">Submittals</div>
       <div class="detail-tab" data-dtab="change-orders">Change Orders</div>
       <div class="detail-tab" data-dtab="rfis">RFIs</div>
@@ -600,6 +601,24 @@
       <div class="empty-state" id="emptyDocs" style="display:none;">
         <div class="icon" style="font-size:32px;margin-bottom:8px;">&#128196;</div>
         <p>No documents yet.<br>Tap <strong>+ Add Document</strong> to upload.</p>
+      </div>
+    </div>
+
+    <!-- REPORTS TAB — all field reports (service-call/startup/site-survey/pm/work-order) for this project -->
+    <div class="detail-tab-content" id="tabReports" data-dtab="reports">
+      <div style="padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:13px;color:var(--nw-muted);" id="reportsCount">Loading reports…</span>
+      </div>
+      <div id="newReportButtons" style="padding:0 16px 12px;display:flex;flex-wrap:wrap;gap:8px;">
+        <a class="btn btn-secondary btn-small" id="btnNewSC" href="#" style="flex:1;min-width:140px;">🔧 + New Service Call</a>
+        <a class="btn btn-secondary btn-small" id="btnNewSU" href="#" style="flex:1;min-width:140px;">🚀 + New Start-Up</a>
+        <a class="btn btn-secondary btn-small" id="btnNewSS" href="#" style="flex:1;min-width:140px;">📋 + New Site Survey</a>
+        <a class="btn btn-secondary btn-small" id="btnNewPM" href="#" style="flex:1;min-width:140px;">✅ + New PM</a>
+        <a class="btn btn-secondary btn-small" id="btnNewWO" href="#" style="flex:1;min-width:140px;">📝 + New Work Order</a>
+      </div>
+      <div id="projectReportsList" style="padding:0 16px 24px;"></div>
+      <div id="reportsEmpty" style="display:none;text-align:center;padding:20px;color:var(--nw-muted);font-size:13px;">
+        No reports for this project yet.<br>Tap any <strong>+ New</strong> button above to create the first one.
       </div>
     </div>
 
@@ -1226,6 +1245,7 @@ requireAuth().catch(function(){});
 
     renderDocList();
     loadDriveFiles(projectId);
+    loadProjectReports(projectId);
     loadChangeOrders(projectId);
     loadRFIs(projectId);
 
@@ -1369,6 +1389,133 @@ requireAuth().catch(function(){});
     docTabEls.forEach(function(t) { t.classList.remove('active'); });
     if (docTabEls[0]) docTabEls[0].classList.add('active');
     renderProjectsList();
+  }
+
+  // ─── Project Reports (service-call / startup / site-survey / pm-checklist / work-order) ───
+  // Uses the same client-side filter trick as Change Orders: pulls cloud reports
+  // and filters by form_data._projectId on the client. Could be a dedicated
+  // Supabase RPC later but this matches the existing CO / RFI pattern.
+  var _projectReports = [];
+
+  var REPORT_TYPES_IN_PROJECT = [
+    { type: 'service-call', label: 'Service Call',  icon: '🔧', form: 'service-call-report.html',  plural: 'Service Calls' },
+    { type: 'startup',      label: 'Start-Up',      icon: '🚀', form: 'startup-report.html',       plural: 'Start-Ups' },
+    { type: 'site-survey',  label: 'Site Survey',   icon: '📋', form: 'site-survey-report.html',   plural: 'Site Surveys' },
+    { type: 'pm-checklist', label: 'Maintenance',   icon: '✅', form: 'pm-checklist.html',         plural: 'Maintenance' },
+    { type: 'work-order',   label: 'Work Order',    icon: '📝', form: 'work-order.html',           plural: 'Work Orders' }
+  ];
+
+  async function loadProjectReports(projectId) {
+    // Wire the quick "+ New ..." buttons now (independent of fetch success)
+    document.getElementById('btnNewSC').href = 'service-call-report.html?project=' + projectId;
+    document.getElementById('btnNewSU').href = 'startup-report.html?project=' + projectId;
+    document.getElementById('btnNewSS').href = 'site-survey-report.html?project=' + projectId;
+    document.getElementById('btnNewPM').href = 'pm-checklist.html?project=' + projectId;
+    document.getElementById('btnNewWO').href = 'work-order.html?project=' + projectId;
+
+    _projectReports = [];
+    var countEl = document.getElementById('reportsCount');
+    var listEl = document.getElementById('projectReportsList');
+    var emptyEl = document.getElementById('reportsEmpty');
+
+    if (typeof getCloudReports !== 'function') {
+      countEl.textContent = '';
+      listEl.innerHTML = '';
+      emptyEl.style.display = '';
+      return;
+    }
+
+    try {
+      // Slim select — must include form_data so we can filter by _projectId
+      var result = await getCloudReports({
+        limit: 500,
+        select: 'id,report_number,report_type,report_date,customer_name,tech_name,status,created_at,form_data'
+      });
+      var rows = (result && result.data) || [];
+      _projectReports = rows.filter(function(r) {
+        if (!r.form_data) return false;
+        if (r.form_data._projectId === projectId) return true;
+        // Fallback: match by saveProjectRecord legacy shape if anyone used that
+        return false;
+      });
+      // Exclude CO and RFI (those have their own tabs)
+      _projectReports = _projectReports.filter(function(r) {
+        return r.report_type !== 'change-order' && r.report_type !== 'rfi';
+      });
+
+      renderProjectReportsList();
+    } catch (err) {
+      console.error('[projects] loadProjectReports error:', err);
+      countEl.textContent = 'Error loading reports';
+      listEl.innerHTML = '';
+    }
+  }
+
+  function renderProjectReportsList() {
+    var countEl = document.getElementById('reportsCount');
+    var listEl = document.getElementById('projectReportsList');
+    var emptyEl = document.getElementById('reportsEmpty');
+
+    var n = _projectReports.length;
+    countEl.textContent = n + ' report' + (n !== 1 ? 's' : '');
+
+    if (n === 0) {
+      listEl.innerHTML = '';
+      emptyEl.style.display = '';
+      return;
+    }
+    emptyEl.style.display = 'none';
+
+    // Group by type, preserving our canonical order
+    var byType = {};
+    _projectReports.forEach(function(r) {
+      if (!byType[r.report_type]) byType[r.report_type] = [];
+      byType[r.report_type].push(r);
+    });
+
+    var html = '';
+    REPORT_TYPES_IN_PROJECT.forEach(function(def) {
+      var reports = byType[def.type] || [];
+      if (!reports.length) return;
+
+      // Sort newest first by created_at
+      reports.sort(function(a, b) {
+        var ad = new Date(a.created_at || a.report_date || 0).getTime();
+        var bd = new Date(b.created_at || b.report_date || 0).getTime();
+        return bd - ad;
+      });
+
+      html += '<div style="margin-bottom:18px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--nw-text);margin-bottom:8px;">' +
+          '<span>' + def.icon + '</span>' +
+          '<span>' + def.plural + '</span>' +
+          '<span style="background:var(--nw-section);color:var(--nw-muted);font-size:11px;font-weight:700;padding:1px 8px;border-radius:10px;">' + reports.length + '</span>' +
+        '</div>';
+
+      reports.forEach(function(r) {
+        var editUrl = def.form + '?edit=' + r.id;
+        var statusBadge = r.status === 'draft' ? '📋 Draft'
+                       : r.status === 'reviewed' ? '👀 Reviewed'
+                       : r.status === 'approved' ? '✅ Approved'
+                       : r.status === 'rejected' ? '❌ Rejected'
+                       : 'Submitted';
+        var dateStr = fmtDate(r.report_date || r.created_at);
+        var tech = r.tech_name || '—';
+        var num = r.report_number || '';
+        html +=
+          '<a href="' + editUrl + '" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--nw-card);border:1px solid var(--nw-border);border-radius:10px;text-decoration:none;color:var(--nw-text);margin-bottom:6px;transition:border-color .15s;">' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-weight:600;font-size:14px;">' + escHtml(num) + '</div>' +
+              '<div style="font-size:12px;color:var(--nw-muted);margin-top:2px;">' + escHtml(dateStr) + ' · ' + escHtml(tech) + '</div>' +
+            '</div>' +
+            '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--nw-section);color:var(--nw-muted);white-space:nowrap;">' + statusBadge + '</span>' +
+            '<span style="color:var(--nw-primary);font-size:18px;font-weight:700;">›</span>' +
+          '</a>';
+      });
+      html += '</div>';
+    });
+
+    listEl.innerHTML = html;
   }
 
   // ─── Change Orders ───

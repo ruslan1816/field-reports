@@ -183,6 +183,23 @@
     // Render dropdown options
     renderDropdown('');
 
+    // ── Auto-select from ?project=X URL param (deep link from project detail) ──
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var pidFromUrl = params.get('project');
+      if (pidFromUrl) {
+        // Defer until projects are loaded (getProjects() is sync off localStorage,
+        // so it should be ready right now).
+        var all = getProjects();
+        for (var i = 0; i < all.length; i++) {
+          if (all[i].id === pidFromUrl) {
+            selectProject(pidFromUrl);
+            break;
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
     // ── Event: focus on search → open dropdown ──
     searchInput.addEventListener('focus', function () {
       // Only open if no project is currently selected
