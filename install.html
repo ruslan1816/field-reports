@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<title>Install NW Field — Northern Wolves</title>
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(160deg, #0696D7 0%, #074E8A 100%);
+    color: #fff;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 32px 20px 48px;
+  }
+  .brand {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .brand img {
+    width: 96px;
+    height: 96px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    background: #fff;
+    padding: 6px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 700;
+    margin: 18px 0 6px;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 400;
+    opacity: 0.85;
+    margin-bottom: 32px;
+    padding: 0 12px;
+  }
+  .card {
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 16px;
+    padding: 22px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card-title .platform-icon {
+    width: 24px; height: 24px;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 8px 0;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.22);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .step b {
+    font-weight: 700;
+    background: rgba(255,255,255,.18);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 13px;
+  }
+
+  .open-btn {
+    display: block;
+    background: #fff;
+    color: #074E8A;
+    text-decoration: none;
+    text-align: center;
+    padding: 17px 24px;
+    border-radius: 14px;
+    font-size: 17px;
+    font-weight: 700;
+    margin: 24px 0 12px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.18);
+    transition: transform 0.1s ease;
+  }
+  .open-btn:active { transform: scale(0.98); }
+  .open-btn-hint {
+    text-align: center;
+    font-size: 13px;
+    opacity: 0.75;
+    margin-bottom: 28px;
+  }
+
+  .qr-section {
+    text-align: center;
+    padding: 22px;
+    background: rgba(255,255,255,.08);
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+  .qr-section img {
+    width: 200px;
+    height: 200px;
+    background: #fff;
+    padding: 12px;
+    border-radius: 12px;
+    display: block;
+    margin: 8px auto 12px;
+  }
+  .qr-section .qr-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .qr-section .qr-subtitle {
+    font-size: 13px;
+    opacity: 0.75;
+  }
+
+  .browser-warning {
+    background: rgba(251, 191, 36, 0.2);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    color: #fef3c7;
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    line-height: 1.4;
+    display: none;
+  }
+  .browser-warning.show { display: block; }
+  .browser-warning b { color: #fef9c3; }
+
+  .footer {
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.55;
+    margin-top: 32px;
+    padding: 0 20px;
+  }
+  .footer a { color: #fff; opacity: 0.8; }
+
+  /* Platform-specific sections */
+  .platform-section { display: none; }
+  .platform-section.active { display: block; }
+
+  /* Small screen tweaks */
+  @media (max-width: 380px) {
+    .page { padding: 24px 14px 40px; }
+    h1 { font-size: 24px; }
+    .card { padding: 18px; }
+    .qr-section img { width: 170px; height: 170px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="brand">
+    <img src="icon-192.png" alt="Northern Wolves" onerror="this.style.display='none'">
+    <h1>Install NW Field</h1>
+    <p class="subtitle">Northern Wolves field reporting — installs to your home screen and works like a real app</p>
+  </div>
+
+  <!-- Browser warning (iOS non-Safari) -->
+  <div class="browser-warning" id="browserWarning">
+    <b>⚠️ Please use Safari to install on iPhone.</b><br>
+    You opened this page in another browser — iOS only allows home-screen installation from Safari. Tap the menu &gt; "Open in Safari" to continue.
+  </div>
+
+  <!-- Open button -->
+  <a href="./" class="open-btn" id="openAppBtn">🚀 Open the App</a>
+  <p class="open-btn-hint" id="openHint">Log in first, then come back to install</p>
+
+  <!-- iOS Instructions -->
+  <div class="platform-section" id="iosSection">
+    <div class="card">
+      <div class="card-title">📱 iPhone / iPad (Safari)</div>
+      <div class="step"><div class="step-num">1</div><div>Tap the <b>Share</b> button <span style="white-space:nowrap">⬆️</span> at the bottom of Safari</div></div>
+      <div class="step"><div class="step-num">2</div><div>Scroll down and tap <b>Add to Home Screen</b></div></div>
+      <div class="step"><div class="step-num">3</div><div>Tap <b>Add</b> in the top-right corner</div></div>
+      <div class="step"><div class="step-num">4</div><div>You're done! The <b>NW Field</b> icon is now on your home screen. Tap it like any other app.</div></div>
+    </div>
+  </div>
+
+  <!-- Android Instructions -->
+  <div class="platform-section" id="androidSection">
+    <div class="card">
+      <div class="card-title">📱 Android (Chrome)</div>
+      <div class="step"><div class="step-num">1</div><div>Tap the <b>⋮</b> menu (three dots) in the top-right of Chrome</div></div>
+      <div class="step"><div class="step-num">2</div><div>Tap <b>Install app</b> (or <b>Add to Home screen</b>)</div></div>
+      <div class="step"><div class="step-num">3</div><div>Tap <b>Install</b> to confirm</div></div>
+      <div class="step"><div class="step-num">4</div><div>You're done! <b>NW Field</b> is now on your home screen and works offline.</div></div>
+    </div>
+  </div>
+
+  <!-- Desktop / unknown device: show QR code to scan from phone -->
+  <div class="platform-section" id="desktopSection">
+    <div class="qr-section">
+      <div class="qr-title">Scan to install on your phone</div>
+      <div class="qr-subtitle">Point your phone's camera at this code</div>
+      <img
+        src="https://api.qrserver.com/v1/create-qr-code/?data=https%3A%2F%2Fapp.northernwolvesac.com%2Finstall.html&size=220x220&margin=10"
+        alt="Install QR code">
+      <div class="qr-subtitle">or share this link: <b>app.northernwolvesac.com/install</b></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💻 On your computer</div>
+      <div class="step"><div class="step-num">1</div><div>In <b>Chrome</b> or <b>Edge</b>, click the 🖥️ <b>install</b> icon in the address bar</div></div>
+      <div class="step"><div class="step-num">2</div><div>In <b>Safari (Mac)</b>, click <b>File</b> → <b>Add to Dock</b></div></div>
+      <div class="step"><div class="step-num">3</div><div>On your phone, scan the QR code above</div></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Northern Wolves Air Conditioning — New York &amp; New Jersey<br>
+    <a href="https://northernwolvesac.com">northernwolvesac.com</a>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  var ua = navigator.userAgent || '';
+  var isIOS = /iPhone|iPad|iPod/i.test(ua) && !window.MSStream;
+  var isAndroid = /Android/i.test(ua);
+  var isSafari = /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS|OPR/i.test(ua);
+  var standalone = window.navigator.standalone === true ||
+                   window.matchMedia('(display-mode: standalone)').matches;
+
+  // If the user already opened the app from the home screen, just redirect them in.
+  if (standalone) {
+    window.location.replace('./');
+    return;
+  }
+
+  // Show the right platform instructions
+  if (isIOS) {
+    document.getElementById('iosSection').classList.add('active');
+    if (!isSafari) {
+      document.getElementById('browserWarning').classList.add('show');
+    }
+  } else if (isAndroid) {
+    document.getElementById('androidSection').classList.add('active');
+  } else {
+    document.getElementById('desktopSection').classList.add('active');
+  }
+
+  // Gentle hint on the Open button
+  var btn = document.getElementById('openAppBtn');
+  btn.addEventListener('click', function() {
+    // Nothing fancy — just follow the href normally.
+    // If we added tracking we'd do it here.
+  });
+})();
+</script>
+
+</body>
+</html>
