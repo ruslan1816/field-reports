@@ -58,10 +58,18 @@ async function initEditMode(formType) {
     // 5. Restore checkbox groups
     _restoreCheckboxes(fd);
 
-    // 6. Restore photos
+    // 6. Restore equipment array (site-survey) — MUST run BEFORE _restorePhotos
+    //    so the equip_N photo preview containers exist before we try to
+    //    populate them.
+    _restoreEquipment(fd);
+
+    // 7. Restore parts / labor / readings (service-call, startup, work-order)
+    _restorePartsAndLabor(fd);
+
+    // 8. Restore photos (now that equipment cards exist)
     _restorePhotos(fd);
 
-    // 7. Restore project selection
+    // 9. Restore project selection
     _restoreProject(result.data);
 
     // 8. Show edit mode badge
@@ -161,7 +169,10 @@ function _restorePhotos(fd) {
   Object.keys(photoData).forEach(function(key) {
     var arr = photoData[key];
     if (!arr || !arr.length) return;
-    if (!window.photosByEquip[key]) window.photosByEquip[key] = [];
+    // REPLACE (don't append) — otherwise re-opening a report for edit
+    // would duplicate the default-initialized empty arrays or existing
+    // saved photos.
+    window.photosByEquip[key] = [];
     arr.forEach(function(photo) {
       if (photo && photo.data) {
         window.photosByEquip[key].push({ name: photo.name || '', data: photo.data });
@@ -174,6 +185,140 @@ function _restorePhotos(fd) {
     Object.keys(window.photosByEquip).forEach(function(key) {
       renderEquipPhotos(key);
     });
+  }
+}
+
+/**
+ * Restore the equipment array (site-survey-style forms that use
+ * addEquipment() + .equip-card + photosByEquip.equip_N).
+ *
+ * Site-survey seeds the page with one empty equipment card on load.
+ * We wipe it and recreate one card per item in fd.equipment, filling in
+ * every field (type, mfg, model, serial, age/year, capacity, location,
+ * condition, notes). photosByEquip.equip_N keys are re-initialized
+ * empty — _restorePhotos (called next) populates them with actual photos.
+ */
+function _restoreEquipment(fd) {
+  if (!Array.isArray(fd.equipment) || !fd.equipment.length) return;
+  if (typeof window.addEquipment !== 'function') return; // form doesn't have equipment
+
+  var list = document.getElementById('equipList');
+  if (!list) return;
+
+  // Clear existing cards (page load creates one default empty one)
+  list.innerHTML = '';
+  // Reset the equipment counter if the form exposes it
+  if (typeof window.equipCount !== 'undefined') window.equipCount = 0;
+  // Clear existing equip_N keys from photosByEquip (will be reseeded by addEquipment)
+  if (window.photosByEquip) {
+    Object.keys(window.photosByEquip).forEach(function(k) {
+      if (k.indexOf('equip_') === 0) delete window.photosByEquip[k];
+    });
+  }
+
+  var condClassMap = { 'Good': 'good', 'Fair': 'fair', 'Poor': 'poor', 'End of Life': 'eol' };
+
+  fd.equipment.forEach(function(eq) {
+    window.addEquipment();
+    // Find the just-added card (it's the last .equip-card in the list)
+    var cards = list.querySelectorAll('.equip-card');
+    var card = cards[cards.length - 1];
+    if (!card) return;
+
+    function setField(cls, val) {
+      var el = card.querySelector('.' + cls);
+      if (el && val != null) el.value = String(val);
+    }
+    setField('eq-type', eq.type);
+    setField('eq-mfg', eq.mfg);
+    setField('eq-model', eq.model);
+    setField('eq-serial', eq.serial);
+    setField('eq-age', eq.age);
+    setField('eq-cap', eq.capacity);
+    setField('eq-loc', eq.location);
+    setField('eq-notes', eq.notes);
+
+    // Condition — dataset.value + highlight matching button
+    if (eq.condition) {
+      var condEl = card.querySelector('[id^="cond_"]');
+      if (condEl) {
+        condEl.dataset.value = eq.condition;
+        var cls = condClassMap[eq.condition];
+        condEl.querySelectorAll('.condition-btn').forEach(function(btn) {
+          btn.classList.remove('good', 'fair', 'poor', 'eol');
+          if (cls && btn.textContent.trim() === eq.condition) {
+            btn.classList.add(cls);
+          }
+        });
+      }
+    }
+  });
+}
+
+/**
+ * Restore dynamic parts / labor / readings rows for forms that have them
+ * (service-call has addPart + addLabor, work-order has addPartRow, etc.).
+ * Each row container is cleared and repopulated from the saved arrays.
+ */
+function _restorePartsAndLabor(fd) {
+  // Service Call style: .parts-row in #partsList via addPart()
+  if (Array.isArray(fd.parts) && fd.parts.length && typeof window.addPart === 'function') {
+    var partsList = document.getElementById('partsList');
+    if (partsList) partsList.innerHTML = '';
+    fd.parts.forEach(function(p) {
+      window.addPart();
+      var rows = partsList ? partsList.querySelectorAll('.parts-row') : [];
+      var row = rows[rows.length - 1];
+      if (!row) return;
+      var set = function(cls, val) {
+        var el = row.querySelector('.' + cls);
+        if (el && val != null) el.value = String(val);
+      };
+      set('part-desc', p.desc || p.description);
+      set('part-qty', p.qty || p.quantity);
+      set('part-cost', p.cost || p.price);
+    });
+  }
+
+  // Labor rows (service-call): .labor-row in #laborList via addLabor()
+  if (Array.isArray(fd.labor) && fd.labor.length && typeof window.addLabor === 'function') {
+    var laborList = document.getElementById('laborList');
+    if (laborList) laborList.innerHTML = '';
+    fd.labor.forEach(function(l) {
+      window.addLabor();
+      var rows = laborList ? laborList.querySelectorAll('.labor-row') : [];
+      var row = rows[rows.length - 1];
+      if (!row) return;
+      var set = function(cls, val) {
+        var el = row.querySelector('.' + cls);
+        if (el && val != null) el.value = String(val);
+      };
+      set('labor-tech', l.tech || l.technician);
+      set('labor-hrs', l.hrs || l.hours);
+      set('labor-rate', l.rate);
+    });
+  }
+
+  // Work-Order style: addPartRow() -> #partsList rows with different class names.
+  // We try the common shape and fall back gracefully if fields don't match.
+  if (Array.isArray(fd.parts) && fd.parts.length && typeof window.addPartRow === 'function' && typeof window.addPart !== 'function') {
+    var woList = document.getElementById('partsList');
+    if (woList) woList.innerHTML = '';
+    fd.parts.forEach(function(p) {
+      window.addPartRow();
+      var rows = woList ? woList.children : [];
+      var row = rows[rows.length - 1];
+      if (!row) return;
+      var inputs = row.querySelectorAll('input');
+      if (inputs[0] && p.desc != null) inputs[0].value = String(p.desc || p.description || '');
+      if (inputs[1] && p.qty != null) inputs[1].value = String(p.qty || p.quantity || '');
+      if (inputs[2] && p.cost != null) inputs[2].value = String(p.cost || '');
+    });
+  }
+
+  // Cost calc refresh if available
+  if (typeof window.calcCosts === 'function') {
+    try { window.calcCosts(); } catch(e) {}
   }
 }
 
