@@ -15,7 +15,7 @@
 <title>RFI — Northern Wolves AC</title>
 <script src="draft-utils.js?v=52"></script>
 <script src="edit-utils.js?v=118"></script>
-<script src="project-utils.js?v=52"></script>
+<script src="project-utils.js?v=120"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
 <script src="ai-summary.js?v=52"></script>
@@ -310,6 +310,7 @@ function generateAndDownload(){
   }
 }
 async function generateAndEmailWithHistory(){
+  if (typeof requireProject === "function" && !requireProject()) return;
   var sendBtn = document.querySelector('.btn-success[onclick*="generateAndEmail"]');
   var origText = sendBtn ? sendBtn.innerHTML : '';
   if (sendBtn) {

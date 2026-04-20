@@ -157,7 +157,7 @@
     // Build the HTML
     container.innerHTML =
       '<div class="project-picker">' +
-        '<label>Project <span style="color:#94a3b8;font-weight:400">(optional)</span></label>' +
+        '<label>Project <span style="color:#dc2626;font-weight:700" title="Project is required">*</span></label>' +
         '<div class="project-search-wrap">' +
           '<input type="text" class="project-search" placeholder="Search or select project..." id="projectSearch" autocomplete="off">' +
           '<div class="project-dropdown" id="projectDropdown"></div>' +
@@ -507,6 +507,44 @@
   }
 
   /**
+   * Require a project to be selected before continuing. Call this at the
+   * top of any submit handler. If nothing is selected, scrolls the picker
+   * into view, flashes a red border, shows a toast, and returns false.
+   *
+   * Returns true if a project is selected (caller can proceed).
+   */
+  function requireProject() {
+    var id = getSelectedProjectId();
+    if (id) return true;
+
+    // Find the picker container
+    var picker = document.querySelector('.project-picker');
+    if (picker) {
+      picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      var input = picker.querySelector('.project-search');
+      if (input) {
+        input.focus();
+        // Flash a red outline for 1.5s
+        var origBorder = input.style.border;
+        var origBoxShadow = input.style.boxShadow;
+        input.style.border = '2px solid #dc2626';
+        input.style.boxShadow = '0 0 0 4px rgba(220,38,38,0.15)';
+        setTimeout(function() {
+          input.style.border = origBorder;
+          input.style.boxShadow = origBoxShadow;
+        }, 1500);
+      }
+    }
+
+    if (typeof window.showToast === 'function') {
+      window.showToast('⚠️ Please select or create a project first');
+    } else {
+      alert('Please select or create a project first — it is required for every report.');
+    }
+    return false;
+  }
+
+  /**
    * Clear the current project selection and reset the picker UI.
    */
   function clearProjectSelection() {
@@ -575,6 +613,7 @@
   window.getSelectedProject = getSelectedProject;
   window.clearProjectSelection = clearProjectSelection;
   window.selectProjectById = selectProject;
+  window.requireProject = requireProject;
 
   // Legacy globals for inline onclick handlers (if any forms still use them)
   window.saveQuickProject = saveQuickProject;

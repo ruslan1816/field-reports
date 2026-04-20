@@ -15,7 +15,7 @@
 <title>Change Order — Northern Wolves AC</title>
 <script src="draft-utils.js?v=52"></script>
 <script src="edit-utils.js?v=118"></script>
-<script src="project-utils.js?v=52"></script>
+<script src="project-utils.js?v=120"></script>
 <script src="customer-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="email-utils.js?v=52"></script>
@@ -923,6 +923,7 @@ function openEmailPreview(){
 }
 
 async function confirmSendEmail(){
+  if (typeof requireProject === 'function' && !requireProject()) return;
   var btn=document.getElementById('btnConfirmSend');
   var origText=btn.innerHTML;
   btn.disabled=true;

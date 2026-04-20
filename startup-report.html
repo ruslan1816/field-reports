@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Start-Up Report — Northern Wolves AC</title>
 <script src="draft-utils.js?v=52"></script>
-<script src="project-utils.js?v=52"></script>
+<script src="project-utils.js?v=120"></script>
 <script src="customer-utils.js?v=52"></script>
 <script src="equipment-utils.js?v=52"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -792,6 +792,7 @@ function generateAndDownload(){
   }
 }
 async function generateAndEmailWithHistory(){
+  if (typeof requireProject === "function" && !requireProject()) return;
   var sendBtn = document.querySelector('.btn-success[onclick*="generateAndEmail"]');
   var origText = sendBtn ? sendBtn.innerHTML : '';
   if (sendBtn) {
