@@ -191,6 +191,112 @@
   .comment-add input { flex: 1; }
   .comment-add button { padding: 8px 14px; background: var(--nw-primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; }
 
+  /* ────────────────── Timeline Gantt view ────────────────── */
+  .timeline-wrap {
+    margin: 12px;
+    background: var(--nw-card);
+    border: 1px solid var(--nw-border);
+    border-radius: 10px;
+    overflow: auto;
+    max-height: calc(100vh - 220px);
+    position: relative;
+  }
+  .timeline-table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 900px;
+    font-size: 12px;
+  }
+  .timeline-table thead th {
+    position: sticky; top: 0; z-index: 10;
+    background: #f1f5f9;
+    border-bottom: 2px solid var(--nw-border);
+    border-right: 1px solid var(--nw-border);
+    padding: 8px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--nw-text);
+    text-align: center;
+    min-width: 36px;
+  }
+  .timeline-table thead th.tl-day-weekend { background: #fee2e2; color: #991b1b; }
+  .timeline-table thead th.tl-day-today { background: var(--nw-primary); color: #fff; }
+  .timeline-table thead th.tl-project-col {
+    text-align: left; padding: 8px 12px;
+    min-width: 220px; max-width: 220px; width: 220px;
+    background: #f8fafc;
+    z-index: 11;
+    position: sticky; left: 0;
+    border-right: 2px solid var(--nw-border);
+  }
+  .timeline-table tbody td.tl-project-cell {
+    position: sticky; left: 0; z-index: 5;
+    background: var(--nw-card);
+    border-right: 2px solid var(--nw-border);
+    padding: 8px 12px;
+    font-weight: 600;
+    font-size: 13px;
+    vertical-align: top;
+  }
+  .timeline-table tbody td.tl-project-cell .pcode {
+    color: var(--nw-muted); font-size: 11px; margin-right: 6px;
+  }
+  .timeline-table tbody td.tl-project-cell .pcustomer {
+    display: block; font-size: 11px; font-weight: 400; color: var(--nw-muted); margin-top: 2px;
+  }
+  .timeline-table tbody td.tl-day-cell {
+    border-right: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0;
+    height: 38px;
+    position: relative;
+    vertical-align: top;
+  }
+  .timeline-table tbody td.tl-day-cell.weekend { background: #fef2f2; }
+  .timeline-table tbody td.tl-day-cell.today   { background: rgba(6,150,215,0.06); }
+
+  /* Block — entry rendered as a colored bar spanning its days */
+  .tl-block {
+    position: absolute;
+    top: 4px;
+    height: 30px;
+    background: var(--block-color, #0696D7);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 8px;
+    line-height: 1.1;
+    cursor: pointer;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    z-index: 2;
+    transition: filter 0.1s ease;
+  }
+  .tl-block:hover { filter: brightness(1.08); z-index: 3; }
+  .tl-block .tl-block-icon { margin-right: 4px; }
+  .tl-block .tl-block-meta { font-size: 10px; opacity: 0.85; font-weight: 400; margin-left: 4px; }
+  .tl-block.tl-block-needed::after {
+    content: '⚠';
+    position: absolute; right: 4px; top: 2px;
+    font-size: 10px; opacity: 0.85;
+  }
+  .tl-block.tl-block-priority-urgent { border: 2px solid #dc2626; }
+
+  .timeline-empty {
+    padding: 60px 20px; text-align: center; color: var(--nw-muted);
+  }
+  .timeline-mobile-hint {
+    display: none; padding: 16px; background: #fef3c7; border: 1px solid #fcd34d;
+    border-radius: 8px; margin: 12px; font-size: 13px; color: #92400e; text-align: center;
+  }
+  @media (max-width: 760px) {
+    .timeline-wrap { display: none; }
+    .timeline-mobile-hint { display: block; }
+  }
+
   @media (max-width: 600px) {
     .schedule-toolbar { gap: 6px; }
     .view-tab { padding: 6px 10px; font-size: 12px; }
@@ -214,8 +320,10 @@
   <!-- Toolbar -->
   <div class="schedule-toolbar">
     <div class="view-tab active" data-view="list">📋 List</div>
+    <div class="view-tab" data-view="timeline">📊 Timeline</div>
     <div class="view-tab" data-view="by-crew">👷 By Crew</div>
     <div class="view-tab" data-view="by-project">📁 By Project</div>
+    <div class="view-tab" data-view="my-schedule" id="myScheduleTab">📌 My Schedule</div>
     <select class="lookahead-select" id="lookaheadDays">
       <option value="7">Next 1 week</option>
       <option value="14" selected>Next 2 weeks</option>
@@ -343,6 +451,7 @@ requireAuth().catch(function(){});
   var currentView = 'list';
   var conflictMap = {};   // techId -> [conflicts] for the current modal date range
   var conflictDebounce = null;
+  var myTechId = null;    // schedule_techs.id for the current user (if linked)
 
   // ─── INIT ──────────────────────────────────────────────────────────────
   init();
@@ -373,6 +482,21 @@ requireAuth().catch(function(){});
     populateTechFilter();
     populateProjectFilter();
     populateProjectDropdown('mEntryProject');
+
+    // Resolve my schedule_techs.id by matching profile_id (if linked)
+    try {
+      var u = await supabaseClient.auth.getUser();
+      var uid = u.data && u.data.user ? u.data.user.id : null;
+      if (uid) {
+        var match = allTechs.find(function(t) { return t.profile_id === uid; });
+        if (match) myTechId = match.id;
+      }
+    } catch (e) {}
+    // Hide "My Schedule" tab if we can't link the user to a tech record
+    if (!myTechId) {
+      var msTab = document.getElementById('myScheduleTab');
+      if (msTab) msTab.style.display = 'none';
+    }
 
     bindEvents();
     refreshSchedule();
@@ -516,7 +640,12 @@ requireAuth().catch(function(){});
       return;
     }
     var entries = r.data || [];
-    if (techFilter) {
+    // "My Schedule" view auto-filters to entries assigned to current user
+    if (currentView === 'my-schedule' && myTechId) {
+      entries = entries.filter(function(e) {
+        return (e.assigned_tech_ids || []).indexOf(myTechId) !== -1;
+      });
+    } else if (techFilter) {
       entries = entries.filter(function(e) {
         return (e.assigned_tech_ids || []).indexOf(techFilter) !== -1;
       });
@@ -533,7 +662,8 @@ requireAuth().catch(function(){});
 
     if (currentView === 'by-crew') renderByCrew(entries);
     else if (currentView === 'by-project') renderByProject(entries);
-    else renderByDay(entries);
+    else if (currentView === 'timeline') renderTimeline(entries);
+    else renderByDay(entries);  // 'list' or 'my-schedule' both render as day groups
   }
 
   // ─── RENDERERS ─────────────────────────────────────────────────────────
@@ -624,6 +754,149 @@ requireAuth().catch(function(){});
     });
     document.getElementById('scheduleBody').innerHTML = html;
     bindEntryClicks();
+  }
+
+  // ─── TIMELINE / GANTT VIEW ─────────────────────────────────────────────
+  function renderTimeline(entries) {
+    var body = document.getElementById('scheduleBody');
+    var startISO = NWSchedule.todayISO();
+    var endISO   = NWSchedule.addDays(startISO, lookaheadDays);
+
+    // Build the day list inclusive
+    var days = [];
+    var d = startISO;
+    while (d <= endISO) {
+      var dt = new Date(d + 'T00:00:00');
+      days.push({
+        iso: d,
+        label: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        weekday: dt.toLocaleDateString('en-US', { weekday: 'short' }),
+        isWeekend: (dt.getDay() === 0 || dt.getDay() === 6),
+        isToday: (d === startISO)
+      });
+      d = NWSchedule.addDays(d, 1);
+    }
+    var totalDays = days.length;
+
+    // Group entries by project, preserving order alphabetically
+    var byProj = {};
+    entries.forEach(function(e) {
+      var pid = e.project_id || '__none__';
+      if (!byProj[pid]) byProj[pid] = { project: e.project, entries: [] };
+      byProj[pid].entries.push(e);
+    });
+    var projKeys = Object.keys(byProj).sort(function(a, b) {
+      var na = byProj[a].project ? byProj[a].project.name || '' : 'No project';
+      var nb = byProj[b].project ? byProj[b].project.name || '' : 'No project';
+      return na.localeCompare(nb);
+    });
+
+    if (!projKeys.length) {
+      body.innerHTML = '<div class="timeline-empty"><div style="font-size:36px;opacity:.4">📊</div>' +
+        '<p style="margin-top:8px">No entries to plot in this range.</p></div>';
+      return;
+    }
+
+    // Mobile users get a notice (timeline doesn't fit small screens)
+    var html = '<div class="timeline-mobile-hint">' +
+      '📱 Timeline view is best on desktop. On mobile, switch to <strong>📋 List</strong> or <strong>📁 By Project</strong>.</div>';
+
+    html += '<div class="timeline-wrap"><table class="timeline-table"><thead><tr>';
+    html += '<th class="tl-project-col">Project</th>';
+    days.forEach(function(day) {
+      var cls = '';
+      if (day.isToday) cls += ' tl-day-today';
+      else if (day.isWeekend) cls += ' tl-day-weekend';
+      html += '<th class="' + cls.trim() + '">' +
+        '<div style="font-size:9px;opacity:0.75">' + day.weekday + '</div>' +
+        '<div>' + day.label + '</div></th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    projKeys.forEach(function(pid) {
+      var g = byProj[pid];
+      var projName = g.project ? g.project.name : 'No project';
+      var projShort = g.project ? g.project.short_code : '';
+      var projCustomer = g.project ? g.project.customer : '';
+
+      // Stack entries vertically when they share rows. For simplicity,
+      // give each entry its own row inside the project (one project = N rows).
+      // We compact by stacking: assign each entry to the lowest-index row
+      // that doesn't conflict in time.
+      var rows = [];  // rows[i] = list of entries that don't overlap each other
+      g.entries.slice().sort(function(a, b) {
+        return a.start_date.localeCompare(b.start_date);
+      }).forEach(function(e) {
+        var placed = false;
+        for (var i = 0; i < rows.length; i++) {
+          var lastInRow = rows[i][rows[i].length - 1];
+          if (lastInRow.end_date < e.start_date) {
+            rows[i].push(e);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) rows.push([e]);
+      });
+
+      rows.forEach(function(rowEntries, rowIdx) {
+        html += '<tr>';
+        if (rowIdx === 0) {
+          html += '<td class="tl-project-cell" rowspan="' + rows.length + '">' +
+            (projShort ? '<span class="pcode">' + escHtml(projShort) + '</span>' : '') +
+            escHtml(projName) +
+            (projCustomer ? '<span class="pcustomer">' + escHtml(projCustomer) + '</span>' : '') +
+            '</td>';
+        }
+        // For the first day cell only, render a single absolute-positioned
+        // div that contains all blocks for this row, sized to the full week.
+        // We use one TD per day for grid lines, and overlay blocks via CSS.
+        days.forEach(function(day, dayIdx) {
+          var cls = 'tl-day-cell';
+          if (day.isToday) cls += ' today';
+          else if (day.isWeekend) cls += ' weekend';
+          html += '<td class="' + cls + '">';
+          if (dayIdx === 0) {
+            // Render all blocks for this row inside the first cell with absolute positioning
+            rowEntries.forEach(function(e) {
+              var ct = NWSchedule.crewTypeMeta(e.crew_type);
+              var ds = e.start_date < startISO ? startISO : e.start_date;
+              var de = e.end_date > endISO ? endISO : e.end_date;
+              var startIdx = days.findIndex(function(d) { return d.iso === ds; });
+              var endIdx   = days.findIndex(function(d) { return d.iso === de; });
+              if (startIdx === -1 || endIdx === -1) return;
+              var leftPct  = (startIdx / totalDays) * 100;
+              var widthPct = ((endIdx - startIdx + 1) / totalDays) * 100;
+              var needBadge = (e.manpower_needed && (!e.assigned_tech_ids || e.assigned_tech_ids.length < e.manpower_needed))
+                ? ' tl-block-needed' : '';
+              var prio = (e.priority === 'urgent') ? ' tl-block-priority-urgent' : '';
+              var tooltip = ct.label + ' · ' + e.start_date + ' → ' + e.end_date +
+                            (e.assigned_tech_names && e.assigned_tech_names.length ? '\nCrew: ' + e.assigned_tech_names.join(', ') : '') +
+                            (e.scope_summary ? '\n' + e.scope_summary : '');
+              var label = ct.icon + ' ' + (e.scope_summary || ct.label);
+              if (e.assigned_tech_names && e.assigned_tech_names.length) {
+                label += ' <span class="tl-block-meta">' + escHtml(e.assigned_tech_names.length + 'x') + '</span>';
+              }
+              html += '<div class="tl-block' + needBadge + prio + '" data-id="' + e.id + '" ' +
+                'style="--block-color:' + ct.color + ';left:' + leftPct.toFixed(2) + '%;width:calc(' + widthPct.toFixed(2) + '% - 4px);margin-left:2px" ' +
+                'title="' + escHtml(tooltip) + '">' +
+                label +
+                '</div>';
+            });
+          }
+          html += '</td>';
+        });
+        html += '</tr>';
+      });
+    });
+
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
+    body.querySelectorAll('.tl-block').forEach(function(blk) {
+      blk.addEventListener('click', function() {
+        openModal(blk.getAttribute('data-id'));
+      });
+    });
   }
 
   function renderEntryCard(e) {
