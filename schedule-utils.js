@@ -122,7 +122,7 @@
                 'assigned_tech_ids,assigned_tech_names,foreman_id,' +
                 'is_subcontractor,subcontractor_name,status,priority,' +
                 'scope_summary,notes,manpower_needed,created_at,updated_at,' +
-                'project:projects(id,name,short_code,customer,address)';
+                'project:projects(id,project_name,short_code,address,notes)';
       var q = supabaseClient.from('schedule_entries').select(sel);
 
       if (opts.from) q = q.gte('end_date', opts.from);
@@ -135,7 +135,12 @@
       q = q.order('start_date', { ascending: true }).order('priority', { ascending: false });
 
       var r = await q;
-      return { data: r.data || [], error: r.error };
+      // Normalize embedded project so UI can use {name, customer, ...}
+      var rows = (r.data || []).map(function(e) {
+        if (e.project) e.project = normalizeProject(e.project);
+        return e;
+      });
+      return { data: rows, error: r.error };
     } catch (err) {
       console.error('[schedule-utils] listEntries:', err);
       return { data: [], error: err };
@@ -147,9 +152,10 @@
    */
   async function getEntry(id) {
     try {
-      var sel = '*,project:projects(id,name,short_code,customer,address)';
+      var sel = '*,project:projects(id,project_name,short_code,address,notes)';
       var r = await supabaseClient.from('schedule_entries').select(sel).eq('id', id).single();
       if (r.error) return { data: null, error: r.error };
+      if (r.data && r.data.project) r.data.project = normalizeProject(r.data.project);
       var c = await listComments(id);
       r.data.comments = c.data || [];
       return { data: r.data, error: null };
@@ -226,6 +232,24 @@
   var _projectCache = null;
   var _projectCacheTs = 0;
 
+  // Existing projects table uses `project_name` and embeds the GC/customer
+  // inside `notes` as "Customer: XXX\n…" (per projects.html convention).
+  // We normalize each row so the rest of the UI can use {name, customer, ...}.
+  function normalizeProject(row) {
+    if (!row) return row;
+    var notes = row.notes || '';
+    var custMatch = notes.match(/^Customer:\s*(.+)$/m);
+    return {
+      id: row.id,
+      name: row.project_name || row.name || '',
+      short_code: row.short_code || null,
+      customer: custMatch ? custMatch[1].trim() : '',
+      address: row.address || '',
+      status: row.status || 'active',
+      notes: notes
+    };
+  }
+
   async function listScheduleProjects(opts) {
     opts = opts || {};
     var force = opts.force === true;
@@ -234,11 +258,12 @@
     }
     try {
       var r = await supabaseClient.from('projects')
-        .select('id,name,short_code,customer,address,status')
-        .order('name', { ascending: true });
-      _projectCache = r.data || [];
+        .select('id,project_name,short_code,address,status,notes')
+        .order('project_name', { ascending: true });
+      var rows = (r.data || []).map(normalizeProject);
+      _projectCache = rows;
       _projectCacheTs = Date.now();
-      return { data: _projectCache, error: r.error };
+      return { data: rows, error: r.error };
     } catch (err) {
       return { data: [], error: err };
     }
