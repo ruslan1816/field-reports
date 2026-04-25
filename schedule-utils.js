@@ -189,6 +189,64 @@
     return { error: r.error };
   }
 
+  /**
+   * Find tech-assignment conflicts within a date range.
+   *
+   * Returns a map techId -> array of conflicting entries:
+   *   {
+   *     "<uuid>": [
+   *       { entryId, projectName, projectShortCode, startDate, endDate, crewType },
+   *       ...
+   *     ],
+   *     ...
+   *   }
+   *
+   * Two entries conflict when their date ranges overlap and the entry is
+   * not cancelled/completed. The optional excludeEntryId parameter is the
+   * id of the entry currently being edited — we skip it so a tech doesn't
+   * "conflict with themselves" when the user is just resaving.
+   */
+  async function findTechConflicts(startDate, endDate, excludeEntryId) {
+    if (!startDate || !endDate) return { data: {}, error: null };
+    try {
+      var sel = 'id,project_id,crew_type,start_date,end_date,assigned_tech_ids,status,' +
+                'project:projects(project_name,short_code)';
+      var q = supabaseClient.from('schedule_entries').select(sel)
+        // Overlap test: A.start <= B.end AND A.end >= B.start
+        .lte('start_date', endDate)
+        .gte('end_date', startDate)
+        .not('status', 'in', '(cancelled,completed)');
+
+      var r = await q;
+      if (r.error) return { data: {}, error: r.error };
+
+      var rows = r.data || [];
+      var map = {};
+      rows.forEach(function(row) {
+        if (excludeEntryId && row.id === excludeEntryId) return;
+        var ids = row.assigned_tech_ids || [];
+        if (!ids.length) return;
+        var info = {
+          entryId: row.id,
+          projectName: row.project ? (row.project.project_name || '') : '',
+          projectShortCode: row.project ? (row.project.short_code || '') : '',
+          startDate: row.start_date,
+          endDate: row.end_date,
+          crewType: row.crew_type
+        };
+        ids.forEach(function(tid) {
+          if (!tid) return;
+          if (!map[tid]) map[tid] = [];
+          map[tid].push(info);
+        });
+      });
+      return { data: map, error: null };
+    } catch (err) {
+      console.error('[schedule-utils] findTechConflicts:', err);
+      return { data: {}, error: err };
+    }
+  }
+
   // ─── COMMENTS ──────────────────────────────────────────────────────────────
 
   async function listComments(entryId) {
@@ -337,6 +395,7 @@
     createEntry: createEntry,
     updateEntry: updateEntry,
     deleteEntry: deleteEntry,
+    findTechConflicts: findTechConflicts,
     listComments: listComments,
     addComment: addComment,
     deleteComment: deleteComment,
