@@ -329,6 +329,127 @@
 
   function invalidateProjectCache() { _projectCache = null; }
 
+  // ─── PM TEMPLATES (recurring maintenance) ────────────────────────────────
+
+  /**
+   * List all PM templates with their linked project + customer for display.
+   */
+  async function listPMTemplates(opts) {
+    opts = opts || {};
+    try {
+      var sel = '*,project:projects(id,project_name,short_code,address,notes),' +
+                'last_visit:schedule_entries!last_visit_id(id,start_date,end_date,status)';
+      var q = supabaseClient.from('pm_templates').select(sel)
+        .order('next_visit_date', { ascending: true, nullsFirst: false });
+      if (opts.activeOnly) q = q.eq('is_active', true);
+      var r = await q;
+      var rows = (r.data || []).map(function(row) {
+        if (row.project) row.project = normalizeProject(row.project);
+        return row;
+      });
+      return { data: rows, error: r.error };
+    } catch (err) {
+      console.error('[schedule-utils] listPMTemplates:', err);
+      return { data: [], error: err };
+    }
+  }
+
+  async function createPMTemplate(template) {
+    var r = await supabaseClient.from('pm_templates').insert(template).select().single();
+    return { data: r.data, error: r.error };
+  }
+
+  async function updatePMTemplate(id, patch) {
+    var r = await supabaseClient.from('pm_templates').update(patch).eq('id', id).select().single();
+    return { data: r.data, error: r.error };
+  }
+
+  async function deletePMTemplate(id) {
+    var r = await supabaseClient.from('pm_templates').delete().eq('id', id);
+    return { error: r.error };
+  }
+
+  /**
+   * Generate the next PM visit from a template.
+   * Creates a schedule_entries row for next_visit_date + visit_duration_days,
+   * with the template's preferred_tech_ids pre-assigned, then bumps the
+   * template's last_visit_id and next_visit_date by frequency_days.
+   *
+   * Idempotency: if there's already a non-cancelled schedule entry for this
+   * template's project/customer at the next_visit_date with crew_type
+   * 'maintenance', skip creating a duplicate.
+   */
+  async function generateNextPMVisit(templateId) {
+    try {
+      var tR = await supabaseClient.from('pm_templates').select('*').eq('id', templateId).single();
+      if (tR.error || !tR.data) return { data: null, error: tR.error || new Error('Template not found') };
+      var t = tR.data;
+      if (!t.is_active) return { data: null, error: new Error('Template is inactive') };
+      if (!t.next_visit_date) return { data: null, error: new Error('Template has no next_visit_date set') };
+
+      var startDate = t.next_visit_date;
+      var endDate   = startDate;
+      if (t.visit_duration_days && t.visit_duration_days > 1) {
+        // visit_duration_days = 1 means single-day, 2 means start+1 etc.
+        var dt = new Date(startDate + 'T00:00:00');
+        dt.setDate(dt.getDate() + (t.visit_duration_days - 1));
+        endDate = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+      }
+
+      // Resolve assigned tech NAMES from the IDs
+      var techList = await listTechs();
+      var techMap = {};
+      (techList.data || []).forEach(function(tt) { techMap[tt.id] = tt.full_name; });
+      var techIds = t.preferred_tech_ids || [];
+      var techNames = techIds.map(function(id) { return techMap[id] || ''; }).filter(Boolean);
+
+      // Idempotency check
+      if (t.project_id) {
+        var dupQ = await supabaseClient.from('schedule_entries').select('id')
+          .eq('project_id', t.project_id)
+          .eq('crew_type', 'maintenance')
+          .eq('start_date', startDate)
+          .neq('status', 'cancelled');
+        if ((dupQ.data || []).length > 0) {
+          return { data: null, error: new Error('A maintenance entry for this date already exists. Skipping duplicate.') };
+        }
+      }
+
+      // Build the new schedule_entries row
+      var u = await supabaseClient.auth.getUser();
+      var uid = u.data && u.data.user ? u.data.user.id : null;
+      var newEntry = {
+        project_id: t.project_id,
+        crew_type: 'maintenance',
+        start_date: startDate,
+        end_date: endDate,
+        assigned_tech_ids: techIds,
+        assigned_tech_names: techNames,
+        scope_summary: t.scope_template || (t.name + ' (PM)'),
+        notes: 'Auto-generated from PM template: ' + t.name,
+        priority: 'normal',
+        status: 'scheduled',
+        manpower_needed: techIds.length || null,
+        created_by: uid
+      };
+      var iR = await supabaseClient.from('schedule_entries').insert(newEntry).select().single();
+      if (iR.error) return { data: null, error: iR.error };
+
+      // Advance the template's next_visit_date by frequency_days
+      var nd = new Date(startDate + 'T00:00:00');
+      nd.setDate(nd.getDate() + (t.frequency_days || 90));
+      var nextDate = nd.getFullYear() + '-' + String(nd.getMonth()+1).padStart(2,'0') + '-' + String(nd.getDate()).padStart(2,'0');
+      await supabaseClient.from('pm_templates').update({
+        last_visit_id: iR.data.id,
+        next_visit_date: nextDate
+      }).eq('id', templateId);
+
+      return { data: iR.data, error: null };
+    } catch (err) {
+      return { data: null, error: err };
+    }
+  }
+
   // ─── PERMISSIONS ──────────────────────────────────────────────────────────
 
   /**
@@ -396,6 +517,11 @@
     updateEntry: updateEntry,
     deleteEntry: deleteEntry,
     findTechConflicts: findTechConflicts,
+    listPMTemplates: listPMTemplates,
+    createPMTemplate: createPMTemplate,
+    updatePMTemplate: updatePMTemplate,
+    deletePMTemplate: deletePMTemplate,
+    generateNextPMVisit: generateNextPMVisit,
     listComments: listComments,
     addComment: addComment,
     deleteComment: deleteComment,

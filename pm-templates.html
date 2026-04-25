@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>PM Templates — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=123"></script>
+<script src="auth.js?v=123"></script>
+<script src="schedule-utils.js?v=127"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .header .profile-circle { margin-left: auto; }
+  .pm-wrap { max-width: 900px; margin: 0 auto; }
+  .pm-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px; align-items: center; flex-wrap: wrap;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+  }
+  .pm-toolbar .grow { flex: 1; }
+  .new-pm-btn {
+    background: linear-gradient(135deg, #5D822C, #466520); color: #fff; border: none;
+    padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(93,130,44,.25);
+  }
+  .pm-card {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 10px; padding: 14px 16px; margin: 12px 16px;
+    border-left: 4px solid #5D822C;
+  }
+  .pm-card.inactive { opacity: 0.55; border-left-color: #94a3b8; }
+  .pm-card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .pm-card-title { font-weight: 700; font-size: 15px; color: var(--nw-text); }
+  .pm-card-freq {
+    background: #d1fae5; color: #065f46; font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 12px;
+  }
+  .pm-card-status-inactive { background: #f1f5f9; color: #64748b; font-weight: 700; padding: 3px 10px; border-radius: 12px; font-size: 11px; }
+  .pm-card-meta { font-size: 12px; color: var(--nw-muted); margin-bottom: 6px; }
+  .pm-card-meta b { color: var(--nw-text); font-weight: 600; }
+  .pm-card-actions {
+    display: flex; gap: 8px; margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .pm-card-actions button {
+    padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--nw-border); background: #fff;
+  }
+  .pm-card-actions .btn-edit { color: var(--nw-primary); border-color: var(--nw-primary); }
+  .pm-card-actions .btn-generate { background: var(--nw-primary); color: #fff; border-color: var(--nw-primary); }
+  .pm-card-actions .btn-toggle { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .pm-card-actions .btn-delete { color: #dc2626; border-color: #fecaca; margin-left: auto; }
+
+  .pm-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .pm-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  .next-due { font-size: 12px; padding: 3px 9px; border-radius: 12px; font-weight: 700; }
+  .next-due.overdue { background: #fee2e2; color: #991b1b; }
+  .next-due.due-soon { background: #fef3c7; color: #92400e; }
+  .next-due.scheduled { background: #dbeafe; color: #1e40af; }
+
+  /* Modal (reuses styles from schedule.html) */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, .55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 600px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label { display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 9px 11px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card textarea { min-height: 70px; resize: vertical; }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+
+  .techs-picker { border: 1px solid var(--nw-border); border-radius: 7px; padding: 8px; max-height: 180px; overflow-y: auto; background: #fafbfd; }
+  .tech-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; margin: 3px; border-radius: 14px;
+    border: 1px solid var(--nw-border); background: #fff;
+    font-size: 12px; cursor: pointer; user-select: none; transition: all .12s ease;
+  }
+  .tech-chip:hover { border-color: var(--nw-primary); }
+  .tech-chip.selected { background: var(--nw-primary); color: #fff; border-color: var(--nw-primary); font-weight: 600; }
+
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save   { background: var(--nw-primary); color: #fff; }
+
+  .freq-presets {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;
+  }
+  .freq-preset {
+    padding: 5px 10px; font-size: 11px; font-weight: 700;
+    border-radius: 12px; background: var(--nw-section); color: var(--nw-muted);
+    cursor: pointer; border: 1px solid var(--nw-border);
+  }
+  .freq-preset:hover { background: #e2e8f0; }
+  .freq-preset.active { background: var(--nw-primary); color: #fff; border-color: var(--nw-primary); }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="pm-wrap">
+
+  <div class="header">
+    <a href="schedule.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>PM Templates</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="pm-toolbar">
+    <span style="font-size:13px;color:var(--nw-muted)" id="pmCount">Loading…</span>
+    <div class="grow"></div>
+    <button class="new-pm-btn" id="btnNewPM">+ New PM Template</button>
+  </div>
+
+  <div id="pmList"></div>
+
+</div>
+
+<!-- New / Edit PM Template Modal -->
+<div class="modal-overlay" id="pmModal">
+  <div class="modal-card">
+    <h2 id="modalTitle">New PM Template</h2>
+
+    <div class="field">
+      <label>Template Name *</label>
+      <input type="text" id="mName" placeholder="e.g. Quarterly RTU PM — Tesla Brooklyn">
+    </div>
+
+    <div class="field">
+      <label>Project (optional)</label>
+      <select id="mProject"><option value="">No project — runs by customer</option></select>
+    </div>
+
+    <div class="field">
+      <label>Frequency *</label>
+      <input type="number" id="mFrequency" min="1" placeholder="Days between visits (e.g. 90)">
+      <div class="freq-presets" id="freqPresets">
+        <span class="freq-preset" data-days="30">Monthly</span>
+        <span class="freq-preset" data-days="90">Quarterly</span>
+        <span class="freq-preset" data-days="180">Semi-Annual</span>
+        <span class="freq-preset" data-days="365">Annual</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Visit Duration (days)</label>
+        <input type="number" id="mDuration" min="1" value="1" placeholder="1">
+      </div>
+      <div class="field">
+        <label>Next Visit Date *</label>
+        <input type="date" id="mNextDate">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Preferred Techs</label>
+      <div class="techs-picker" id="mTechs"></div>
+    </div>
+
+    <div class="field">
+      <label>Scope (used as PM visit description)</label>
+      <textarea id="mScope" placeholder="e.g. Replace filters, check refrigerant, clean coils, test thermostats"></textarea>
+    </div>
+
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none">
+        <input type="checkbox" id="mActive" checked style="width:auto">
+        <span style="font-size:14px;font-weight:600;color:var(--nw-text);text-transform:none">Active (will appear in scheduling)</span>
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancel">Cancel</button>
+      <button class="btn-save" id="btnSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+
+(function() {
+  'use strict';
+
+  var allTechs = [];
+  var allProjects = [];
+  var canWrite = false;
+  var editingId = null;
+  var templates = [];
+
+  init();
+
+  async function init() {
+    canWrite = await NWSchedule.canWriteSchedule();
+    if (!canWrite) {
+      document.getElementById('btnNewPM').style.display = 'none';
+    }
+    var [techsR, projsR] = await Promise.all([
+      NWSchedule.listTechs(),
+      NWSchedule.listScheduleProjects()
+    ]);
+    allTechs = techsR.data || [];
+    allProjects = projsR.data || [];
+
+    var sel = document.getElementById('mProject');
+    allProjects.forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = (p.short_code ? p.short_code + ' · ' : '') + p.name + (p.customer ? ' (' + p.customer + ')' : '');
+      sel.appendChild(opt);
+    });
+
+    bindEvents();
+    refresh();
+  }
+
+  function bindEvents() {
+    document.getElementById('btnNewPM').addEventListener('click', function() { openModal(null); });
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+    document.getElementById('btnSave').addEventListener('click', save);
+    document.getElementById('pmModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+    document.getElementById('freqPresets').addEventListener('click', function(e) {
+      var btn = e.target.closest('.freq-preset');
+      if (!btn) return;
+      document.querySelectorAll('.freq-preset').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('mFrequency').value = btn.getAttribute('data-days');
+    });
+    document.getElementById('mFrequency').addEventListener('input', function() {
+      // Highlight matching preset if any
+      var v = this.value;
+      document.querySelectorAll('.freq-preset').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-days') === v);
+      });
+    });
+  }
+
+  async function refresh() {
+    var r = await NWSchedule.listPMTemplates();
+    if (r.error) {
+      document.getElementById('pmList').innerHTML =
+        '<div class="pm-empty"><div class="icon">⚠️</div>' +
+        '<p>Error loading templates: ' + escHtml(r.error.message || r.error) + '</p></div>';
+      return;
+    }
+    templates = r.data || [];
+    document.getElementById('pmCount').textContent =
+      templates.length + ' template' + (templates.length !== 1 ? 's' : '') +
+      ' (' + templates.filter(function(t){return t.is_active;}).length + ' active)';
+
+    if (!templates.length) {
+      document.getElementById('pmList').innerHTML =
+        '<div class="pm-empty"><div class="icon">🔁</div>' +
+        '<p>No PM templates yet.<br>' +
+        (canWrite ? 'Click <strong>+ New PM Template</strong> to create the first one.' : 'Ask a manager to set up recurring PM contracts.') +
+        '</p></div>';
+      return;
+    }
+
+    var html = '';
+    templates.forEach(function(t) {
+      html += renderCard(t);
+    });
+    document.getElementById('pmList').innerHTML = html;
+    bindCardActions();
+  }
+
+  function renderCard(t) {
+    var freqLabel = freqHumanize(t.frequency_days);
+    var techNames = (t.preferred_tech_ids || []).map(function(id) {
+      var tt = allTechs.find(function(x) { return x.id === id; });
+      return tt ? tt.full_name : '';
+    }).filter(Boolean);
+    var nextDue = t.next_visit_date ? formatDueDate(t.next_visit_date) : '';
+    var p = t.project;
+    var projName = p ? ((p.short_code ? p.short_code + ' · ' : '') + p.name) : '(No project)';
+    var lastVisit = t.last_visit;
+
+    return '<div class="pm-card' + (t.is_active ? '' : ' inactive') + '" data-id="' + t.id + '">' +
+      '<div class="pm-card-top">' +
+        '<span class="pm-card-title">🔁 ' + escHtml(t.name) + '</span>' +
+        '<span class="pm-card-freq">Every ' + freqLabel + '</span>' +
+        (t.is_active ? '' : '<span class="pm-card-status-inactive">Inactive</span>') +
+        (nextDue ? '<span class="next-due ' + nextDue.cls + '">' + nextDue.label + '</span>' : '') +
+      '</div>' +
+      '<div class="pm-card-meta"><b>Project:</b> ' + escHtml(projName) +
+        (p && p.customer ? ' &middot; ' + escHtml(p.customer) : '') + '</div>' +
+      (techNames.length ? '<div class="pm-card-meta"><b>Preferred crew:</b> ' + escHtml(techNames.join(', ')) + '</div>' : '') +
+      (t.scope_template ? '<div class="pm-card-meta"><b>Scope:</b> ' + escHtml(t.scope_template) + '</div>' : '') +
+      (lastVisit ? '<div class="pm-card-meta"><b>Last visit:</b> ' + escHtml(lastVisit.start_date) + ' (' + escHtml(lastVisit.status) + ')</div>' : '') +
+      (canWrite ?
+        '<div class="pm-card-actions">' +
+          '<button class="btn-generate" data-act="generate">🎯 Generate Next Visit</button>' +
+          '<button class="btn-edit"     data-act="edit">✎ Edit</button>' +
+          '<button class="btn-toggle"   data-act="toggle">' + (t.is_active ? '⏸ Pause' : '▶ Activate') + '</button>' +
+          '<button class="btn-delete"   data-act="delete">Delete</button>' +
+        '</div>' : '') +
+      '</div>';
+  }
+
+  function bindCardActions() {
+    document.querySelectorAll('.pm-card').forEach(function(card) {
+      var id = card.getAttribute('data-id');
+      card.querySelectorAll('button[data-act]').forEach(function(btn) {
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          var act = btn.getAttribute('data-act');
+          if (act === 'edit') openModal(id);
+          else if (act === 'generate') generateVisit(id);
+          else if (act === 'toggle') toggleActive(id);
+          else if (act === 'delete') deleteTemplate(id);
+        });
+      });
+    });
+  }
+
+  function freqHumanize(days) {
+    if (days === 30 || days === 31) return 'month';
+    if (days === 90) return 'quarter';
+    if (days === 180) return '6 months';
+    if (days === 365) return 'year';
+    if (days % 30 === 0) return (days / 30) + ' months';
+    if (days % 7 === 0) return (days / 7) + ' weeks';
+    return days + ' days';
+  }
+
+  function formatDueDate(iso) {
+    var d = new Date(iso + 'T00:00:00');
+    var today = new Date();
+    today.setHours(0,0,0,0);
+    var diff = Math.round((d - today) / (1000 * 60 * 60 * 24));
+    var label = '';
+    var cls = 'scheduled';
+    if (diff < 0) {
+      label = 'Overdue ' + Math.abs(diff) + 'd';
+      cls = 'overdue';
+    } else if (diff === 0) {
+      label = 'Due today';
+      cls = 'overdue';
+    } else if (diff <= 14) {
+      label = 'Due in ' + diff + 'd';
+      cls = 'due-soon';
+    } else {
+      label = 'Next: ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      cls = 'scheduled';
+    }
+    return { label: label, cls: cls };
+  }
+
+  // ─── MODAL ─────────────────────────────────────────────────────────────
+
+  function openModal(id) {
+    editingId = id;
+    document.getElementById('modalTitle').textContent = id ? 'Edit PM Template' : 'New PM Template';
+
+    document.getElementById('mName').value = '';
+    document.getElementById('mProject').value = '';
+    document.getElementById('mFrequency').value = '90';
+    document.getElementById('mDuration').value = '1';
+    document.getElementById('mNextDate').value = NWSchedule.todayISO();
+    document.getElementById('mScope').value = '';
+    document.getElementById('mActive').checked = true;
+    renderTechPicker([]);
+    document.querySelectorAll('.freq-preset').forEach(function(b) {
+      b.classList.toggle('active', b.getAttribute('data-days') === '90');
+    });
+
+    if (id) {
+      var t = templates.find(function(x) { return x.id === id; });
+      if (t) {
+        document.getElementById('mName').value = t.name || '';
+        document.getElementById('mProject').value = t.project_id || '';
+        document.getElementById('mFrequency').value = t.frequency_days || 90;
+        document.getElementById('mDuration').value = t.visit_duration_days || 1;
+        document.getElementById('mNextDate').value = t.next_visit_date || NWSchedule.todayISO();
+        document.getElementById('mScope').value = t.scope_template || '';
+        document.getElementById('mActive').checked = !!t.is_active;
+        renderTechPicker(t.preferred_tech_ids || []);
+        document.querySelectorAll('.freq-preset').forEach(function(b) {
+          b.classList.toggle('active', b.getAttribute('data-days') === String(t.frequency_days));
+        });
+      }
+    }
+    document.getElementById('pmModal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('pmModal').classList.remove('open');
+    editingId = null;
+  }
+
+  function renderTechPicker(selectedIds) {
+    var c = document.getElementById('mTechs');
+    var html = '';
+    var grouped = {};
+    allTechs.forEach(function(t) {
+      var k = t.primary_skill;
+      if (!grouped[k]) grouped[k] = [];
+      grouped[k].push(t);
+    });
+    NWSchedule.CREW_TYPES.forEach(function(ct) {
+      var list = grouped[ct.value];
+      if (!list || !list.length) return;
+      html += '<div style="font-size:10px;font-weight:700;color:var(--nw-muted);text-transform:uppercase;margin:6px 4px 2px;">' +
+        ct.icon + ' ' + ct.label + '</div>';
+      list.forEach(function(t) {
+        var sel = selectedIds.indexOf(t.id) !== -1;
+        html += '<span class="tech-chip' + (sel ? ' selected' : '') + '" data-tech-id="' + t.id + '">' +
+          escHtml(t.full_name) + '</span>';
+      });
+    });
+    c.innerHTML = html;
+    c.querySelectorAll('.tech-chip').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        if (!canWrite) return;
+        chip.classList.toggle('selected');
+      });
+    });
+  }
+
+  function getSelectedTechs() {
+    var ids = [];
+    document.querySelectorAll('#mTechs .tech-chip.selected').forEach(function(chip) {
+      ids.push(chip.getAttribute('data-tech-id'));
+    });
+    return ids;
+  }
+
+  async function save() {
+    var name = document.getElementById('mName').value.trim();
+    var freq = parseInt(document.getElementById('mFrequency').value, 10);
+    var dur  = parseInt(document.getElementById('mDuration').value, 10) || 1;
+    var nextDate = document.getElementById('mNextDate').value;
+    if (!name || !freq || !nextDate) {
+      showToast('Please fill in name, frequency, and next visit date.', 'error');
+      return;
+    }
+    var data = {
+      name: name,
+      project_id: document.getElementById('mProject').value || null,
+      frequency_days: freq,
+      visit_duration_days: dur,
+      next_visit_date: nextDate,
+      preferred_tech_ids: getSelectedTechs(),
+      scope_template: document.getElementById('mScope').value.trim() || null,
+      is_active: document.getElementById('mActive').checked
+    };
+    var r = editingId
+      ? await NWSchedule.updatePMTemplate(editingId, data)
+      : await NWSchedule.createPMTemplate(data);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    closeModal();
+    refresh();
+    showToast(editingId ? 'Template updated' : 'Template created', 'success');
+  }
+
+  async function generateVisit(id) {
+    if (!confirm('Generate the next maintenance visit for this template?')) return;
+    var r = await NWSchedule.generateNextPMVisit(id);
+    if (r.error) {
+      showToast('⚠️ ' + (r.error.message || r.error), 'error');
+      return;
+    }
+    showToast('✅ Visit scheduled. Open Schedule to see it.', 'success');
+    refresh();
+  }
+
+  async function toggleActive(id) {
+    var t = templates.find(function(x) { return x.id === id; });
+    if (!t) return;
+    var r = await NWSchedule.updatePMTemplate(id, { is_active: !t.is_active });
+    if (r.error) { showToast('Update failed', 'error'); return; }
+    refresh();
+  }
+
+  async function deleteTemplate(id) {
+    if (!confirm('Delete this PM template? This will not delete past visits, only stop future auto-generation.')) return;
+    var r = await NWSchedule.deletePMTemplate(id);
+    if (r.error) { showToast('Delete failed', 'error'); return; }
+    refresh();
+    showToast('Template deleted', 'success');
+  }
+
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
+
+<script src="sw-register.js?v=127"></script>
+</body>
+</html>
