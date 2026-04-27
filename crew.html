@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Crew — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=136"></script>
+<script src="auth.js?v=136"></script>
+<script src="schedule-utils.js?v=137"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .header .profile-circle { margin-left: auto; }
+  .reg-wrap { max-width: 1100px; margin: 0 auto; }
+  .reg-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px; align-items: center; flex-wrap: wrap;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+  }
+  .reg-toolbar .grow { flex: 1; }
+  .reg-toolbar input[type="search"] {
+    padding: 8px 12px; border: 1px solid var(--nw-border); border-radius: 7px;
+    font-size: 14px; min-width: 220px;
+  }
+  .reg-toolbar label.tog {
+    font-size: 12px; color: var(--nw-muted); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .new-btn {
+    background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+    padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(6,150,215,.25);
+  }
+
+  .skill-section { margin: 14px 0 6px 16px; }
+  .skill-section h2 {
+    font-size: 13px; text-transform: uppercase; color: var(--nw-muted); margin: 0 0 4px 0;
+    letter-spacing: 0.5px; font-weight: 700;
+  }
+
+  .reg-card {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 10px; padding: 12px 14px; margin: 8px 16px;
+    border-left: 4px solid #0696D7;
+  }
+  .reg-card.inactive { opacity: 0.55; border-left-color: #94a3b8; background: #f8fafc; }
+  .reg-card.foreman  { border-left-color: #f59e0b; }
+  .reg-card.subcon   { border-left-color: #5b21b6; }
+
+  .reg-card-top {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+  }
+  .reg-card-name { font-weight: 700; font-size: 15px; color: var(--nw-text); }
+  .reg-card-name .star { color: #f59e0b; }
+  .badge {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .badge-skill.sheetmetal     { background: #fef3c7; color: #92400e; }
+  .badge-skill.pipe-fitters   { background: #dbeafe; color: #1e40af; }
+  .badge-skill.wiring-startup { background: #ede9fe; color: #5b21b6; }
+  .badge-skill.service-call   { background: #d1fae5; color: #065f46; }
+  .badge-skill.survey         { background: #cffafe; color: #155e75; }
+  .badge-skill.disconnect-demo{ background: #fee2e2; color: #991b1b; }
+  .badge-skill.maintenance    { background: #ecfccb; color: #3f6212; }
+  .badge-skill.foreman        { background: #fef3c7; color: #78350f; }
+  .badge-flag                 { background: #f1f5f9; color: #334155; }
+  .badge-flag.foreman         { background: #fef3c7; color: #78350f; }
+  .badge-flag.helper          { background: #e0f2fe; color: #075985; }
+  .badge-flag.sub             { background: #ede9fe; color: #5b21b6; }
+  .badge-flag.inactive        { background: #f1f5f9; color: #475569; }
+
+  .reg-card-meta {
+    font-size: 12px; color: var(--nw-muted); margin: 2px 0;
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  }
+  .reg-card-meta b { color: var(--nw-text); font-weight: 600; }
+  .reg-card-meta a { color: var(--nw-primary); text-decoration: none; }
+  .reg-card-meta a:hover { text-decoration: underline; }
+
+  .reg-card-actions {
+    display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .reg-card-actions button {
+    padding: 6px 11px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--nw-border); background: #fff;
+  }
+  .reg-card-actions .btn-edit       { color: var(--nw-primary); border-color: var(--nw-primary); }
+  .reg-card-actions .btn-toggle     { background: #fef3c7; color: #92400e; border-color: #fde68a; margin-left: auto; }
+  .reg-card-actions .btn-reactivate { background: #d1fae5; color: #065f46; border-color: #a7f3d0; margin-left: auto; }
+
+  .reg-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .reg-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 600px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 9px 11px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card textarea { min-height: 60px; resize: vertical; }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+
+  .skills-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px 12px; margin-top: 4px;
+  }
+  .skills-grid label.cb {
+    display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--nw-text);
+    text-transform: none; letter-spacing: normal; font-weight: 500; cursor: pointer; margin: 0;
+    padding: 6px 8px; border: 1px solid var(--nw-border); border-radius: 6px;
+    background: #f8fafc;
+  }
+  .skills-grid label.cb input { width: auto; }
+  .skills-grid label.cb.checked { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+
+  .flag-row {
+    display: flex; gap: 14px; margin-top: 4px; flex-wrap: wrap;
+    padding: 8px 10px; background: #f8fafc; border: 1px solid var(--nw-border); border-radius: 7px;
+  }
+  .flag-row label.cb {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--nw-text);
+    text-transform: none; letter-spacing: normal; font-weight: 500; cursor: pointer; margin: 0;
+  }
+  .flag-row label.cb input { width: auto; }
+
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save   { background: var(--nw-primary); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error { background: #dc2626; }
+
+  @media (max-width: 600px) {
+    .modal-card .row { flex-direction: column; gap: 0; }
+    .reg-toolbar input[type="search"] { min-width: 140px; flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="reg-wrap">
+
+  <div class="header">
+    <a href="schedule.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Crew</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="reg-toolbar">
+    <span style="font-size:13px;color:var(--nw-muted)" id="regCount">Loading…</span>
+    <input type="search" id="searchInput" placeholder="Search name…">
+    <label class="tog"><input type="checkbox" id="showInactive"> Show inactive</label>
+    <div class="grow"></div>
+    <button class="new-btn" id="btnNew">+ Add Crew Member</button>
+  </div>
+
+  <div id="regList"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="regModal">
+  <div class="modal-card">
+    <h2 id="modalTitle">Add Crew Member</h2>
+
+    <div class="row">
+      <div class="field">
+        <label>First Name *</label>
+        <input type="text" id="mFirst" placeholder="e.g. Manuel">
+      </div>
+      <div class="field">
+        <label>Last Name</label>
+        <input type="text" id="mLast" placeholder="e.g. Cruz">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Position / Job Title</label>
+      <input type="text" id="mPosition" placeholder="e.g. Foreman / Mechanic Ductwork">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Primary Skill *</label>
+        <select id="mPrimarySkill">
+          <option value="sheetmetal">🔩 Sheetmetal / Ductwork</option>
+          <option value="pipe-fitters">🔧 Pipe-fitters</option>
+          <option value="wiring-startup">⚡ Wiring / Start-up</option>
+          <option value="service-call">🛠️ Service Call</option>
+          <option value="survey">📋 Project Survey</option>
+          <option value="disconnect-demo">⛏️ Disconnect / Demo</option>
+          <option value="maintenance">✅ Maintenance</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Additional Skills (can also do)</label>
+      <div class="skills-grid" id="mSkillsGrid"></div>
+    </div>
+
+    <div class="field">
+      <label>Flags</label>
+      <div class="flag-row">
+        <label class="cb"><input type="checkbox" id="mIsForeman"> ★ Foreman</label>
+        <label class="cb"><input type="checkbox" id="mIsHelper"> Helper</label>
+        <label class="cb"><input type="checkbox" id="mIsSub"> Subcontractor</label>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Phone</label>
+        <input type="tel" id="mPhone" placeholder="(555) 555-5555">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="mEmail" placeholder="name@example.com">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="mNotes" placeholder="Languages, certifications, preferences…"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancel">Cancel</button>
+      <button class="btn-save" id="btnSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var canWrite = false;
+  var editingId = null;
+  var techs = [];
+
+  // Skill catalog (matches schedule_techs.primary_skill enum + array)
+  var SKILLS = [
+    { value: 'sheetmetal',      label: 'Sheetmetal / Ductwork', icon: '🔩' },
+    { value: 'pipe-fitters',    label: 'Pipe-fitters',          icon: '🔧' },
+    { value: 'wiring-startup',  label: 'Wiring / Start-up',     icon: '⚡' },
+    { value: 'service-call',    label: 'Service Call',          icon: '🛠️' },
+    { value: 'survey',          label: 'Project Survey',        icon: '📋' },
+    { value: 'disconnect-demo', label: 'Disconnect / Demo',     icon: '⛏️' },
+    { value: 'maintenance',     label: 'Maintenance',           icon: '✅' }
+  ];
+
+  init();
+
+  async function init() {
+    canWrite = await NWSchedule.canWriteSchedule();
+    if (!canWrite) document.getElementById('btnNew').style.display = 'none';
+    buildSkillsGrid();
+    bindEvents();
+    refresh();
+  }
+
+  function buildSkillsGrid() {
+    var grid = document.getElementById('mSkillsGrid');
+    grid.innerHTML = SKILLS.map(function(s) {
+      return '<label class="cb" data-skill="' + s.value + '">' +
+        '<input type="checkbox" value="' + s.value + '"> ' + s.icon + ' ' + escHtml(s.label) +
+        '</label>';
+    }).join('');
+    grid.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        cb.parentElement.classList.toggle('checked', cb.checked);
+      });
+    });
+  }
+
+  function bindEvents() {
+    document.getElementById('btnNew').addEventListener('click', function() { openModal(null); });
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+    document.getElementById('btnSave').addEventListener('click', save);
+    document.getElementById('regModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+    document.getElementById('searchInput').addEventListener('input', renderList);
+    document.getElementById('showInactive').addEventListener('change', refresh);
+  }
+
+  async function refresh() {
+    var includeInactive = document.getElementById('showInactive').checked;
+    var r = await NWSchedule.listTechs({ force: true, includeInactive: includeInactive });
+    if (r.error) {
+      document.getElementById('regList').innerHTML =
+        '<div class="reg-empty"><div class="icon">⚠️</div>' +
+        '<p>Error: ' + escHtml(r.error.message || r.error) + '</p></div>';
+      return;
+    }
+    techs = r.data || [];
+    renderList();
+  }
+
+  function renderList() {
+    var q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+    var list = techs.filter(function(t) {
+      if (!q) return true;
+      var name = ((t.first_name || '') + ' ' + (t.last_name || '')).toLowerCase();
+      return name.indexOf(q) >= 0 ||
+             (t.position || '').toLowerCase().indexOf(q) >= 0 ||
+             (t.primary_skill || '').toLowerCase().indexOf(q) >= 0;
+    });
+
+    document.getElementById('regCount').textContent =
+      list.length + ' crew member' + (list.length !== 1 ? 's' : '') +
+      (techs.length !== list.length ? ' (of ' + techs.length + ')' : '');
+
+    if (!list.length) {
+      document.getElementById('regList').innerHTML =
+        '<div class="reg-empty"><div class="icon">👷</div>' +
+        '<p>' + (q ? 'No matches.' : 'No crew members yet.') + '</p></div>';
+      return;
+    }
+
+    // Group by primary_skill, foremen first within each group
+    var groups = {};
+    list.forEach(function(t) {
+      var key = t.primary_skill || 'other';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    var orderedKeys = SKILLS.map(function(s) { return s.value; });
+    Object.keys(groups).forEach(function(k) { if (orderedKeys.indexOf(k) < 0) orderedKeys.push(k); });
+
+    var html = orderedKeys.filter(function(k) { return groups[k] && groups[k].length; })
+      .map(function(k) {
+        var rows = groups[k].slice().sort(function(a, b) {
+          if (!!b.is_foreman !== !!a.is_foreman) return b.is_foreman ? 1 : -1;
+          return (a.first_name || '').localeCompare(b.first_name || '');
+        });
+        var meta = SKILLS.find(function(s) { return s.value === k; }) ||
+                   { label: k, icon: '•' };
+        return '<div class="skill-section">' +
+          '<h2>' + meta.icon + ' ' + escHtml(meta.label) +
+          ' <span style="color:var(--nw-muted);font-weight:600">(' + rows.length + ')</span></h2>' +
+          '</div>' +
+          rows.map(renderCard).join('');
+      }).join('');
+
+    document.getElementById('regList').innerHTML = html;
+    bindCardActions();
+  }
+
+  function renderCard(t) {
+    var cls = 'reg-card';
+    if (!t.is_active)        cls += ' inactive';
+    else if (t.is_foreman)   cls += ' foreman';
+    else if (t.is_subcontractor) cls += ' subcon';
+
+    var skill = t.primary_skill || 'other';
+    var skillLabel = (SKILLS.find(function(s) { return s.value === skill; }) || { label: skill }).label;
+    var addlSkills = (t.skills || []).filter(function(s) { return s !== t.primary_skill; });
+
+    return '<div class="' + cls + '" data-id="' + t.id + '">' +
+      '<div class="reg-card-top">' +
+        '<span class="reg-card-name">' +
+          (t.is_foreman ? '<span class="star">★</span> ' : '') +
+          escHtml(((t.first_name || '') + ' ' + (t.last_name || '')).trim()) +
+        '</span>' +
+        '<span class="badge badge-skill ' + skill + '">' + escHtml(skillLabel) + '</span>' +
+        (t.is_foreman       ? '<span class="badge badge-flag foreman">★ Foreman</span>'  : '') +
+        (t.is_helper        ? '<span class="badge badge-flag helper">Helper</span>'      : '') +
+        (t.is_subcontractor ? '<span class="badge badge-flag sub">Sub</span>'            : '') +
+        (!t.is_active       ? '<span class="badge badge-flag inactive">Inactive</span>'  : '') +
+      '</div>' +
+      (t.position ? '<div class="reg-card-meta"><b>Position:</b> ' + escHtml(t.position) + '</div>' : '') +
+      (addlSkills.length ?
+        '<div class="reg-card-meta"><b>Also can:</b> ' +
+        addlSkills.map(function(s) {
+          var m = SKILLS.find(function(x) { return x.value === s; });
+          return m ? m.icon + ' ' + escHtml(m.label) : escHtml(s);
+        }).join(', ') + '</div>' : '') +
+      (t.phone ? '<div class="reg-card-meta">📞 <a href="tel:' + escHtml(t.phone) + '">' + escHtml(t.phone) + '</a></div>' : '') +
+      (t.email ? '<div class="reg-card-meta">✉️ <a href="mailto:' + escHtml(t.email) + '">' + escHtml(t.email) + '</a></div>' : '') +
+      (t.notes ? '<div class="reg-card-meta"><b>Notes:</b> ' + escHtml(t.notes) + '</div>' : '') +
+      (canWrite ?
+        '<div class="reg-card-actions">' +
+          '<button class="btn-edit" data-act="edit">✎ Edit</button>' +
+          (t.is_active
+            ? '<button class="btn-toggle" data-act="deactivate">Deactivate</button>'
+            : '<button class="btn-reactivate" data-act="reactivate">↻ Reactivate</button>') +
+        '</div>' : '') +
+      '</div>';
+  }
+
+  function bindCardActions() {
+    document.querySelectorAll('.reg-card').forEach(function(card) {
+      var id = card.getAttribute('data-id');
+      card.querySelectorAll('button[data-act]').forEach(function(btn) {
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          var act = btn.getAttribute('data-act');
+          if (act === 'edit')        openModal(id);
+          else if (act === 'deactivate') deactivate(id);
+          else if (act === 'reactivate') reactivate(id);
+        });
+      });
+    });
+  }
+
+  function openModal(id) {
+    editingId = id;
+    document.getElementById('modalTitle').textContent = id ? 'Edit Crew Member' : 'Add Crew Member';
+    // Clear all
+    document.getElementById('mFirst').value = '';
+    document.getElementById('mLast').value = '';
+    document.getElementById('mPosition').value = '';
+    document.getElementById('mPrimarySkill').value = 'sheetmetal';
+    document.getElementById('mIsForeman').checked = false;
+    document.getElementById('mIsHelper').checked = false;
+    document.getElementById('mIsSub').checked = false;
+    document.getElementById('mPhone').value = '';
+    document.getElementById('mEmail').value = '';
+    document.getElementById('mNotes').value = '';
+    document.querySelectorAll('#mSkillsGrid input[type="checkbox"]').forEach(function(cb) {
+      cb.checked = false;
+      cb.parentElement.classList.remove('checked');
+    });
+
+    if (id) {
+      var t = techs.find(function(x) { return x.id === id; });
+      if (t) {
+        document.getElementById('mFirst').value     = t.first_name || '';
+        document.getElementById('mLast').value      = t.last_name  || '';
+        document.getElementById('mPosition').value  = t.position   || '';
+        document.getElementById('mPrimarySkill').value = t.primary_skill || 'sheetmetal';
+        document.getElementById('mIsForeman').checked = !!t.is_foreman;
+        document.getElementById('mIsHelper').checked  = !!t.is_helper;
+        document.getElementById('mIsSub').checked     = !!t.is_subcontractor;
+        document.getElementById('mPhone').value     = t.phone || '';
+        document.getElementById('mEmail').value     = t.email || '';
+        document.getElementById('mNotes').value     = t.notes || '';
+        var skillSet = (t.skills || []);
+        document.querySelectorAll('#mSkillsGrid input[type="checkbox"]').forEach(function(cb) {
+          if (skillSet.indexOf(cb.value) >= 0) {
+            cb.checked = true;
+            cb.parentElement.classList.add('checked');
+          }
+        });
+      }
+    }
+    document.getElementById('regModal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('regModal').classList.remove('open');
+    editingId = null;
+  }
+
+  async function save() {
+    var first = document.getElementById('mFirst').value.trim();
+    if (!first) { showToast('First Name is required', 'error'); return; }
+    var primarySkill = document.getElementById('mPrimarySkill').value;
+    if (!primarySkill) { showToast('Primary Skill is required', 'error'); return; }
+
+    // Collect additional skills (checked checkboxes)
+    var skills = [];
+    document.querySelectorAll('#mSkillsGrid input[type="checkbox"]:checked').forEach(function(cb) {
+      skills.push(cb.value);
+    });
+    // Always include primary_skill in the skills array so queries work consistently
+    if (skills.indexOf(primarySkill) < 0) skills.push(primarySkill);
+
+    var data = {
+      first_name:       first,
+      last_name:        document.getElementById('mLast').value.trim() || null,
+      position:         document.getElementById('mPosition').value.trim() || null,
+      primary_skill:    primarySkill,
+      skills:           skills,
+      is_foreman:       document.getElementById('mIsForeman').checked,
+      is_helper:        document.getElementById('mIsHelper').checked,
+      is_subcontractor: document.getElementById('mIsSub').checked,
+      phone:            document.getElementById('mPhone').value.trim() || null,
+      email:            document.getElementById('mEmail').value.trim() || null,
+      notes:            document.getElementById('mNotes').value.trim() || null
+    };
+
+    var btn = document.getElementById('btnSave');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    var r = editingId
+      ? await NWSchedule.updateTech(editingId, data)
+      : await NWSchedule.createTech(data);
+
+    btn.disabled = false;
+    btn.textContent = 'Save';
+
+    if (r.error) {
+      console.error(r.error);
+      showToast('Save failed: ' + (r.error.message || r.error), 'error');
+      return;
+    }
+    closeModal();
+    refresh();
+    showToast(editingId ? 'Updated' : 'Added', 'success');
+  }
+
+  async function deactivate(id) {
+    var t = techs.find(function(x) { return x.id === id; });
+    if (!t) return;
+    if (!confirm('Deactivate "' + ((t.first_name || '') + ' ' + (t.last_name || '')).trim() +
+                 '"?\n\nThey will no longer appear in the tech picker. ' +
+                 'Past schedule entries that reference them remain unchanged.\n\n' +
+                 'You can reactivate later from the "Show inactive" toggle.')) return;
+    var r = await NWSchedule.deleteTech(id);
+    if (r.error) { showToast('Failed: ' + r.error.message, 'error'); return; }
+    refresh();
+    showToast('Deactivated', 'success');
+  }
+
+  async function reactivate(id) {
+    var r = await NWSchedule.updateTech(id, { is_active: true });
+    if (r.error) { showToast('Failed: ' + r.error.message, 'error'); return; }
+    refresh();
+    showToast('Reactivated', 'success');
+  }
+
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=137"></script>
+</body>
+</html>

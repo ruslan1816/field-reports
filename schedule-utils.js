@@ -72,16 +72,21 @@
   async function listTechs(opts) {
     opts = opts || {};
     var force = opts.force === true;
-    if (!force && _techCache && (Date.now() - _techCacheTs) < 60000) {
+    var includeInactive = opts.includeInactive === true;
+    // Don't use cache when fetching inactive — that's a management view
+    if (!force && !includeInactive && _techCache && (Date.now() - _techCacheTs) < 60000) {
       return { data: _techCache, error: null };
     }
     try {
-      var q = supabaseClient.from('schedule_techs').select('*').eq('is_active', true).order('first_name');
+      var q = supabaseClient.from('schedule_techs').select('*').order('first_name');
+      if (!includeInactive) q = q.eq('is_active', true);
       var r = await q;
       if (r.error) return { data: [], error: r.error };
-      _techCache = r.data || [];
-      _techCacheTs = Date.now();
-      return { data: _techCache, error: null };
+      if (!includeInactive) {
+        _techCache = r.data || [];
+        _techCacheTs = Date.now();
+      }
+      return { data: r.data || [], error: null };
     } catch (err) {
       console.error('[schedule-utils] listTechs:', err);
       return { data: [], error: err };
