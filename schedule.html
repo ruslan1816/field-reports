@@ -468,7 +468,9 @@
 
     <div class="field">
       <label>Subcontractor (if applicable)</label>
-      <input type="text" id="mEntrySub" placeholder="e.g. ADLS (Jason)">
+      <input type="text" id="mEntrySub" list="subList" autocomplete="off"
+             placeholder="Type or pick from list — e.g. ADLS (Jason)">
+      <datalist id="subList"></datalist>
     </div>
 
     <div class="field">
@@ -540,17 +542,20 @@ requireAuth().catch(function(){});
     populateStatusDropdown('mEntryStatus');
     populatePriorityDropdown('mEntryPriority');
 
-    // Load techs and projects in parallel
-    var [techsR, projsR] = await Promise.all([
+    // Load techs, projects, subs in parallel
+    var [techsR, projsR, subsR] = await Promise.all([
       NWSchedule.listTechs(),
-      NWSchedule.listScheduleProjects()
+      NWSchedule.listScheduleProjects(),
+      NWSchedule.listSubcontractors()
     ]);
     allTechs = techsR.data || [];
     allProjects = projsR.data || [];
+    var subs = subsR.data || [];
 
     populateTechFilter();
     populateProjectFilter();
     populateProjectDropdown('mEntryProject');
+    populateSubDatalist(subs);
 
     // Resolve my schedule_techs.id by matching profile_id (if linked)
     try {
@@ -641,6 +646,23 @@ requireAuth().catch(function(){});
       var opt = document.createElement('option');
       opt.value = t.id;
       opt.textContent = t.full_name + (t.is_foreman ? ' ★' : '');
+      el.appendChild(opt);
+    });
+  }
+
+  function populateSubDatalist(subs) {
+    var el = document.getElementById('subList');
+    if (!el) return;
+    el.innerHTML = '';
+    subs.forEach(function(s) {
+      var opt = document.createElement('option');
+      // Use display_name (e.g. "ADLS (Jason)") so picking it auto-fills the
+      // input with the standard NW-formatted string. If display_name is
+      // empty (no contact), fall back to plain name.
+      opt.value = s.display_name || s.name;
+      // The label hint (shown right of the value in some browsers) can
+      // include the trade for context.
+      if (s.trade) opt.label = s.trade;
       el.appendChild(opt);
     });
   }

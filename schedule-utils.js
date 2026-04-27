@@ -331,6 +331,49 @@
 
   function invalidateProjectCache() { _projectCache = null; }
 
+  // ─── SUBCONTRACTORS ──────────────────────────────────────────────────────
+
+  var _subCache = null;
+  var _subCacheTs = 0;
+
+  /**
+   * List all active subcontractors. 60s cache like techs.
+   * Returns array of { id, name, display_name, contact_name, trade, ... }
+   */
+  async function listSubcontractors(opts) {
+    opts = opts || {};
+    if (!opts.force && _subCache && (Date.now() - _subCacheTs) < 60000) {
+      return { data: _subCache, error: null };
+    }
+    try {
+      var r = await supabaseClient.from('subcontractors').select('*')
+        .eq('is_active', true).order('name');
+      if (r.error) {
+        // Table doesn't exist yet — return empty so UI degrades gracefully
+        if (/does not exist/i.test(r.error.message || '')) {
+          _subCache = [];
+          _subCacheTs = Date.now();
+          return { data: [], error: null };
+        }
+        return { data: [], error: r.error };
+      }
+      _subCache = r.data || [];
+      _subCacheTs = Date.now();
+      return { data: _subCache, error: null };
+    } catch (err) {
+      console.error('[schedule-utils] listSubcontractors:', err);
+      return { data: [], error: err };
+    }
+  }
+
+  function invalidateSubCache() { _subCache = null; }
+
+  async function createSubcontractor(sub) {
+    var r = await supabaseClient.from('subcontractors').insert(sub).select().single();
+    invalidateSubCache();
+    return { data: r.data, error: r.error };
+  }
+
   // ─── PM TEMPLATES (recurring maintenance) ────────────────────────────────
 
   /**
@@ -519,6 +562,8 @@
     updateEntry: updateEntry,
     deleteEntry: deleteEntry,
     findTechConflicts: findTechConflicts,
+    listSubcontractors: listSubcontractors,
+    createSubcontractor: createSubcontractor,
     listPMTemplates: listPMTemplates,
     createPMTemplate: createPMTemplate,
     updatePMTemplate: updatePMTemplate,
