@@ -237,7 +237,7 @@
     padding: 6px 10px; border: 1px solid var(--nw-border); border-radius: 6px; font-size: 13px;
   }
 
-  /* ────────────────── Timeline Gantt view ────────────────── */
+  /* ────────────────── Timeline (CSS Grid Gantt) ────────────────── */
   .timeline-wrap {
     margin: 12px;
     background: var(--nw-card);
@@ -247,89 +247,91 @@
     max-height: calc(100vh - 220px);
     position: relative;
   }
-  .timeline-table {
-    border-collapse: collapse;
-    width: 100%;
-    min-width: 900px;
+  .tl-grid {
+    display: grid;
+    /* Project column 220px, then N day columns 1fr each */
+    grid-template-columns: 220px repeat(var(--tl-days, 14), minmax(56px, 1fr));
+    grid-auto-rows: minmax(38px, auto);
     font-size: 12px;
+    background: #fff;
+    min-width: 900px;
   }
-  .timeline-table thead th {
-    position: sticky; top: 0; z-index: 10;
+  /* Header row */
+  .tl-header {
+    position: sticky; top: 0;
     background: #f1f5f9;
-    border-bottom: 2px solid var(--nw-border);
     border-right: 1px solid var(--nw-border);
+    border-bottom: 2px solid var(--nw-border);
     padding: 8px 4px;
     font-size: 11px;
     font-weight: 700;
     color: var(--nw-text);
     text-align: center;
-    min-width: 36px;
+    z-index: 5;
   }
-  .timeline-table thead th.tl-day-weekend { background: #fee2e2; color: #991b1b; }
-  .timeline-table thead th.tl-day-today { background: var(--nw-primary); color: #fff; }
-  .timeline-table thead th.tl-project-col {
+  .tl-header.weekend { background: #fee2e2; color: #991b1b; }
+  .tl-header.today   { background: var(--nw-primary); color: #fff; }
+  .tl-header.project-col {
     text-align: left; padding: 8px 12px;
-    min-width: 220px; max-width: 220px; width: 220px;
     background: #f8fafc;
-    z-index: 11;
-    position: sticky; left: 0;
+    position: sticky; left: 0; top: 0; z-index: 11;
     border-right: 2px solid var(--nw-border);
   }
-  .timeline-table tbody td.tl-project-cell {
-    position: sticky; left: 0; z-index: 5;
+  /* Project name cell on the left of each project row */
+  .tl-project-cell {
+    grid-column: 1;
+    position: sticky; left: 0; z-index: 4;
     background: var(--nw-card);
     border-right: 2px solid var(--nw-border);
+    border-bottom: 1px solid var(--nw-border);
     padding: 8px 12px;
     font-weight: 600;
     font-size: 13px;
-    vertical-align: top;
   }
-  .timeline-table tbody td.tl-project-cell .pcode {
+  .tl-project-cell .pcode {
     color: var(--nw-muted); font-size: 11px; margin-right: 6px;
   }
-  .timeline-table tbody td.tl-project-cell .pcustomer {
+  .tl-project-cell .pcustomer {
     display: block; font-size: 11px; font-weight: 400; color: var(--nw-muted); margin-top: 2px;
   }
-  .timeline-table tbody td.tl-day-cell {
+  /* Background day cells — for grid lines & weekend/today highlight */
+  .tl-cell {
     border-right: 1px solid #e2e8f0;
     border-bottom: 1px solid #e2e8f0;
-    padding: 0;
-    height: 38px;
-    position: relative;
-    vertical-align: top;
+    min-height: 38px;
+    background: #fff;
   }
-  .timeline-table tbody td.tl-day-cell.weekend { background: #fef2f2; }
-  .timeline-table tbody td.tl-day-cell.today   { background: rgba(6,150,215,0.06); }
+  .tl-cell.weekend { background: #fef2f2; }
+  .tl-cell.today   { background: rgba(6,150,215,0.06); }
 
-  /* Block — entry rendered as a colored bar spanning its days */
+  /* Entry block — spans grid columns natively via grid-column: A / span N */
   .tl-block {
-    position: absolute;
-    top: 4px;
-    height: 30px;
     background: var(--block-color, #0696D7);
     color: #fff;
     border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
-    padding: 4px 8px;
-    line-height: 1.1;
+    padding: 5px 8px;
+    line-height: 1.2;
     cursor: pointer;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    margin: 4px 2px;
     z-index: 2;
+    align-self: center;
     transition: filter 0.1s ease;
+    position: relative;
   }
   .tl-block:hover { filter: brightness(1.08); z-index: 3; }
-  .tl-block .tl-block-icon { margin-right: 4px; }
   .tl-block .tl-block-meta { font-size: 10px; opacity: 0.85; font-weight: 400; margin-left: 4px; }
   .tl-block.tl-block-needed::after {
     content: '⚠';
-    position: absolute; right: 4px; top: 2px;
-    font-size: 10px; opacity: 0.85;
+    position: absolute; right: 6px; top: 2px;
+    font-size: 10px; opacity: 0.95;
   }
-  .tl-block.tl-block-priority-urgent { border: 2px solid #dc2626; }
+  .tl-block.tl-block-priority-urgent { box-shadow: 0 0 0 2px #dc2626, 0 1px 3px rgba(0,0,0,.15); }
 
   .timeline-empty {
     padding: 60px 20px; text-align: center; color: var(--nw-muted);
@@ -808,13 +810,15 @@ requireAuth().catch(function(){});
     bindEntryClicks();
   }
 
-  // ─── TIMELINE / GANTT VIEW ─────────────────────────────────────────────
+  // ─── TIMELINE / GANTT VIEW (CSS Grid) ──────────────────────────────────
+  // Each row of the grid spans the project cell (col 1) plus N day columns
+  // (cols 2..N+1). Entry blocks are placed via grid-column: A / span B which
+  // natively spans multiple days.
   function renderTimeline(entries) {
     var body = document.getElementById('scheduleBody');
     var startISO = NWSchedule.todayISO();
     var endISO   = NWSchedule.addDays(startISO, lookaheadDays);
 
-    // Build the day list inclusive
     var days = [];
     var d = startISO;
     while (d <= endISO) {
@@ -830,7 +834,7 @@ requireAuth().catch(function(){});
     }
     var totalDays = days.length;
 
-    // Group entries by project, preserving order alphabetically
+    // Group entries by project
     var byProj = {};
     entries.forEach(function(e) {
       var pid = e.project_id || '__none__';
@@ -849,100 +853,106 @@ requireAuth().catch(function(){});
       return;
     }
 
-    // Mobile users get a notice (timeline doesn't fit small screens)
     var html = '<div class="timeline-mobile-hint">' +
       '📱 Timeline view is best on desktop. On mobile, switch to <strong>📋 List</strong> or <strong>📁 By Project</strong>.</div>';
 
-    html += '<div class="timeline-wrap"><table class="timeline-table"><thead><tr>';
-    html += '<th class="tl-project-col">Project</th>';
-    days.forEach(function(day) {
-      var cls = '';
-      if (day.isToday) cls += ' tl-day-today';
-      else if (day.isWeekend) cls += ' tl-day-weekend';
-      html += '<th class="' + cls.trim() + '">' +
-        '<div style="font-size:9px;opacity:0.75">' + day.weekday + '</div>' +
-        '<div>' + day.label + '</div></th>';
-    });
-    html += '</tr></thead><tbody>';
+    html += '<div class="timeline-wrap"><div class="tl-grid" style="--tl-days:' + totalDays + '">';
 
+    // Header row
+    html += '<div class="tl-header project-col">Project</div>';
+    days.forEach(function(day) {
+      var cls = 'tl-header';
+      if (day.isToday) cls += ' today';
+      else if (day.isWeekend) cls += ' weekend';
+      html += '<div class="' + cls + '">' +
+        '<div style="font-size:9px;opacity:0.85">' + day.weekday + '</div>' +
+        '<div>' + day.label + '</div></div>';
+    });
+
+    // For each project, compact-stack entries into multiple rows when needed
+    // so two overlapping entries don't sit on top of each other.
+    var gridRow = 2;  // header is row 1
     projKeys.forEach(function(pid) {
       var g = byProj[pid];
       var projName = g.project ? g.project.name : 'No project';
       var projShort = g.project ? g.project.short_code : '';
       var projCustomer = g.project ? g.project.customer : '';
+      var projPM = g.project ? (g.project.pm_name || '') : '';
 
-      // Stack entries vertically when they share rows. For simplicity,
-      // give each entry its own row inside the project (one project = N rows).
-      // We compact by stacking: assign each entry to the lowest-index row
-      // that doesn't conflict in time.
-      var rows = [];  // rows[i] = list of entries that don't overlap each other
+      // Pack entries into rows where time ranges don't overlap
+      var subRows = [];
       g.entries.slice().sort(function(a, b) {
         return a.start_date.localeCompare(b.start_date);
       }).forEach(function(e) {
         var placed = false;
-        for (var i = 0; i < rows.length; i++) {
-          var lastInRow = rows[i][rows[i].length - 1];
-          if (lastInRow.end_date < e.start_date) {
-            rows[i].push(e);
+        for (var i = 0; i < subRows.length; i++) {
+          var last = subRows[i][subRows[i].length - 1];
+          if (last.end_date < e.start_date) {
+            subRows[i].push(e);
             placed = true;
             break;
           }
         }
-        if (!placed) rows.push([e]);
+        if (!placed) subRows.push([e]);
       });
 
-      rows.forEach(function(rowEntries, rowIdx) {
-        html += '<tr>';
-        if (rowIdx === 0) {
-          html += '<td class="tl-project-cell" rowspan="' + rows.length + '">' +
-            (projShort ? '<span class="pcode">' + escHtml(projShort) + '</span>' : '') +
-            escHtml(projName) +
-            (projCustomer ? '<span class="pcustomer">' + escHtml(projCustomer) + '</span>' : '') +
-            '</td>';
-        }
-        // For the first day cell only, render a single absolute-positioned
-        // div that contains all blocks for this row, sized to the full week.
-        // We use one TD per day for grid lines, and overlay blocks via CSS.
+      var totalSubRows = Math.max(1, subRows.length);
+
+      // Project cell — spans all sub-rows for this project
+      html += '<div class="tl-project-cell" style="grid-row: ' + gridRow + ' / span ' + totalSubRows + '">' +
+        (projShort ? '<span class="pcode">' + escHtml(projShort) + '</span>' : '') +
+        escHtml(projName) +
+        (projCustomer ? '<span class="pcustomer">' + escHtml(projCustomer) +
+          (projPM ? ' · 👤 PM: ' + escHtml(projPM) : '') + '</span>' :
+          (projPM ? '<span class="pcustomer">👤 PM: ' + escHtml(projPM) + '</span>' : '')) +
+        '</div>';
+
+      // Background grid cells (one per day per sub-row)
+      for (var sr = 0; sr < totalSubRows; sr++) {
         days.forEach(function(day, dayIdx) {
-          var cls = 'tl-day-cell';
+          var cls = 'tl-cell';
           if (day.isToday) cls += ' today';
           else if (day.isWeekend) cls += ' weekend';
-          html += '<td class="' + cls + '">';
-          if (dayIdx === 0) {
-            // Render all blocks for this row inside the first cell with absolute positioning
-            rowEntries.forEach(function(e) {
-              var ct = NWSchedule.crewTypeMeta(e.crew_type);
-              var ds = e.start_date < startISO ? startISO : e.start_date;
-              var de = e.end_date > endISO ? endISO : e.end_date;
-              var startIdx = days.findIndex(function(d) { return d.iso === ds; });
-              var endIdx   = days.findIndex(function(d) { return d.iso === de; });
-              if (startIdx === -1 || endIdx === -1) return;
-              var leftPct  = (startIdx / totalDays) * 100;
-              var widthPct = ((endIdx - startIdx + 1) / totalDays) * 100;
-              var needBadge = (e.manpower_needed && (!e.assigned_tech_ids || e.assigned_tech_ids.length < e.manpower_needed))
-                ? ' tl-block-needed' : '';
-              var prio = (e.priority === 'urgent') ? ' tl-block-priority-urgent' : '';
-              var tooltip = ct.label + ' · ' + e.start_date + ' → ' + e.end_date +
-                            (e.assigned_tech_names && e.assigned_tech_names.length ? '\nCrew: ' + e.assigned_tech_names.join(', ') : '') +
-                            (e.scope_summary ? '\n' + e.scope_summary : '');
-              var label = ct.icon + ' ' + (e.scope_summary || ct.label);
-              if (e.assigned_tech_names && e.assigned_tech_names.length) {
-                label += ' <span class="tl-block-meta">' + escHtml(e.assigned_tech_names.length + 'x') + '</span>';
-              }
-              html += '<div class="tl-block' + needBadge + prio + '" data-id="' + e.id + '" ' +
-                'style="--block-color:' + ct.color + ';left:' + leftPct.toFixed(2) + '%;width:calc(' + widthPct.toFixed(2) + '% - 4px);margin-left:2px" ' +
-                'title="' + escHtml(tooltip) + '">' +
-                label +
-                '</div>';
-            });
-          }
-          html += '</td>';
+          html += '<div class="' + cls + '" style="grid-row:' + (gridRow + sr) + ';grid-column:' + (dayIdx + 2) + '"></div>';
         });
-        html += '</tr>';
+      }
+
+      // Entry blocks — placed natively via grid-column: A / span B
+      subRows.forEach(function(rowEntries, rowIdx) {
+        rowEntries.forEach(function(e) {
+          var ct = NWSchedule.crewTypeMeta(e.crew_type);
+          var ds = e.start_date < startISO ? startISO : e.start_date;
+          var de = e.end_date > endISO ? endISO : e.end_date;
+          var startIdx = days.findIndex(function(d) { return d.iso === ds; });
+          var endIdx   = days.findIndex(function(d) { return d.iso === de; });
+          if (startIdx === -1 || endIdx === -1) return;
+          var spanCount = endIdx - startIdx + 1;
+          // Grid columns are 1-indexed; col 1 = project, day 0 = col 2.
+          var startCol = startIdx + 2;
+          var endCol   = startCol + spanCount; // exclusive
+
+          var needBadge = (e.manpower_needed && (!e.assigned_tech_ids || e.assigned_tech_ids.length < e.manpower_needed))
+            ? ' tl-block-needed' : '';
+          var prio = (e.priority === 'urgent') ? ' tl-block-priority-urgent' : '';
+          var tooltip = ct.label + ' · ' + e.start_date + ' → ' + e.end_date +
+                        (e.assigned_tech_names && e.assigned_tech_names.length ? '\nCrew: ' + e.assigned_tech_names.join(', ') : '') +
+                        (e.scope_summary ? '\n' + e.scope_summary : '');
+          var label = ct.icon + ' ' + (e.scope_summary || ct.label);
+          if (e.assigned_tech_names && e.assigned_tech_names.length) {
+            label += ' <span class="tl-block-meta">' + escHtml(e.assigned_tech_names.length + 'x') + '</span>';
+          }
+          html += '<div class="tl-block' + needBadge + prio + '" data-id="' + e.id + '" ' +
+            'style="grid-row:' + (gridRow + rowIdx) + ';grid-column:' + startCol + ' / ' + endCol + ';--block-color:' + ct.color + '" ' +
+            'title="' + escHtml(tooltip) + '">' +
+            label +
+            '</div>';
+        });
       });
+
+      gridRow += totalSubRows;
     });
 
-    html += '</tbody></table></div>';
+    html += '</div></div>';  // close .tl-grid + .timeline-wrap
     body.innerHTML = html;
     body.querySelectorAll('.tl-block').forEach(function(blk) {
       blk.addEventListener('click', function() {
