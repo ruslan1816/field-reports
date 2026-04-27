@@ -311,25 +311,30 @@
     border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
-    padding: 5px 8px;
-    line-height: 1.2;
+    padding: 4px 8px;
+    line-height: 1.15;
     cursor: pointer;
     overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     box-shadow: 0 1px 3px rgba(0,0,0,.15);
-    margin: 4px 2px;
+    margin: 3px 2px;
     z-index: 2;
-    align-self: center;
+    align-self: stretch;
     transition: filter 0.1s ease;
     position: relative;
+    display: flex; flex-direction: column; justify-content: center; gap: 1px;
   }
   .tl-block:hover { filter: brightness(1.08); z-index: 3; }
-  .tl-block .tl-block-meta { font-size: 10px; opacity: 0.85; font-weight: 400; margin-left: 4px; }
-  .tl-block.tl-block-needed::after {
-    content: '⚠';
-    position: absolute; right: 6px; top: 2px;
-    font-size: 10px; opacity: 0.95;
+  .tl-block .tl-line {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tl-block .tl-line-1 { font-size: 11px; font-weight: 700; }
+  .tl-block .tl-line-2 { font-size: 10px; font-weight: 500; opacity: 0.92; }
+  .tl-block .tl-line-2.need {
+    background: rgba(255,255,255,0.22); padding: 1px 6px; border-radius: 6px;
+    align-self: flex-start; font-weight: 700;
   }
   .tl-block.tl-block-priority-urgent { box-shadow: 0 0 0 2px #dc2626, 0 1px 3px rgba(0,0,0,.15); }
 
@@ -337,11 +342,25 @@
     padding: 60px 20px; text-align: center; color: var(--nw-muted);
   }
   .timeline-mobile-hint {
-    display: none; padding: 16px; background: #fef3c7; border: 1px solid #fcd34d;
-    border-radius: 8px; margin: 12px; font-size: 13px; color: #92400e; text-align: center;
+    padding: 8px 12px; background: #f0f9ff; border: 1px solid #bae6fd;
+    border-radius: 8px; margin: 0 12px 8px; font-size: 12px; color: #0c4a6e; text-align: center;
+    display: none;
   }
+
+  /* Mobile: keep timeline visible, allow horizontal scroll, narrow columns */
   @media (max-width: 760px) {
-    .timeline-wrap { display: none; }
+    .tl-grid {
+      grid-template-columns: 140px repeat(var(--tl-days, 14), minmax(48px, 1fr));
+      font-size: 11px;
+      min-width: 700px;
+    }
+    .tl-project-cell { padding: 6px 8px; font-size: 12px; }
+    .tl-project-cell .pcustomer { font-size: 10px; }
+    .tl-block { padding: 3px 6px; }
+    .tl-block .tl-line-1 { font-size: 10px; }
+    .tl-block .tl-line-2 { font-size: 9px; }
+    .tl-header { padding: 5px 2px; font-size: 10px; }
+    .timeline-wrap { max-height: calc(100vh - 200px); }
     .timeline-mobile-hint { display: block; }
   }
 
@@ -854,7 +873,7 @@ requireAuth().catch(function(){});
     }
 
     var html = '<div class="timeline-mobile-hint">' +
-      '📱 Timeline view is best on desktop. On mobile, switch to <strong>📋 List</strong> or <strong>📁 By Project</strong>.</div>';
+      '👉 Swipe left/right to scroll through dates · Tap any block to edit</div>';
 
     html += '<div class="timeline-wrap"><div class="tl-grid" style="--tl-days:' + totalDays + '">';
 
@@ -927,24 +946,62 @@ requireAuth().catch(function(){});
           var endIdx   = days.findIndex(function(d) { return d.iso === de; });
           if (startIdx === -1 || endIdx === -1) return;
           var spanCount = endIdx - startIdx + 1;
-          // Grid columns are 1-indexed; col 1 = project, day 0 = col 2.
-          var startCol = startIdx + 2;
-          var endCol   = startCol + spanCount; // exclusive
+          var startCol = startIdx + 2;  // col 1 = project
+          var endCol   = startCol + spanCount;
 
-          var needBadge = (e.manpower_needed && (!e.assigned_tech_ids || e.assigned_tech_ids.length < e.manpower_needed))
-            ? ' tl-block-needed' : '';
+          var assignedCount = (e.assigned_tech_ids || []).length;
+          var needCount = (e.manpower_needed || 0) - assignedCount;
+          var hasNeed = needCount > 0;
           var prio = (e.priority === 'urgent') ? ' tl-block-priority-urgent' : '';
-          var tooltip = ct.label + ' · ' + e.start_date + ' → ' + e.end_date +
-                        (e.assigned_tech_names && e.assigned_tech_names.length ? '\nCrew: ' + e.assigned_tech_names.join(', ') : '') +
-                        (e.scope_summary ? '\n' + e.scope_summary : '');
-          var label = ct.icon + ' ' + (e.scope_summary || ct.label);
+
+          // Build crew names: first names only when 3+ assigned, full names for 1-2
+          var crewLabel = '';
+          var fullCrewList = [];
           if (e.assigned_tech_names && e.assigned_tech_names.length) {
-            label += ' <span class="tl-block-meta">' + escHtml(e.assigned_tech_names.length + 'x') + '</span>';
+            fullCrewList = e.assigned_tech_names.slice();
+            if (e.is_subcontractor && e.subcontractor_name) {
+              fullCrewList.push('🏗️ ' + e.subcontractor_name);
+            }
+            if (fullCrewList.length === 1) {
+              crewLabel = fullCrewList[0];
+            } else if (fullCrewList.length === 2) {
+              crewLabel = fullCrewList.join(', ');
+            } else {
+              // First names only for 3+
+              var firsts = fullCrewList.map(function(n) {
+                if (n.indexOf('🏗️') === 0) return n;
+                return (n.split(' ')[0] || n);
+              });
+              crewLabel = firsts.join(', ');
+            }
+          } else if (e.is_subcontractor && e.subcontractor_name) {
+            crewLabel = '🏗️ ' + e.subcontractor_name;
+            fullCrewList = [e.subcontractor_name];
           }
-          html += '<div class="tl-block' + needBadge + prio + '" data-id="' + e.id + '" ' +
+
+          // Line 1: crew icon + scope or crew label
+          var line1 = ct.icon + ' ' + (e.scope_summary || ct.label);
+          // Line 2: crew names (or "Need N more" badge if unstaffed)
+          var line2Html = '';
+          if (hasNeed && !crewLabel) {
+            line2Html = '<span class="tl-line tl-line-2 need">⚠️ Need ' + needCount + ' more</span>';
+          } else if (hasNeed && crewLabel) {
+            line2Html = '<span class="tl-line tl-line-2">' + escHtml(crewLabel) +
+              ' <span class="need" style="background:rgba(255,255,255,.25);padding:0 5px;border-radius:4px;font-weight:700;margin-left:3px">+' + needCount + '</span></span>';
+          } else if (crewLabel) {
+            line2Html = '<span class="tl-line tl-line-2">' + escHtml(crewLabel) + '</span>';
+          }
+
+          var tooltip = ct.label + ' · ' + e.start_date + ' → ' + e.end_date +
+                        (fullCrewList.length ? '\nCrew: ' + fullCrewList.join(', ') : '') +
+                        (e.scope_summary ? '\n' + e.scope_summary : '') +
+                        (hasNeed ? '\n⚠ Need ' + needCount + ' more crew' : '');
+
+          html += '<div class="tl-block' + prio + '" data-id="' + e.id + '" ' +
             'style="grid-row:' + (gridRow + rowIdx) + ';grid-column:' + startCol + ' / ' + endCol + ';--block-color:' + ct.color + '" ' +
             'title="' + escHtml(tooltip) + '">' +
-            label +
+            '<span class="tl-line tl-line-1">' + line1 + '</span>' +
+            line2Html +
             '</div>';
         });
       });
