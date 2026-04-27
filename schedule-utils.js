@@ -31,14 +31,33 @@
   ];
 
   var STATUSES = [
-    { value: 'pending-approval', label: '⏳ Pending Approval', color: '#a855f7' },
-    { value: 'scheduled',   label: 'Scheduled',   color: '#0696D7' },
-    { value: 'in-progress', label: 'In Progress', color: '#f59e0b' },
-    { value: 'completed',   label: 'Completed',   color: '#10b981' },
-    { value: 'delayed',     label: 'Delayed',     color: '#ef4444' },
-    { value: 'blocked',     label: 'Blocked',     color: '#7c3aed' },
-    { value: 'cancelled',   label: 'Cancelled',   color: '#94a3b8' }
+    { value: 'pending-crew',     label: '🚨 Pending Crew Assignment', color: '#dc2626' },
+    { value: 'pending-approval', label: '⏳ Pending Approval',         color: '#a855f7' },
+    { value: 'scheduled',        label: 'Scheduled',                   color: '#0696D7' },
+    { value: 'in-progress',      label: 'In Progress',                 color: '#f59e0b' },
+    { value: 'completed',        label: 'Completed',                   color: '#10b981' },
+    { value: 'delayed',          label: 'Delayed',                     color: '#ef4444' },
+    { value: 'blocked',          label: 'Blocked',                     color: '#7c3aed' },
+    { value: 'cancelled',        label: 'Cancelled',                   color: '#94a3b8' }
   ];
+
+  // Mirror of the DB BEFORE-trigger logic: if no crew is assigned, auto-flip
+  // status to pending-crew (and back to scheduled when crew gets added).
+  // Lets the UI react before the round-trip and gives a graceful client-side
+  // fallback if pending-crew-status.sql hasn't been run yet.
+  function normalizeCrewStatus(entry) {
+    if (!entry) return entry;
+    var hasCrew = (entry.assigned_tech_ids && entry.assigned_tech_ids.length > 0) ||
+                  (entry.is_subcontractor && entry.subcontractor_name);
+    if (!hasCrew) {
+      if (!entry.status || entry.status === 'scheduled' || entry.status === 'pending-approval') {
+        entry.status = 'pending-crew';
+      }
+    } else if (entry.status === 'pending-crew') {
+      entry.status = 'scheduled';
+    }
+    return entry;
+  }
 
   var PRIORITIES = [
     { value: 'urgent', label: '🔴 Urgent', color: '#dc2626' },
@@ -178,7 +197,20 @@
       // Defensive: never send empty arrays as undefined
       if (!row.assigned_tech_ids)   row.assigned_tech_ids = [];
       if (!row.assigned_tech_names) row.assigned_tech_names = [];
+      // Auto-flip status when crew is missing (mirror of DB trigger)
+      normalizeCrewStatus(row);
+
       var r = await supabaseClient.from('schedule_entries').insert(row).select().single();
+
+      // Graceful fallback if pending-crew-status.sql hasn't been applied yet:
+      // older DB rejects 'pending-crew' via the CHECK constraint. Retry as 'scheduled'.
+      if (r.error && row.status === 'pending-crew') {
+        var msg = (r.error.message || '') + ' ' + (r.error.details || '');
+        if (/check constraint|status_check|invalid input value/i.test(msg)) {
+          row.status = 'scheduled';
+          r = await supabaseClient.from('schedule_entries').insert(row).select().single();
+        }
+      }
       return { data: r.data, error: r.error };
     } catch (err) {
       return { data: null, error: err };
@@ -186,6 +218,15 @@
   }
 
   async function updateEntry(id, patch) {
+    // Apply auto-flip status when crew is missing (mirror of DB trigger).
+    // Only normalize when the relevant fields are present in the patch — otherwise
+    // a partial patch (e.g. "just notes") shouldn't yank the status.
+    var touchesCrew = (patch.assigned_tech_ids !== undefined) ||
+                      (patch.is_subcontractor !== undefined) ||
+                      (patch.subcontractor_name !== undefined) ||
+                      (patch.status !== undefined);
+    if (touchesCrew) normalizeCrewStatus(patch);
+
     var basePatch = Object.assign({}, patch);
     var stampedPatch = basePatch;
     try {
@@ -198,10 +239,17 @@
 
     var r = await supabaseClient.from('schedule_entries').update(stampedPatch).eq('id', id).select().single();
 
-    // If the column doesn't exist yet (notifications-schema.sql not run), retry without updated_by.
-    if (r.error && stampedPatch !== basePatch) {
+    // Fallbacks if older schema is in place:
+    if (r.error) {
       var msg = (r.error.message || '') + ' ' + (r.error.details || '');
-      if (/updated_by/i.test(msg) && /(schema cache|column)/i.test(msg)) {
+      // (a) updated_by column missing (pre-Phase 7)
+      if (stampedPatch !== basePatch && /updated_by/i.test(msg) && /(schema cache|column)/i.test(msg)) {
+        r = await supabaseClient.from('schedule_entries').update(basePatch).eq('id', id).select().single();
+        msg = (r.error && (r.error.message || '') + ' ' + (r.error.details || '')) || '';
+      }
+      // (b) pending-crew not yet in CHECK constraint (pre pending-crew-status.sql)
+      if (r.error && basePatch.status === 'pending-crew' && /check constraint|status_check|invalid input value/i.test(msg)) {
+        basePatch.status = 'scheduled';
         r = await supabaseClient.from('schedule_entries').update(basePatch).eq('id', id).select().single();
       }
     }
@@ -804,6 +852,7 @@
     crewTypeMeta: crewTypeMeta,
     statusMeta: statusMeta,
     priorityMeta: priorityMeta,
+    normalizeCrewStatus: normalizeCrewStatus,
     listTechs: listTechs,
     createTech: createTech,
     updateTech: updateTech,

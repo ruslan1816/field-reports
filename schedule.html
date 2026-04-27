@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=123"></script>
 <script src="auth.js?v=123"></script>
-<script src="schedule-utils.js?v=139"></script>
+<script src="schedule-utils.js?v=140"></script>
 <style>
   body { padding-bottom: 24px; }
   .header .profile-circle { margin-left: auto; }
@@ -100,6 +100,32 @@
   .entry-needed {
     display: inline-block; margin-left: 6px; font-size: 11px;
     background: #fef3c7; color: #92400e; padding: 1px 8px; border-radius: 6px; font-weight: 700;
+  }
+  /* "Pending Crew Assignment" — a job is on the books but no one is on it yet. */
+  .entry-card.needs-crew {
+    border-left-color: #dc2626 !important;
+    background: linear-gradient(180deg, #fef2f2 0%, var(--nw-card) 60%);
+    border-color: #fecaca;
+  }
+  .entry-card.needs-crew .entry-status {
+    background: #dc2626; color: #fff;
+    font-size: 12px; padding: 4px 11px; letter-spacing: .4px;
+    animation: needs-crew-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes needs-crew-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); }
+    50%      { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+  }
+  .needs-crew-banner {
+    display: flex; align-items: center; gap: 8px;
+    background: #fef2f2; border: 1px solid #fecaca;
+    color: #b91c1c; font-weight: 700; font-size: 13px;
+    padding: 8px 12px; border-radius: 8px; margin: 8px 0 4px;
+  }
+  .needs-crew-banner .icon { font-size: 18px; }
+  .needs-crew-banner .needed-count {
+    margin-left: auto; background: #dc2626; color: #fff;
+    padding: 2px 10px; border-radius: 10px; font-size: 12px;
   }
   .entry-scope {
     margin-top: 6px; font-size: 12px; color: var(--nw-muted);
@@ -504,6 +530,16 @@
     align-self: flex-start; font-weight: 700;
   }
   .tl-block.tl-block-priority-urgent { box-shadow: 0 0 0 2px #dc2626, 0 1px 3px rgba(0,0,0,.15); }
+  /* Pending Crew Assignment — block forced red regardless of crew_type color */
+  .tl-block.tl-block-needs-crew {
+    background: #dc2626 !important;
+    box-shadow: 0 0 0 2px #fecaca, 0 0 12px rgba(220,38,38,.45);
+    animation: tl-block-needs-crew-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes tl-block-needs-crew-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px #fecaca, 0 0 12px rgba(220,38,38,.45); }
+    50%      { box-shadow: 0 0 0 2px #fecaca, 0 0 18px rgba(220,38,38,.85); }
+  }
 
   .timeline-empty {
     padding: 60px 20px; text-align: center; color: var(--nw-muted);
@@ -1471,6 +1507,14 @@ requireAuth().catch(function(){});
           var needCount = (e.manpower_needed || 0) - assignedCount;
           var hasNeed = needCount > 0;
           var prio = (e.priority === 'urgent') ? ' tl-block-priority-urgent' : '';
+          // Highlight pending-crew (no internal crew, no sub) with a red block
+          var hasInternalCrew = e.assigned_tech_ids && e.assigned_tech_ids.length > 0;
+          var hasSub          = e.is_subcontractor && e.subcontractor_name;
+          var blockNeedsCrew  = (e.status === 'pending-crew') ||
+                                (!hasInternalCrew && !hasSub &&
+                                 e.status !== 'completed' && e.status !== 'cancelled' &&
+                                 e.status !== 'blocked');
+          if (blockNeedsCrew) prio += ' tl-block-needs-crew';
 
           // Build crew names: first names only when 3+ assigned, full names for 1-2
           var crewLabel = '';
@@ -1499,9 +1543,12 @@ requireAuth().catch(function(){});
 
           // Line 1: crew icon + scope or crew label
           var line1 = ct.icon + ' ' + (e.scope_summary || ct.label);
-          // Line 2: crew names (or "Need N more" badge if unstaffed)
+          // Line 2: crew names — or pending-crew banner — or "Need N more" badge
           var line2Html = '';
-          if (hasNeed && !crewLabel) {
+          if (blockNeedsCrew) {
+            var needLbl = e.manpower_needed ? ('Need ' + e.manpower_needed) : 'Assign crew';
+            line2Html = '<span class="tl-line tl-line-2 need">🚨 ' + needLbl + '</span>';
+          } else if (hasNeed && !crewLabel) {
             line2Html = '<span class="tl-line tl-line-2 need">⚠️ Need ' + needCount + ' more</span>';
           } else if (hasNeed && crewLabel) {
             line2Html = '<span class="tl-line tl-line-2">' + escHtml(crewLabel) +
@@ -1691,6 +1738,26 @@ requireAuth().catch(function(){});
       manpower = '<span class="entry-needed">Need ' + need + ' more</span>';
     }
 
+    // "Pending Crew Assignment" banner — a job is on the books but no one is on it yet.
+    var hasInternalCrew = e.assigned_tech_ids && e.assigned_tech_ids.length > 0;
+    var hasSub          = e.is_subcontractor && e.subcontractor_name;
+    var needsCrew       = (e.status === 'pending-crew') ||
+                          (!hasInternalCrew && !hasSub &&
+                           e.status !== 'completed' && e.status !== 'cancelled' &&
+                           e.status !== 'blocked');
+    var needsCrewBanner = '';
+    if (needsCrew) {
+      var countLabel = e.manpower_needed
+        ? ('Need ' + e.manpower_needed + ' tech' + (e.manpower_needed !== 1 ? 's' : ''))
+        : 'Assign manpower';
+      needsCrewBanner =
+        '<div class="needs-crew-banner">' +
+          '<span class="icon">🚨</span>' +
+          '<span>Pending Crew Assignment — click to assign</span>' +
+          '<span class="needed-count">' + escHtml(countLabel) + '</span>' +
+        '</div>';
+    }
+
     var dateStr;
     if (e.start_date === e.end_date) dateStr = NWSchedule.fmtDateShort(e.start_date);
     else dateStr = NWSchedule.fmtDateShort(e.start_date) + ' → ' + NWSchedule.fmtDateShort(e.end_date);
@@ -1703,7 +1770,9 @@ requireAuth().catch(function(){});
     if (p && p.pm_name)  projMetaParts.push('👤 PM: <b>' + escHtml(p.pm_name) + '</b>');
     var projMeta = projMetaParts.join(' &middot; ');
 
-    return '<div class="entry-card" data-id="' + e.id + '" style="border-left-color:' + ct.color + '">' +
+    var cardClass = 'entry-card' + (needsCrew ? ' needs-crew' : '');
+    var borderColor = needsCrew ? '#dc2626' : ct.color;
+    return '<div class="' + cardClass + '" data-id="' + e.id + '" style="border-left-color:' + borderColor + '">' +
       '<div class="entry-card-top">' +
         '<span class="entry-crew" style="background:' + ct.color + '">' + ct.icon + ' ' + ct.label + '</span>' +
         '<span class="entry-status">' + st.label + '</span>' +
@@ -1713,6 +1782,7 @@ requireAuth().catch(function(){});
       '</div>' +
       '<div class="entry-project">' + escHtml(projTitle) + '</div>' +
       (projMeta ? '<div class="entry-project-meta">' + projMeta + '</div>' : '') +
+      needsCrewBanner +
       techsHtml +
       (e.scope_summary ? '<div class="entry-scope">' + escHtml(e.scope_summary) + '</div>' : '') +
       '</div>';
