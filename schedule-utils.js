@@ -31,6 +31,7 @@
   ];
 
   var STATUSES = [
+    { value: 'pending-approval', label: '⏳ Pending Approval', color: '#a855f7' },
     { value: 'scheduled',   label: 'Scheduled',   color: '#0696D7' },
     { value: 'in-progress', label: 'In Progress', color: '#f59e0b' },
     { value: 'completed',   label: 'Completed',   color: '#10b981' },
@@ -278,6 +279,11 @@
     } catch (err) {
       return { data: null, error: err };
     }
+  }
+
+  async function updateComment(id, body) {
+    var r = await supabaseClient.from('schedule_comments').update({ body: body }).eq('id', id).select().single();
+    return { data: r.data, error: r.error };
   }
 
   async function deleteComment(id) {
@@ -640,6 +646,7 @@
     generateNextPMVisit: generateNextPMVisit,
     listComments: listComments,
     addComment: addComment,
+    updateComment: updateComment,
     deleteComment: deleteComment,
     listScheduleProjects: listScheduleProjects,
     invalidateProjectCache: invalidateProjectCache,

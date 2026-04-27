@@ -180,11 +180,42 @@
   .comments-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--nw-border); }
   .comment {
     background: var(--nw-section); padding: 8px 12px; border-radius: 8px;
-    margin-bottom: 6px; font-size: 13px;
+    margin-bottom: 6px; font-size: 13px; position: relative;
   }
-  .comment-author { font-weight: 700; color: var(--nw-text); margin-right: 6px; }
+  .comment-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .comment-author { font-weight: 700; color: var(--nw-text); }
   .comment-time { font-size: 11px; color: var(--nw-muted); }
+  .comment-actions {
+    margin-left: auto; display: flex; gap: 4px;
+    opacity: 0.6; transition: opacity 0.15s ease;
+  }
+  .comment:hover .comment-actions { opacity: 1; }
+  .comment-action-btn {
+    padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600;
+    background: transparent; border: 1px solid transparent; cursor: pointer;
+    color: var(--nw-muted);
+  }
+  .comment-action-btn:hover { background: #fff; border-color: var(--nw-border); color: var(--nw-text); }
+  .comment-action-btn.del { color: #b91c1c; }
+  .comment-action-btn.del:hover { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
   .comment-body { margin-top: 4px; white-space: pre-wrap; }
+  .comment-edit-area {
+    margin-top: 6px;
+    display: flex; gap: 6px; flex-direction: column;
+  }
+  .comment-edit-area textarea {
+    width: 100%; padding: 6px 10px; font-size: 13px; font-family: inherit;
+    border: 1px solid var(--nw-primary); border-radius: 6px; resize: vertical;
+    min-height: 50px; box-sizing: border-box;
+  }
+  .comment-edit-buttons { display: flex; gap: 6px; }
+  .comment-edit-buttons button {
+    padding: 5px 12px; border-radius: 5px; font-size: 12px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--nw-border);
+  }
+  .comment-edit-buttons .save-btn { background: var(--nw-primary); color: #fff; border-color: var(--nw-primary); }
+  .comment-edit-buttons .cancel-btn { background: #fff; color: var(--nw-muted); }
+
   .comment-add {
     display: flex; gap: 6px; margin-top: 8px;
   }
@@ -519,6 +550,7 @@ requireAuth().catch(function(){});
   var allTechs = [];
   var allProjects = [];
   var canWrite = false;
+  var currentUserId = null;   // profiles.id of the signed-in user (for comment ownership)
   var editingEntryId = null;
   var lookaheadDays = 14;
   var currentView = 'list';
@@ -564,6 +596,7 @@ requireAuth().catch(function(){});
       var u = await supabaseClient.auth.getUser();
       var uid = u.data && u.data.user ? u.data.user.id : null;
       if (uid) {
+        currentUserId = uid;
         var match = allTechs.find(function(t) { return t.profile_id === uid; });
         if (match) myTechId = match.id;
       }
@@ -1238,7 +1271,9 @@ requireAuth().catch(function(){});
     document.getElementById('btnDeleteEntry').style.display = (entryId && canWrite) ? 'inline-flex' : 'none';
     document.getElementById('commentsSection').style.display = entryId ? '' : 'none';
 
-    // Reset
+    // Reset all inputs INCLUDING the comment input — bug fix: leftover text
+    // from a previous entry was making it look like notes had "copied" between
+    // entries. Always clear so a fresh modal starts blank.
     document.getElementById('mEntryProject').value = '';
     document.getElementById('mEntryCrew').value = '';
     document.getElementById('mEntryStart').value = NWSchedule.todayISO();
@@ -1249,6 +1284,8 @@ requireAuth().catch(function(){});
     document.getElementById('mEntryNotes').value = '';
     document.getElementById('mEntryPriority').value = 'normal';
     document.getElementById('mEntryStatus').value = 'scheduled';
+    document.getElementById('commentInput').value = '';
+    document.getElementById('commentsList').innerHTML = '';
 
     // Reset conflict state for new entry
     conflictMap = {};
@@ -1291,6 +1328,9 @@ requireAuth().catch(function(){});
   function closeModal() {
     document.getElementById('entryModal').classList.remove('open');
     editingEntryId = null;
+    // Clear the comment input on close so reopening doesn't show stale text
+    document.getElementById('commentInput').value = '';
+    document.getElementById('commentsList').innerHTML = '';
   }
 
   function renderTechPicker(selectedIds) {
@@ -1484,13 +1524,85 @@ requireAuth().catch(function(){});
     var html = '';
     comments.forEach(function(cm) {
       var when = new Date(cm.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-      html += '<div class="comment">' +
-        '<span class="comment-author">' + escHtml(cm.author_name || 'Anonymous') + '</span>' +
-        '<span class="comment-time">' + when + '</span>' +
-        '<div class="comment-body">' + escHtml(cm.body) + '</div>' +
+      // Show Edit/Delete buttons if user is the author OR is a manager/admin
+      var canModify = (cm.author_id && cm.author_id === currentUserId) || canWrite;
+      var actions = canModify
+        ? '<span class="comment-actions">' +
+            '<button class="comment-action-btn" data-cmt-edit="' + escHtml(cm.id) + '">✎ Edit</button>' +
+            '<button class="comment-action-btn del" data-cmt-del="' + escHtml(cm.id) + '">Delete</button>' +
+          '</span>'
+        : '';
+      html += '<div class="comment" data-cmt-id="' + escHtml(cm.id) + '">' +
+        '<div class="comment-header">' +
+          '<span class="comment-author">' + escHtml(cm.author_name || 'Anonymous') + '</span>' +
+          '<span class="comment-time">' + when + '</span>' +
+          actions +
+        '</div>' +
+        '<div class="comment-body" data-body="1">' + escHtml(cm.body) + '</div>' +
         '</div>';
     });
     c.innerHTML = html;
+    bindCommentActions();
+  }
+
+  function bindCommentActions() {
+    document.querySelectorAll('[data-cmt-edit]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        startEditComment(btn.getAttribute('data-cmt-edit'));
+      });
+    });
+    document.querySelectorAll('[data-cmt-del]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        deleteCommentHandler(btn.getAttribute('data-cmt-del'));
+      });
+    });
+  }
+
+  function startEditComment(commentId) {
+    var commentEl = document.querySelector('.comment[data-cmt-id="' + commentId + '"]');
+    if (!commentEl) return;
+    var bodyEl = commentEl.querySelector('[data-body]');
+    var currentText = bodyEl.textContent;
+    // Replace body with a textarea + Save/Cancel
+    var editArea = document.createElement('div');
+    editArea.className = 'comment-edit-area';
+    editArea.innerHTML =
+      '<textarea>' + escHtml(currentText) + '</textarea>' +
+      '<div class="comment-edit-buttons">' +
+        '<button class="save-btn">Save</button>' +
+        '<button class="cancel-btn">Cancel</button>' +
+      '</div>';
+    bodyEl.style.display = 'none';
+    bodyEl.parentNode.appendChild(editArea);
+    // Hide the normal action buttons while editing
+    var actions = commentEl.querySelector('.comment-actions');
+    if (actions) actions.style.display = 'none';
+    var ta = editArea.querySelector('textarea');
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    editArea.querySelector('.save-btn').addEventListener('click', async function() {
+      var newBody = ta.value.trim();
+      if (!newBody) { showError('Comment cannot be empty.'); return; }
+      var r = await NWSchedule.updateComment(commentId, newBody);
+      if (r.error) { showError('Edit failed: ' + r.error.message); return; }
+      // Refresh the comment list
+      var cR = await NWSchedule.listComments(editingEntryId);
+      renderComments(cR.data || []);
+    });
+    editArea.querySelector('.cancel-btn').addEventListener('click', function() {
+      editArea.remove();
+      bodyEl.style.display = '';
+      if (actions) actions.style.display = '';
+    });
+  }
+
+  async function deleteCommentHandler(commentId) {
+    if (!confirm('Delete this note?')) return;
+    var r = await NWSchedule.deleteComment(commentId);
+    if (r.error) { showError('Delete failed: ' + r.error.message); return; }
+    var cR = await NWSchedule.listComments(editingEntryId);
+    renderComments(cR.data || []);
   }
 
   async function addCommentHandler() {
