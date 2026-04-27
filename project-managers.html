@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Project Managers — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=132"></script>
+<script src="auth.js?v=132"></script>
+<script src="schedule-utils.js?v=133"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .header .profile-circle { margin-left: auto; }
+  .reg-wrap { max-width: 900px; margin: 0 auto; }
+  .reg-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px; align-items: center; flex-wrap: wrap;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+  }
+  .reg-toolbar .grow { flex: 1; }
+  .new-btn {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; border: none;
+    padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(139,92,246,.25);
+  }
+  .reg-card {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 10px; padding: 14px 16px; margin: 12px 16px;
+    border-left: 4px solid #8b5cf6;
+  }
+  .reg-card.inactive { opacity: 0.55; border-left-color: #94a3b8; }
+  .reg-card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .reg-card-name { font-weight: 700; font-size: 16px; color: var(--nw-text); }
+  .reg-card-role {
+    background: #ede9fe; color: #5b21b6; font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 12px; text-transform: uppercase;
+  }
+  .reg-card-role.admin       { background: #fee2e2; color: #991b1b; }
+  .reg-card-role.lead_pm     { background: #fef3c7; color: #92400e; }
+  .reg-card-role.estimator   { background: #d1fae5; color: #065f46; }
+  .reg-card-meta {
+    font-size: 13px; color: var(--nw-muted); margin-bottom: 4px;
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  }
+  .reg-card-meta b { color: var(--nw-text); font-weight: 600; }
+  .reg-card-meta a { color: var(--nw-primary); text-decoration: none; }
+  .reg-card-meta a:hover { text-decoration: underline; }
+  .reg-card-projects {
+    background: var(--nw-section); padding: 8px 10px; border-radius: 6px;
+    margin-top: 8px; font-size: 12px; color: var(--nw-muted);
+  }
+  .reg-card-projects b { color: var(--nw-text); font-weight: 600; }
+  .reg-card-actions {
+    display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .reg-card-actions button {
+    padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--nw-border); background: #fff;
+  }
+  .reg-card-actions .btn-edit   { color: var(--nw-primary); border-color: var(--nw-primary); }
+  .reg-card-actions .btn-delete { color: #dc2626; border-color: #fecaca; margin-left: auto; }
+
+  .reg-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .reg-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 540px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label { display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 9px 11px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card textarea { min-height: 60px; resize: vertical; }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save   { background: var(--nw-primary); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="reg-wrap">
+
+  <div class="header">
+    <a href="schedule.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Project Managers</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="reg-toolbar">
+    <span style="font-size:13px;color:var(--nw-muted)" id="regCount">Loading…</span>
+    <div class="grow"></div>
+    <button class="new-btn" id="btnNew">+ Add PM</button>
+  </div>
+
+  <div id="regList"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="regModal">
+  <div class="modal-card">
+    <h2 id="modalTitle">Add Project Manager</h2>
+
+    <div class="field">
+      <label>Name *</label>
+      <input type="text" id="mName" placeholder="e.g. Chris Smith">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Role</label>
+        <select id="mRole">
+          <option value="project_manager">Project Manager</option>
+          <option value="lead_pm">Lead PM</option>
+          <option value="estimator">Estimator</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Phone</label>
+        <input type="tel" id="mPhone" placeholder="(555) 555-5555">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="mEmail" placeholder="name@northernwolvesac.com">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="mNotes" placeholder="Specialties, schedule preferences..."></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancel">Cancel</button>
+      <button class="btn-save" id="btnSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var canWrite = false;
+  var editingId = null;
+  var pms = [];
+  var pmProjectCounts = {};  // pm name -> count of projects assigned
+
+  init();
+
+  async function init() {
+    canWrite = await NWSchedule.canWriteSchedule();
+    if (!canWrite) document.getElementById('btnNew').style.display = 'none';
+    bindEvents();
+    refresh();
+  }
+
+  function bindEvents() {
+    document.getElementById('btnNew').addEventListener('click', function() { openModal(null); });
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+    document.getElementById('btnSave').addEventListener('click', save);
+    document.getElementById('regModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+  }
+
+  async function refresh() {
+    var [pmsR, projsR] = await Promise.all([
+      NWSchedule.listProjectManagers({ force: true }),
+      NWSchedule.listScheduleProjects({ force: true })
+    ]);
+    if (pmsR.error) {
+      document.getElementById('regList').innerHTML =
+        '<div class="reg-empty"><div class="icon">⚠️</div>' +
+        '<p>Error: ' + escHtml(pmsR.error.message || pmsR.error) + '</p></div>';
+      return;
+    }
+    pms = pmsR.data || [];
+    var allProjects = projsR.data || [];
+
+    // Count projects per PM (matches by exact name)
+    pmProjectCounts = {};
+    allProjects.forEach(function(p) {
+      if (p.pm_name) {
+        pmProjectCounts[p.pm_name] = (pmProjectCounts[p.pm_name] || 0) + 1;
+      }
+    });
+
+    document.getElementById('regCount').textContent =
+      pms.length + ' project manager' + (pms.length !== 1 ? 's' : '');
+
+    if (!pms.length) {
+      document.getElementById('regList').innerHTML =
+        '<div class="reg-empty"><div class="icon">👤</div>' +
+        '<p>No project managers yet.<br>' +
+        (canWrite ? 'Click <strong>+ Add PM</strong> to add the first one.' : 'Ask a manager to set up the registry.') +
+        '</p></div>';
+      return;
+    }
+
+    var html = pms.map(renderCard).join('');
+    document.getElementById('regList').innerHTML = html;
+    bindCardActions();
+  }
+
+  function renderCard(p) {
+    var role = p.role || 'project_manager';
+    var roleLabel = (role === 'lead_pm' ? 'Lead PM' :
+                     role === 'admin' ? 'Admin' :
+                     role === 'estimator' ? 'Estimator' : 'PM');
+    var projectCount = pmProjectCounts[p.name] || 0;
+    return '<div class="reg-card' + (p.is_active ? '' : ' inactive') + '" data-id="' + p.id + '">' +
+      '<div class="reg-card-top">' +
+        '<span class="reg-card-name">👤 ' + escHtml(p.name) + '</span>' +
+        '<span class="reg-card-role ' + role + '">' + roleLabel + '</span>' +
+      '</div>' +
+      (p.phone ? '<div class="reg-card-meta">📞 <a href="tel:' + escHtml(p.phone) + '">' + escHtml(p.phone) + '</a></div>' : '') +
+      (p.email ? '<div class="reg-card-meta">✉️ <a href="mailto:' + escHtml(p.email) + '">' + escHtml(p.email) + '</a></div>' : '') +
+      (p.notes ? '<div class="reg-card-meta"><b>Notes:</b> ' + escHtml(p.notes) + '</div>' : '') +
+      '<div class="reg-card-projects">' +
+        '<b>📁 ' + projectCount + '</b> active project' + (projectCount !== 1 ? 's' : '') +
+      '</div>' +
+      (canWrite ?
+        '<div class="reg-card-actions">' +
+          '<button class="btn-edit" data-act="edit">✎ Edit</button>' +
+          '<button class="btn-delete" data-act="delete">Remove</button>' +
+        '</div>' : '') +
+      '</div>';
+  }
+
+  function bindCardActions() {
+    document.querySelectorAll('.reg-card').forEach(function(card) {
+      var id = card.getAttribute('data-id');
+      card.querySelectorAll('button[data-act]').forEach(function(btn) {
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          var act = btn.getAttribute('data-act');
+          if (act === 'edit') openModal(id);
+          else if (act === 'delete') deleteOne(id);
+        });
+      });
+    });
+  }
+
+  function openModal(id) {
+    editingId = id;
+    document.getElementById('modalTitle').textContent = id ? 'Edit Project Manager' : 'Add Project Manager';
+    document.getElementById('mName').value = '';
+    document.getElementById('mRole').value = 'project_manager';
+    document.getElementById('mPhone').value = '';
+    document.getElementById('mEmail').value = '';
+    document.getElementById('mNotes').value = '';
+
+    if (id) {
+      var p = pms.find(function(x) { return x.id === id; });
+      if (p) {
+        document.getElementById('mName').value = p.name || '';
+        document.getElementById('mRole').value = p.role || 'project_manager';
+        document.getElementById('mPhone').value = p.phone || '';
+        document.getElementById('mEmail').value = p.email || '';
+        document.getElementById('mNotes').value = p.notes || '';
+      }
+    }
+    document.getElementById('regModal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('regModal').classList.remove('open');
+    editingId = null;
+  }
+
+  async function save() {
+    var name = document.getElementById('mName').value.trim();
+    if (!name) { showToast('Name is required', 'error'); return; }
+    var data = {
+      name: name,
+      role: document.getElementById('mRole').value || 'project_manager',
+      phone: document.getElementById('mPhone').value.trim() || null,
+      email: document.getElementById('mEmail').value.trim() || null,
+      notes: document.getElementById('mNotes').value.trim() || null
+    };
+    var r = editingId
+      ? await NWSchedule.updateProjectManager(editingId, data)
+      : await NWSchedule.createProjectManager(data);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    closeModal();
+    refresh();
+    showToast(editingId ? 'Updated' : 'Added', 'success');
+  }
+
+  async function deleteOne(id) {
+    var p = pms.find(function(x) { return x.id === id; });
+    if (!p) return;
+    var count = pmProjectCounts[p.name] || 0;
+    var msg = 'Remove "' + p.name + '" from active list?';
+    if (count > 0) msg += '\n\n⚠️ ' + count + ' project' + (count !== 1 ? 's are' : ' is') + ' currently assigned to this PM. ' +
+                          'They will not be unassigned automatically — you may want to reassign first.';
+    if (!confirm(msg)) return;
+    var r = await NWSchedule.deleteProjectManager(id);
+    if (r.error) { showToast('Failed: ' + r.error.message, 'error'); return; }
+    refresh();
+    showToast('Removed', 'success');
+  }
+
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=133"></script>
+</body>
+</html>

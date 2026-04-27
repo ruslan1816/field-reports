@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Subcontractors — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=132"></script>
+<script src="auth.js?v=132"></script>
+<script src="schedule-utils.js?v=133"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .header .profile-circle { margin-left: auto; }
+  .reg-wrap { max-width: 900px; margin: 0 auto; }
+  .reg-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px; align-items: center; flex-wrap: wrap;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+  }
+  .reg-toolbar .grow { flex: 1; }
+  .new-btn {
+    background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+    padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(6,150,215,.25);
+  }
+  .reg-card {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 10px; padding: 14px 16px; margin: 12px 16px;
+    border-left: 4px solid #0696D7;
+  }
+  .reg-card.inactive { opacity: 0.55; border-left-color: #94a3b8; }
+  .reg-card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .reg-card-name { font-weight: 700; font-size: 16px; color: var(--nw-text); }
+  .reg-card-trade {
+    background: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 12px; text-transform: uppercase;
+  }
+  .reg-card-trade.sheetmetal  { background: #fef3c7; color: #92400e; }
+  .reg-card-trade.piping      { background: #dbeafe; color: #1e40af; }
+  .reg-card-trade.controls    { background: #ede9fe; color: #5b21b6; }
+  .reg-card-trade.mixed       { background: #d1fae5; color: #065f46; }
+  .reg-card-trade.other       { background: #f1f5f9; color: #475569; }
+  .reg-card-meta {
+    font-size: 13px; color: var(--nw-muted); margin-bottom: 4px;
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  }
+  .reg-card-meta b { color: var(--nw-text); font-weight: 600; }
+  .reg-card-meta a { color: var(--nw-primary); text-decoration: none; }
+  .reg-card-meta a:hover { text-decoration: underline; }
+  .reg-card-actions {
+    display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .reg-card-actions button {
+    padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--nw-border); background: #fff;
+  }
+  .reg-card-actions .btn-edit   { color: var(--nw-primary); border-color: var(--nw-primary); }
+  .reg-card-actions .btn-toggle { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .reg-card-actions .btn-delete { color: #dc2626; border-color: #fecaca; margin-left: auto; }
+
+  .reg-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .reg-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 540px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label { display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 9px 11px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card textarea { min-height: 60px; resize: vertical; }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save   { background: var(--nw-primary); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="reg-wrap">
+
+  <div class="header">
+    <a href="schedule.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Subcontractors</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="reg-toolbar">
+    <span style="font-size:13px;color:var(--nw-muted)" id="regCount">Loading…</span>
+    <div class="grow"></div>
+    <button class="new-btn" id="btnNew">+ Add Subcontractor</button>
+  </div>
+
+  <div id="regList"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="regModal">
+  <div class="modal-card">
+    <h2 id="modalTitle">Add Subcontractor</h2>
+
+    <div class="field">
+      <label>Company Name *</label>
+      <input type="text" id="mName" placeholder="e.g. ADLS">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Contact Name</label>
+        <input type="text" id="mContact" placeholder="e.g. Jason">
+      </div>
+      <div class="field">
+        <label>Trade</label>
+        <select id="mTrade">
+          <option value="">Select…</option>
+          <option value="sheetmetal">Sheetmetal / Ductwork</option>
+          <option value="piping">Piping</option>
+          <option value="controls">Controls / BMS</option>
+          <option value="mixed">Mixed (HVAC)</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Phone</label>
+        <input type="tel" id="mPhone" placeholder="(555) 555-5555">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="mEmail" placeholder="contact@company.com">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="mNotes" placeholder="Any additional info"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancel">Cancel</button>
+      <button class="btn-save" id="btnSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var canWrite = false;
+  var editingId = null;
+  var subs = [];
+
+  init();
+
+  async function init() {
+    canWrite = await NWSchedule.canWriteSchedule();
+    if (!canWrite) document.getElementById('btnNew').style.display = 'none';
+    bindEvents();
+    refresh();
+  }
+
+  function bindEvents() {
+    document.getElementById('btnNew').addEventListener('click', function() { openModal(null); });
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+    document.getElementById('btnSave').addEventListener('click', save);
+    document.getElementById('regModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+  }
+
+  async function refresh() {
+    var r = await NWSchedule.listSubcontractors({ force: true });
+    if (r.error) {
+      document.getElementById('regList').innerHTML =
+        '<div class="reg-empty"><div class="icon">⚠️</div>' +
+        '<p>Error: ' + escHtml(r.error.message || r.error) + '</p></div>';
+      return;
+    }
+    subs = r.data || [];
+    document.getElementById('regCount').textContent =
+      subs.length + ' subcontractor' + (subs.length !== 1 ? 's' : '');
+
+    if (!subs.length) {
+      document.getElementById('regList').innerHTML =
+        '<div class="reg-empty"><div class="icon">🏗️</div>' +
+        '<p>No subcontractors yet.<br>' +
+        (canWrite ? 'Click <strong>+ Add Subcontractor</strong> to add the first one.' : 'Ask a manager to set up the registry.') +
+        '</p></div>';
+      return;
+    }
+
+    var html = subs.map(renderCard).join('');
+    document.getElementById('regList').innerHTML = html;
+    bindCardActions();
+  }
+
+  function renderCard(s) {
+    var trade = s.trade || 'other';
+    var tradeLabel = (trade === 'sheetmetal' ? 'Ductwork' :
+                       trade === 'piping' ? 'Piping' :
+                       trade === 'controls' ? 'Controls' :
+                       trade === 'mixed' ? 'Mixed' : 'Other');
+    return '<div class="reg-card' + (s.is_active ? '' : ' inactive') + '" data-id="' + s.id + '">' +
+      '<div class="reg-card-top">' +
+        '<span class="reg-card-name">🏗️ ' + escHtml(s.name) + '</span>' +
+        '<span class="reg-card-trade ' + trade + '">' + tradeLabel + '</span>' +
+      '</div>' +
+      (s.contact_name ? '<div class="reg-card-meta"><b>Contact:</b> ' + escHtml(s.contact_name) + '</div>' : '') +
+      (s.contact_phone ? '<div class="reg-card-meta">📞 <a href="tel:' + escHtml(s.contact_phone) + '">' + escHtml(s.contact_phone) + '</a></div>' : '') +
+      (s.contact_email ? '<div class="reg-card-meta">✉️ <a href="mailto:' + escHtml(s.contact_email) + '">' + escHtml(s.contact_email) + '</a></div>' : '') +
+      (s.notes ? '<div class="reg-card-meta"><b>Notes:</b> ' + escHtml(s.notes) + '</div>' : '') +
+      (canWrite ?
+        '<div class="reg-card-actions">' +
+          '<button class="btn-edit" data-act="edit">✎ Edit</button>' +
+          '<button class="btn-delete" data-act="delete">Remove</button>' +
+        '</div>' : '') +
+      '</div>';
+  }
+
+  function bindCardActions() {
+    document.querySelectorAll('.reg-card').forEach(function(card) {
+      var id = card.getAttribute('data-id');
+      card.querySelectorAll('button[data-act]').forEach(function(btn) {
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          var act = btn.getAttribute('data-act');
+          if (act === 'edit') openModal(id);
+          else if (act === 'delete') deleteOne(id);
+        });
+      });
+    });
+  }
+
+  function openModal(id) {
+    editingId = id;
+    document.getElementById('modalTitle').textContent = id ? 'Edit Subcontractor' : 'Add Subcontractor';
+    document.getElementById('mName').value = '';
+    document.getElementById('mContact').value = '';
+    document.getElementById('mTrade').value = '';
+    document.getElementById('mPhone').value = '';
+    document.getElementById('mEmail').value = '';
+    document.getElementById('mNotes').value = '';
+
+    if (id) {
+      var s = subs.find(function(x) { return x.id === id; });
+      if (s) {
+        document.getElementById('mName').value = s.name || '';
+        document.getElementById('mContact').value = s.contact_name || '';
+        document.getElementById('mTrade').value = s.trade || '';
+        document.getElementById('mPhone').value = s.contact_phone || '';
+        document.getElementById('mEmail').value = s.contact_email || '';
+        document.getElementById('mNotes').value = s.notes || '';
+      }
+    }
+    document.getElementById('regModal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('regModal').classList.remove('open');
+    editingId = null;
+  }
+
+  async function save() {
+    var name = document.getElementById('mName').value.trim();
+    if (!name) { showToast('Company Name is required', 'error'); return; }
+    var data = {
+      name: name,
+      contact_name: document.getElementById('mContact').value.trim() || null,
+      trade: document.getElementById('mTrade').value || null,
+      contact_phone: document.getElementById('mPhone').value.trim() || null,
+      contact_email: document.getElementById('mEmail').value.trim() || null,
+      notes: document.getElementById('mNotes').value.trim() || null
+    };
+    var r = editingId
+      ? await NWSchedule.updateSubcontractor(editingId, data)
+      : await NWSchedule.createSubcontractor(data);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    closeModal();
+    refresh();
+    showToast(editingId ? 'Updated' : 'Added', 'success');
+  }
+
+  async function deleteOne(id) {
+    var s = subs.find(function(x) { return x.id === id; });
+    if (!s) return;
+    if (!confirm('Remove "' + s.name + '" from active list?\n\n(Past entries that reference this sub remain unchanged.)')) return;
+    var r = await NWSchedule.deleteSubcontractor(id);
+    if (r.error) { showToast('Failed: ' + r.error.message, 'error'); return; }
+    refresh();
+    showToast('Removed', 'success');
+  }
+
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=133"></script>
+</body>
+</html>

@@ -374,6 +374,69 @@
     return { data: r.data, error: r.error };
   }
 
+  async function updateSubcontractor(id, patch) {
+    var r = await supabaseClient.from('subcontractors').update(patch).eq('id', id).select().single();
+    invalidateSubCache();
+    return { data: r.data, error: r.error };
+  }
+
+  async function deleteSubcontractor(id) {
+    // Soft delete: keep historical references intact
+    var r = await supabaseClient.from('subcontractors').update({ is_active: false }).eq('id', id);
+    invalidateSubCache();
+    return { error: r.error };
+  }
+
+  // ─── PROJECT MANAGERS ────────────────────────────────────────────────────
+
+  var _pmCache = null;
+  var _pmCacheTs = 0;
+
+  async function listProjectManagers(opts) {
+    opts = opts || {};
+    if (!opts.force && _pmCache && (Date.now() - _pmCacheTs) < 60000) {
+      return { data: _pmCache, error: null };
+    }
+    try {
+      var r = await supabaseClient.from('project_managers').select('*')
+        .eq('is_active', true).order('name');
+      if (r.error) {
+        if (/does not exist/i.test(r.error.message || '')) {
+          _pmCache = [];
+          _pmCacheTs = Date.now();
+          return { data: [], error: null };
+        }
+        return { data: [], error: r.error };
+      }
+      _pmCache = r.data || [];
+      _pmCacheTs = Date.now();
+      return { data: _pmCache, error: null };
+    } catch (err) {
+      console.error('[schedule-utils] listProjectManagers:', err);
+      return { data: [], error: err };
+    }
+  }
+
+  function invalidatePMCache() { _pmCache = null; }
+
+  async function createProjectManager(pm) {
+    var r = await supabaseClient.from('project_managers').insert(pm).select().single();
+    invalidatePMCache();
+    return { data: r.data, error: r.error };
+  }
+
+  async function updateProjectManager(id, patch) {
+    var r = await supabaseClient.from('project_managers').update(patch).eq('id', id).select().single();
+    invalidatePMCache();
+    return { data: r.data, error: r.error };
+  }
+
+  async function deleteProjectManager(id) {
+    var r = await supabaseClient.from('project_managers').update({ is_active: false }).eq('id', id);
+    invalidatePMCache();
+    return { error: r.error };
+  }
+
   // ─── PM TEMPLATES (recurring maintenance) ────────────────────────────────
 
   /**
@@ -564,6 +627,12 @@
     findTechConflicts: findTechConflicts,
     listSubcontractors: listSubcontractors,
     createSubcontractor: createSubcontractor,
+    updateSubcontractor: updateSubcontractor,
+    deleteSubcontractor: deleteSubcontractor,
+    listProjectManagers: listProjectManagers,
+    createProjectManager: createProjectManager,
+    updateProjectManager: updateProjectManager,
+    deleteProjectManager: deleteProjectManager,
     listPMTemplates: listPMTemplates,
     createPMTemplate: createPMTemplate,
     updatePMTemplate: updatePMTemplate,

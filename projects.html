@@ -8,9 +8,10 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=52"></script>
-<script src="auth.js?v=52"></script>
-<script src="cloud-save.js?v=52"></script>
+<script src="supabase-config.js?v=132"></script>
+<script src="auth.js?v=132"></script>
+<script src="cloud-save.js?v=132"></script>
+<script src="schedule-utils.js?v=133"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Projects — Northern Wolves AC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -731,6 +732,19 @@
         </select>
       </div>
     </div>
+    <div class="row">
+      <div class="field">
+        <label for="fldPM">Project Manager</label>
+        <input type="text" id="fldPM" list="pmDatalist" autocomplete="off"
+               placeholder="Type or pick from list">
+        <datalist id="pmDatalist"></datalist>
+      </div>
+      <div class="field">
+        <label for="fldShortCode">Short Code</label>
+        <input type="text" id="fldShortCode" placeholder="e.g. BCM" maxlength="10"
+               style="text-transform:uppercase">
+      </div>
+    </div>
     <div class="field">
       <label for="fldNotes">Notes</label>
       <textarea id="fldNotes" placeholder="Project notes, scope of work, etc."></textarea>
@@ -839,6 +853,8 @@ requireAuth().catch(function(){});
       zip: p.zip || '',
       description: p.projectType || 'commercial',
       status: p.status === 'onhold' ? 'on-hold' : (p.status || 'active'),
+      pm_name: p.pmName || null,
+      short_code: p.shortCode || null,
       notes: [p.customer ? 'Customer: ' + p.customer : '', p.notes || ''].filter(Boolean).join('\n')
     };
   }
@@ -857,6 +873,8 @@ requireAuth().catch(function(){});
       zip: row.zip || '',
       projectType: row.description || 'commercial',
       status: row.status === 'on-hold' ? 'onhold' : (row.status || 'active'),
+      pmName: row.pm_name || '',
+      shortCode: row.short_code || '',
       notes: notes,
       createdAt: row.created_at || new Date().toISOString(),
       documents: [],
@@ -1313,6 +1331,8 @@ requireAuth().catch(function(){});
         document.getElementById('fldZip').value = p.zip || '';
         document.getElementById('fldType').value = p.projectType || 'commercial';
         document.getElementById('fldStatus').value = p.status || 'active';
+        document.getElementById('fldPM').value = p.pmName || '';
+        document.getElementById('fldShortCode').value = p.shortCode || '';
         document.getElementById('fldNotes').value = p.notes || '';
       }
     } else {
@@ -1325,6 +1345,8 @@ requireAuth().catch(function(){});
       document.getElementById('fldZip').value = '';
       document.getElementById('fldType').value = 'commercial';
       document.getElementById('fldStatus').value = 'active';
+      document.getElementById('fldPM').value = '';
+      document.getElementById('fldShortCode').value = '';
       document.getElementById('fldNotes').value = '';
     }
     modal.style.display = 'flex';
@@ -1351,6 +1373,8 @@ requireAuth().catch(function(){});
       zip: document.getElementById('fldZip').value.trim(),
       projectType: document.getElementById('fldType').value,
       status: document.getElementById('fldStatus').value,
+      pmName: document.getElementById('fldPM').value.trim(),
+      shortCode: document.getElementById('fldShortCode').value.trim().toUpperCase(),
       notes: document.getElementById('fldNotes').value.trim()
     };
 
@@ -1759,10 +1783,26 @@ requireAuth().catch(function(){});
 
   // ─── Event binding ───
 
+  async function loadPMDatalist() {
+    if (typeof NWSchedule === 'undefined' || !NWSchedule.listProjectManagers) return;
+    var r = await NWSchedule.listProjectManagers();
+    var datalist = document.getElementById('pmDatalist');
+    if (!datalist) return;
+    datalist.innerHTML = '';
+    (r.data || []).forEach(function(pm) {
+      var opt = document.createElement('option');
+      opt.value = pm.name;
+      if (pm.role) opt.label = pm.role.replace(/_/g, ' ');
+      datalist.appendChild(opt);
+    });
+  }
+
   function init() {
     renderProjectsList();
     // Load cloud projects in background
     loadProjectsFromCloud();
+    // Populate the Project Manager datalist (autocomplete in the modal)
+    loadPMDatalist();
 
     // Refresh COs and RFIs when navigating back (bfcache restore)
     window.addEventListener('pageshow', function(e) {
