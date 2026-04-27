@@ -186,13 +186,25 @@
   }
 
   async function updateEntry(id, patch) {
+    var basePatch = Object.assign({}, patch);
+    var stampedPatch = basePatch;
     try {
-      // Stamp updated_by so the DB UPDATE trigger can credit the right actor
+      // Stamp updated_by so the DB UPDATE trigger can credit the right actor.
+      // (Column is added by notifications-schema.sql — gracefully fall back if missing.)
       var u = await supabaseClient.auth.getUser();
       var userId = u.data && u.data.user ? u.data.user.id : null;
-      if (userId) patch = Object.assign({ updated_by: userId }, patch);
-    } catch (e) { /* fall through — patch still saves */ }
-    var r = await supabaseClient.from('schedule_entries').update(patch).eq('id', id).select().single();
+      if (userId) stampedPatch = Object.assign({ updated_by: userId }, basePatch);
+    } catch (e) { /* fall through — basePatch still saves */ }
+
+    var r = await supabaseClient.from('schedule_entries').update(stampedPatch).eq('id', id).select().single();
+
+    // If the column doesn't exist yet (notifications-schema.sql not run), retry without updated_by.
+    if (r.error && stampedPatch !== basePatch) {
+      var msg = (r.error.message || '') + ' ' + (r.error.details || '');
+      if (/updated_by/i.test(msg) && /(schema cache|column)/i.test(msg)) {
+        r = await supabaseClient.from('schedule_entries').update(basePatch).eq('id', id).select().single();
+      }
+    }
     return { data: r.data, error: r.error };
   }
 
