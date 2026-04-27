@@ -1221,7 +1221,10 @@ requireAuth().catch(function(){});
     var techFilter = document.getElementById('filterTech').value;
     if (crewFilter)   opts.crewType = crewFilter;
     if (projFilter)   opts.projectId = projFilter;
-    if (statusFilter) opts.status = statusFilter;
+    // Pending-crew is a "smart" filter — also catches entries with no crew that
+    // weren't yet flipped to status='pending-crew' (DB trigger may not be installed).
+    // We handle it client-side below, so DON'T narrow the DB query to status.
+    if (statusFilter && statusFilter !== 'pending-crew') opts.status = statusFilter;
 
     var r = await NWSchedule.listEntries(opts);
     if (r.error) {
@@ -1230,6 +1233,16 @@ requireAuth().catch(function(){});
       return;
     }
     var entries = r.data || [];
+    // Smart pending-crew filter: status='pending-crew' OR (no crew AND not a sub AND not terminal)
+    if (statusFilter === 'pending-crew') {
+      entries = entries.filter(function(e) {
+        if (e.status === 'pending-crew') return true;
+        var hasCrew = (e.assigned_tech_ids && e.assigned_tech_ids.length > 0) ||
+                      (e.is_subcontractor && e.subcontractor_name);
+        if (hasCrew) return false;
+        return e.status !== 'completed' && e.status !== 'cancelled' && e.status !== 'blocked';
+      });
+    }
     // "My Schedule" view auto-filters to entries assigned to current user
     if (currentView === 'my-schedule' && myTechId) {
       entries = entries.filter(function(e) {
