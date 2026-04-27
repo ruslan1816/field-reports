@@ -191,6 +191,52 @@
   .comment-add input { flex: 1; }
   .comment-add button { padding: 8px 14px; background: var(--nw-primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; }
 
+  /* ────────────────── Availability view ────────────────── */
+  .avail-section { margin: 16px; }
+  .avail-section h3 {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--nw-muted);
+    margin: 0 0 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .avail-section h3 .crew-icon { font-size: 16px; }
+  .avail-section h3 .pill {
+    background: var(--nw-section); padding: 2px 9px; border-radius: 10px;
+    font-size: 11px; font-weight: 700; color: var(--nw-text);
+  }
+  .avail-tech-row {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    border-left-width: 4px;
+  }
+  .avail-tech-row.free { border-left-color: var(--nw-success); }
+  .avail-tech-row.busy { border-left-color: #f59e0b; }
+  .avail-tech-row .tech-name { font-weight: 700; font-size: 14px; color: var(--nw-text); flex: 1; }
+  .avail-tech-row .tech-name .star { color: #f59e0b; margin-right: 4px; }
+  .avail-tech-row .tech-position {
+    font-size: 11px; color: var(--nw-muted); margin-top: 2px;
+    width: 100%;
+  }
+  .avail-tag {
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 12px;
+    white-space: nowrap;
+  }
+  .avail-tag.free  { background: #d1fae5; color: #065f46; }
+  .avail-tag.busy  { background: #fef3c7; color: #92400e; }
+  .avail-on  { background: #dbeafe; color: #1e40af; padding: 3px 9px; border-radius: 12px;
+               font-size: 11px; font-weight: 700; cursor: pointer; }
+  .avail-on:hover { background: #bfdbfe; }
+
+  .avail-date-picker {
+    display: flex; gap: 10px; align-items: center; margin: 12px 16px 0;
+    padding: 10px 12px; background: var(--nw-section); border-radius: 8px;
+  }
+  .avail-date-picker label { font-size: 12px; font-weight: 700; color: var(--nw-muted); }
+  .avail-date-picker input {
+    padding: 6px 10px; border: 1px solid var(--nw-border); border-radius: 6px; font-size: 13px;
+  }
+
   /* ────────────────── Timeline Gantt view ────────────────── */
   .timeline-wrap {
     margin: 12px;
@@ -323,6 +369,7 @@
     <div class="view-tab" data-view="timeline">📊 Timeline</div>
     <div class="view-tab" data-view="by-crew">👷 By Crew</div>
     <div class="view-tab" data-view="by-project">📁 By Project</div>
+    <div class="view-tab" data-view="availability">🟢 Availability</div>
     <div class="view-tab" data-view="my-schedule" id="myScheduleTab">📌 My Schedule</div>
     <select class="lookahead-select" id="lookaheadDays">
       <option value="7">Next 1 week</option>
@@ -559,7 +606,10 @@ requireAuth().catch(function(){});
     allProjects.forEach(function(p) {
       var opt = document.createElement('option');
       opt.value = p.id;
-      opt.textContent = (p.short_code ? p.short_code + ' · ' : '') + p.name + (p.customer ? ' (' + p.customer + ')' : '');
+      var label = (p.short_code ? p.short_code + ' · ' : '') + p.name;
+      if (p.customer) label += ' (' + p.customer + ')';
+      if (p.pm_name)  label += ' — PM: ' + p.pm_name;
+      opt.textContent = label;
       el.appendChild(opt);
     });
   }
@@ -664,6 +714,7 @@ requireAuth().catch(function(){});
     if (currentView === 'by-crew') renderByCrew(entries);
     else if (currentView === 'by-project') renderByProject(entries);
     else if (currentView === 'timeline') renderTimeline(entries);
+    else if (currentView === 'availability') renderAvailability(entries);
     else renderByDay(entries);  // 'list' or 'my-schedule' both render as day groups
   }
 
@@ -900,6 +951,139 @@ requireAuth().catch(function(){});
     });
   }
 
+  // ─── AVAILABILITY VIEW ─────────────────────────────────────────────────
+  // Shows every tech grouped by primary skill. For each tech, computes
+  // "free" or "busy until <date>" based on overlapping schedule_entries.
+  // Has a date picker so manager can ask "who's free on May 5?"
+  var availDate = null;  // ISO string; null = use today
+
+  function renderAvailability(entries) {
+    var body = document.getElementById('scheduleBody');
+    var queryDate = availDate || NWSchedule.todayISO();
+
+    // Build a per-tech busy map
+    var busy = {};  // techId -> { until, project, shortCode, crewType, entryId }
+    entries.forEach(function(e) {
+      if (e.status === 'cancelled' || e.status === 'completed') return;
+      // Active during queryDate?
+      if (!(e.start_date <= queryDate && e.end_date >= queryDate)) return;
+      (e.assigned_tech_ids || []).forEach(function(tid) {
+        if (!tid) return;
+        // Keep the latest end_date per tech if multiple overlap
+        if (!busy[tid] || e.end_date > busy[tid].until) {
+          busy[tid] = {
+            until: e.end_date,
+            project: e.project ? e.project.name : '',
+            shortCode: e.project ? e.project.short_code : '',
+            crewType: e.crew_type,
+            entryId: e.id,
+            pmName: e.project ? (e.project.pm_name || '') : ''
+          };
+        }
+      });
+    });
+
+    // Compute "next assignment" for free techs (entries that start AFTER queryDate)
+    var nextAssign = {};  // techId -> { startDate, project, shortCode }
+    entries.forEach(function(e) {
+      if (e.status === 'cancelled' || e.status === 'completed') return;
+      if (e.start_date <= queryDate) return;
+      (e.assigned_tech_ids || []).forEach(function(tid) {
+        if (!tid) return;
+        if (!nextAssign[tid] || e.start_date < nextAssign[tid].startDate) {
+          nextAssign[tid] = {
+            startDate: e.start_date,
+            project: e.project ? e.project.name : '',
+            shortCode: e.project ? e.project.short_code : ''
+          };
+        }
+      });
+    });
+
+    // Group active techs by primary_skill
+    var byCrew = {};
+    allTechs.forEach(function(t) {
+      if (!t.is_active) return;
+      var k = t.primary_skill;
+      if (!byCrew[k]) byCrew[k] = [];
+      byCrew[k].push(t);
+    });
+
+    // Sort each crew: free first (alphabetically), then busy (by end_date asc)
+    Object.keys(byCrew).forEach(function(k) {
+      byCrew[k].sort(function(a, b) {
+        var aBusy = !!busy[a.id], bBusy = !!busy[b.id];
+        if (aBusy !== bBusy) return aBusy ? 1 : -1;  // free first
+        if (aBusy && bBusy) return busy[a.id].until.localeCompare(busy[b.id].until);
+        return a.full_name.localeCompare(b.full_name);
+      });
+    });
+
+    var html = '';
+    // Date picker at top
+    html += '<div class="avail-date-picker">' +
+      '<label>Show availability on:</label>' +
+      '<input type="date" id="availDateInput" value="' + (availDate || NWSchedule.todayISO()) + '">' +
+      '<span style="font-size:12px;color:var(--nw-muted)">' +
+        Object.keys(busy).length + ' busy / ' +
+        (allTechs.filter(function(t){return t.is_active;}).length - Object.keys(busy).length) + ' free' +
+      '</span>' +
+      '</div>';
+
+    NWSchedule.CREW_TYPES.forEach(function(ct) {
+      var list = byCrew[ct.value];
+      if (!list || !list.length) return;
+      var freeCount = list.filter(function(t) { return !busy[t.id]; }).length;
+      html += '<div class="avail-section">' +
+        '<h3>' +
+          '<span class="crew-icon">' + ct.icon + '</span>' +
+          ct.label +
+          '<span class="pill">' + freeCount + ' free / ' + list.length + ' total</span>' +
+        '</h3>';
+      list.forEach(function(t) {
+        var b = busy[t.id];
+        var n = nextAssign[t.id];
+        var rowCls = b ? 'busy' : 'free';
+        html += '<div class="avail-tech-row ' + rowCls + '">' +
+          '<div class="tech-name">' +
+            (t.is_foreman ? '<span class="star">★</span>' : '') +
+            escHtml(t.full_name) +
+          '</div>';
+        if (b) {
+          var label = (b.shortCode ? b.shortCode + ' · ' : '') + b.project;
+          html += '<span class="avail-tag busy">Busy until ' + NWSchedule.fmtDateShort(b.until) + '</span>' +
+                  '<span class="avail-on" data-entry-id="' + b.entryId + '">' + escHtml(label) + '</span>';
+        } else {
+          html += '<span class="avail-tag free">✅ Available</span>';
+          if (n) {
+            html += '<span class="avail-on">Next: ' + escHtml((n.shortCode ? n.shortCode + ' · ' : '') + n.project) +
+                    ' (' + NWSchedule.fmtDateShort(n.startDate) + ')</span>';
+          }
+        }
+        html += '<div class="tech-position">' + escHtml(t.position || '') + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    body.innerHTML = html;
+
+    // Wire up date picker
+    var dp = document.getElementById('availDateInput');
+    if (dp) {
+      dp.addEventListener('change', function() {
+        availDate = dp.value || null;
+        refreshSchedule();
+      });
+    }
+    // Wire up clicks on busy badges → open the entry
+    body.querySelectorAll('.avail-on[data-entry-id]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        openModal(el.getAttribute('data-entry-id'));
+      });
+    });
+  }
+
   function renderEntryCard(e) {
     var ct = NWSchedule.crewTypeMeta(e.crew_type);
     var st = NWSchedule.statusMeta(e.status);
@@ -929,7 +1113,10 @@ requireAuth().catch(function(){});
 
     var p = e.project;
     var projTitle = p ? ((p.short_code ? p.short_code + ' · ' : '') + p.name) : 'No project';
-    var projMeta = p && p.customer ? p.customer : '';
+    var projMetaParts = [];
+    if (p && p.customer) projMetaParts.push(escHtml(p.customer));
+    if (p && p.pm_name)  projMetaParts.push('👤 PM: <b>' + escHtml(p.pm_name) + '</b>');
+    var projMeta = projMetaParts.join(' &middot; ');
 
     return '<div class="entry-card" data-id="' + e.id + '" style="border-left-color:' + ct.color + '">' +
       '<div class="entry-card-top">' +
@@ -940,7 +1127,7 @@ requireAuth().catch(function(){});
         '<span class="entry-dates">' + dateStr + '</span>' +
       '</div>' +
       '<div class="entry-project">' + escHtml(projTitle) + '</div>' +
-      (projMeta ? '<div class="entry-project-meta">' + escHtml(projMeta) + '</div>' : '') +
+      (projMeta ? '<div class="entry-project-meta">' + projMeta + '</div>' : '') +
       techsHtml +
       (e.scope_summary ? '<div class="entry-scope">' + escHtml(e.scope_summary) + '</div>' : '') +
       '</div>';

@@ -122,7 +122,7 @@
                 'assigned_tech_ids,assigned_tech_names,foreman_id,' +
                 'is_subcontractor,subcontractor_name,status,priority,' +
                 'scope_summary,notes,manpower_needed,created_at,updated_at,' +
-                'project:projects(id,project_name,short_code,address,notes)';
+                'project:projects(id,project_name,short_code,address,notes,pm_name,pm_email)';
       var q = supabaseClient.from('schedule_entries').select(sel);
 
       if (opts.from) q = q.gte('end_date', opts.from);
@@ -152,7 +152,7 @@
    */
   async function getEntry(id) {
     try {
-      var sel = '*,project:projects(id,project_name,short_code,address,notes)';
+      var sel = '*,project:projects(id,project_name,short_code,address,notes,pm_name,pm_email)';
       var r = await supabaseClient.from('schedule_entries').select(sel).eq('id', id).single();
       if (r.error) return { data: null, error: r.error };
       if (r.data && r.data.project) r.data.project = normalizeProject(r.data.project);
@@ -304,6 +304,8 @@
       customer: custMatch ? custMatch[1].trim() : '',
       address: row.address || '',
       status: row.status || 'active',
+      pm_name: row.pm_name || '',
+      pm_email: row.pm_email || '',
       notes: notes
     };
   }
@@ -316,7 +318,7 @@
     }
     try {
       var r = await supabaseClient.from('projects')
-        .select('id,project_name,short_code,address,status,notes')
+        .select('id,project_name,short_code,address,status,notes,pm_name,pm_email')
         .order('project_name', { ascending: true });
       var rows = (r.data || []).map(normalizeProject);
       _projectCache = rows;
@@ -337,7 +339,7 @@
   async function listPMTemplates(opts) {
     opts = opts || {};
     try {
-      var sel = '*,project:projects(id,project_name,short_code,address,notes),' +
+      var sel = '*,project:projects(id,project_name,short_code,address,notes,pm_name,pm_email),' +
                 'last_visit:schedule_entries!last_visit_id(id,start_date,end_date,status)';
       var q = supabaseClient.from('pm_templates').select(sel)
         .order('next_visit_date', { ascending: true, nullsFirst: false });
