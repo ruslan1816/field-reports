@@ -68,6 +68,16 @@
     background: var(--nw-section); color: var(--nw-muted); font-size: 11px;
     font-weight: 700; padding: 2px 8px; border-radius: 10px;
   }
+  /* Mini project header inside a day group — separates multi-crew jobs */
+  .proj-mini-header {
+    font-size: 12px; font-weight: 700; color: var(--nw-text);
+    padding: 6px 10px; margin: 8px 0 4px;
+    background: linear-gradient(90deg, #eff6ff, transparent);
+    border-left: 3px solid var(--nw-primary);
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
 
   /* Entry card */
   .entry-card {
@@ -822,12 +832,37 @@ requireAuth().catch(function(){});
       var label = NWSchedule.fmtDateLong(d);
       var isToday = (d === today);
       var todayClass = isToday ? ' today' : '';
+
+      // Sort entries within this day so all crews of the same project
+      // appear next to each other. Order: project name asc → crew_type → start_date.
+      // Entries without a project go last.
+      byDay[d].sort(function(a, b) {
+        var na = a.project ? (a.project.name || '') : '';
+        var nb = b.project ? (b.project.name || '') : '';
+        if (!na && nb) return 1;
+        if (na && !nb) return -1;
+        if (na !== nb) return na.localeCompare(nb);
+        if (a.crew_type !== b.crew_type) return (a.crew_type || '').localeCompare(b.crew_type || '');
+        return (a.start_date || '').localeCompare(b.start_date || '');
+      });
+
       html += '<div class="day-group">' +
         '<div class="day-header' + todayClass + '">' +
           (isToday ? '🌟 TODAY · ' : '') + label +
           '<span class="day-count">' + byDay[d].length + '</span>' +
         '</div>';
-      byDay[d].forEach(function(e) { html += renderEntryCard(e); });
+      // Render with per-project sub-headers so multi-crew jobs are visually grouped.
+      var lastProjectId = null;
+      byDay[d].forEach(function(e) {
+        var pid = e.project_id || '__none__';
+        if (pid !== lastProjectId) {
+          var p = e.project;
+          var projTitle = p ? ((p.short_code ? p.short_code + ' · ' : '') + p.name) : 'No project';
+          html += '<div class="proj-mini-header">📁 ' + escHtml(projTitle) + '</div>';
+          lastProjectId = pid;
+        }
+        html += renderEntryCard(e);
+      });
       html += '</div>';
     });
     document.getElementById('scheduleBody').innerHTML = html;
@@ -845,6 +880,17 @@ requireAuth().catch(function(){});
     NWSchedule.CREW_TYPES.forEach(function(ct) {
       var list = byCrew[ct.value];
       if (!list || !list.length) return;
+
+      // Sort within crew section by project name
+      list.sort(function(a, b) {
+        var na = a.project ? (a.project.name || '') : '';
+        var nb = b.project ? (b.project.name || '') : '';
+        if (!na && nb) return 1;
+        if (na && !nb) return -1;
+        if (na !== nb) return na.localeCompare(nb);
+        return (a.start_date || '').localeCompare(b.start_date || '');
+      });
+
       html += '<div class="day-group">' +
         '<div class="day-header" style="color:' + ct.color + '">' +
           ct.icon + ' ' + ct.label +
