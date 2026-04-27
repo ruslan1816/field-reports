@@ -26,7 +26,7 @@
     { value: 'wiring-startup', label: 'Wiring / Start-up',     icon: '⚡', color: '#8b5cf6' },
     { value: 'service-call',   label: 'Service Call',          icon: '🛠️', color: '#10b981' },
     { value: 'survey',         label: 'Project Survey',        icon: '📋', color: '#06b6d4' },
-    { value: 'disconnect-demo',label: 'Disconnect / Demo',     icon: '⛏️', color: '#ef4444' },
+    { value: 'disconnect-demo',label: 'Disconnect / Demo',     icon: '⛏️', color: '#1e3a8a' },
     { value: 'maintenance',    label: 'Maintenance',           icon: '✅', color: '#5D822C' }
   ];
 
