@@ -186,6 +186,12 @@
   }
 
   async function updateEntry(id, patch) {
+    try {
+      // Stamp updated_by so the DB UPDATE trigger can credit the right actor
+      var u = await supabaseClient.auth.getUser();
+      var userId = u.data && u.data.user ? u.data.user.id : null;
+      if (userId) patch = Object.assign({ updated_by: userId }, patch);
+    } catch (e) { /* fall through — patch still saves */ }
     var r = await supabaseClient.from('schedule_entries').update(patch).eq('id', id).select().single();
     return { data: r.data, error: r.error };
   }
@@ -294,6 +300,166 @@
   async function deleteComment(id) {
     var r = await supabaseClient.from('schedule_comments').delete().eq('id', id);
     return { error: r.error };
+  }
+
+  // ─── NOTIFICATIONS ─────────────────────────────────────────────────────────
+
+  /**
+   * List notifications for the current user, newest first.
+   *   opts.unreadOnly — only return is_read=false
+   *   opts.limit      — default 30
+   */
+  async function listNotifications(opts) {
+    opts = opts || {};
+    try {
+      var q = supabaseClient.from('notifications').select('*')
+        .order('created_at', { ascending: false })
+        .limit(opts.limit || 30);
+      if (opts.unreadOnly) q = q.eq('is_read', false);
+      var r = await q;
+      return { data: r.data || [], error: r.error };
+    } catch (err) {
+      return { data: [], error: err };
+    }
+  }
+
+  async function getUnreadNotificationCount() {
+    try {
+      var r = await supabaseClient.from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_read', false);
+      return { count: r.count || 0, error: r.error };
+    } catch (err) {
+      return { count: 0, error: err };
+    }
+  }
+
+  async function markNotificationRead(id) {
+    var r = await supabaseClient.from('notifications')
+      .update({ is_read: true }).eq('id', id);
+    return { error: r.error };
+  }
+
+  async function markAllNotificationsRead() {
+    // Use the helper RPC defined in notifications-schema.sql
+    var r = await supabaseClient.rpc('mark_all_notifications_read');
+    return { count: r.data, error: r.error };
+  }
+
+  /**
+   * Subscribe to realtime notifications for the current user.
+   * Returns an unsubscribe function.
+   *   onInsert(notif) is called every time a new notification arrives.
+   */
+  function subscribeToNotifications(userId, onInsert) {
+    if (!userId || !supabaseClient || !supabaseClient.channel) return function() {};
+    var channel = supabaseClient
+      .channel('notif:' + userId)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: 'recipient_id=eq.' + userId
+      }, function(payload) {
+        try { onInsert(payload.new); } catch (e) { console.error(e); }
+      })
+      .subscribe();
+    return function() {
+      try { supabaseClient.removeChannel(channel); } catch (e) {}
+    };
+  }
+
+  /**
+   * Subscribe to realtime comments on a single entry (mini-chat).
+   * Calls onChange(eventType, row) for INSERT / UPDATE / DELETE.
+   * Returns an unsubscribe function.
+   */
+  function subscribeToEntryComments(entryId, onChange) {
+    if (!entryId || !supabaseClient || !supabaseClient.channel) return function() {};
+    var channel = supabaseClient
+      .channel('entry-comments:' + entryId)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'schedule_comments',
+        filter: 'entry_id=eq.' + entryId
+      }, function(payload) {
+        try { onChange(payload.eventType, payload.new || payload.old); } catch (e) { console.error(e); }
+      })
+      .subscribe();
+    return function() {
+      try { supabaseClient.removeChannel(channel); } catch (e) {}
+    };
+  }
+
+  // ─── ENTRY SUBSCRIPTIONS ───────────────────────────────────────────────────
+
+  async function listEntrySubscribers(entryId) {
+    try {
+      var r = await supabaseClient.from('entry_subscriptions')
+        .select('user_id, source, subscribed_at, profile:profiles(id, full_name, email)')
+        .eq('entry_id', entryId);
+      return { data: r.data || [], error: r.error };
+    } catch (err) { return { data: [], error: err }; }
+  }
+
+  async function isSubscribedToEntry(entryId) {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      var userId = u.data && u.data.user ? u.data.user.id : null;
+      if (!userId) return { subscribed: false };
+      var r = await supabaseClient.from('entry_subscriptions')
+        .select('user_id').eq('entry_id', entryId).eq('user_id', userId).maybeSingle();
+      return { subscribed: !!r.data };
+    } catch (err) { return { subscribed: false, error: err }; }
+  }
+
+  async function subscribeToEntry(entryId) {
+    var u = await supabaseClient.auth.getUser();
+    var userId = u.data && u.data.user ? u.data.user.id : null;
+    if (!userId) return { error: { message: 'not signed in' } };
+    var r = await supabaseClient.from('entry_subscriptions')
+      .upsert({ entry_id: entryId, user_id: userId, source: 'manual' },
+              { onConflict: 'entry_id,user_id' });
+    return { error: r.error };
+  }
+
+  async function unsubscribeFromEntry(entryId) {
+    var u = await supabaseClient.auth.getUser();
+    var userId = u.data && u.data.user ? u.data.user.id : null;
+    if (!userId) return { error: { message: 'not signed in' } };
+    var r = await supabaseClient.from('entry_subscriptions')
+      .delete().eq('entry_id', entryId).eq('user_id', userId);
+    return { error: r.error };
+  }
+
+  // ─── NOTIFICATION PREFERENCES ──────────────────────────────────────────────
+
+  async function getNotificationPrefs() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      var userId = u.data && u.data.user ? u.data.user.id : null;
+      if (!userId) return { data: null };
+      var r = await supabaseClient.from('notification_preferences')
+        .select('*').eq('user_id', userId).maybeSingle();
+      // If no row yet (older user), seed defaults
+      if (!r.data && !r.error) {
+        var ins = await supabaseClient.from('notification_preferences')
+          .insert({ user_id: userId }).select().single();
+        return { data: ins.data, error: ins.error };
+      }
+      return { data: r.data, error: r.error };
+    } catch (err) { return { data: null, error: err }; }
+  }
+
+  async function updateNotificationPrefs(patch) {
+    var u = await supabaseClient.auth.getUser();
+    var userId = u.data && u.data.user ? u.data.user.id : null;
+    if (!userId) return { error: { message: 'not signed in' } };
+    var r = await supabaseClient.from('notification_preferences')
+      .update(Object.assign({}, patch, { updated_at: new Date().toISOString() }))
+      .eq('user_id', userId).select().single();
+    return { data: r.data, error: r.error };
   }
 
   // ─── PROJECTS (lookup helper for the picker) ──────────────────────────────
@@ -653,6 +819,18 @@
     addComment: addComment,
     updateComment: updateComment,
     deleteComment: deleteComment,
+    listNotifications: listNotifications,
+    getUnreadNotificationCount: getUnreadNotificationCount,
+    markNotificationRead: markNotificationRead,
+    markAllNotificationsRead: markAllNotificationsRead,
+    subscribeToNotifications: subscribeToNotifications,
+    subscribeToEntryComments: subscribeToEntryComments,
+    listEntrySubscribers: listEntrySubscribers,
+    isSubscribedToEntry: isSubscribedToEntry,
+    subscribeToEntry: subscribeToEntry,
+    unsubscribeFromEntry: unsubscribeFromEntry,
+    getNotificationPrefs: getNotificationPrefs,
+    updateNotificationPrefs: updateNotificationPrefs,
     listScheduleProjects: listScheduleProjects,
     invalidateProjectCache: invalidateProjectCache,
     canWriteSchedule: canWriteSchedule,

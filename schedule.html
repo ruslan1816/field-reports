@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=123"></script>
 <script src="auth.js?v=123"></script>
-<script src="schedule-utils.js?v=137"></script>
+<script src="schedule-utils.js?v=138"></script>
 <style>
   body { padding-bottom: 24px; }
   .header .profile-circle { margin-left: auto; }
@@ -207,6 +207,132 @@
   }
   .comment-action-btn:hover { background: #fff; border-color: var(--nw-border); color: var(--nw-text); }
   .comment-action-btn.del { color: #b91c1c; }
+
+  /* Mini-chat enhancements (realtime) */
+  .comment.mine { background: #dbeafe; border: 1px solid #93c5fd; }
+  .comment.fresh { animation: chat-pop 0.6s ease-out; }
+  @keyframes chat-pop {
+    0%   { background: #fef3c7; transform: translateX(-6px); }
+    100% { background: var(--nw-section); transform: translateX(0); }
+  }
+  .comment.mine.fresh { animation: chat-pop-mine 0.6s ease-out; }
+  @keyframes chat-pop-mine {
+    0%   { background: #fef3c7; transform: translateX(-6px); }
+    100% { background: #dbeafe; transform: translateX(0); }
+  }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10px;
+    color: #16a34a; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+    margin-left: auto;
+  }
+  .live-badge::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: #16a34a; animation: live-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+
+  /* Subscribe toggle in modal */
+  .subscribe-row {
+    display: flex; align-items: center; gap: 8px; margin: 10px 0 14px;
+    padding: 8px 12px; background: var(--nw-section); border-radius: 8px;
+    font-size: 13px;
+  }
+  .subscribe-row .grow { flex: 1; color: var(--nw-muted); }
+  .subscribe-toggle {
+    background: #fff; border: 1px solid var(--nw-border); border-radius: 7px;
+    padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+    color: var(--nw-text);
+  }
+  .subscribe-toggle.subscribed { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+
+  /* Bell icon in header */
+  .bell-wrap { position: relative; }
+  .bell-btn {
+    background: transparent; border: none; cursor: pointer; padding: 6px 8px;
+    font-size: 22px; line-height: 1; position: relative; border-radius: 8px;
+    color: var(--nw-text);
+  }
+  .bell-btn:hover { background: rgba(0,0,0,0.05); }
+  .bell-badge {
+    position: absolute; top: 2px; right: 2px;
+    background: #dc2626; color: #fff; font-size: 10px; font-weight: 800;
+    min-width: 16px; height: 16px; border-radius: 8px; padding: 0 4px;
+    display: none; align-items: center; justify-content: center;
+    border: 2px solid var(--nw-card);
+  }
+  .bell-badge.show { display: inline-flex; }
+  .notif-panel {
+    display: none; position: absolute; top: calc(100% + 6px); right: 0;
+    width: min(360px, 92vw); max-height: 70vh; overflow-y: auto;
+    background: #fff; border: 1px solid var(--nw-border); border-radius: 10px;
+    box-shadow: 0 12px 36px rgba(15,23,42,.18); z-index: 250;
+  }
+  .notif-panel.open { display: block; }
+  .notif-panel-header {
+    position: sticky; top: 0; background: #fff; padding: 10px 14px;
+    border-bottom: 1px solid var(--nw-border); display: flex;
+    align-items: center; gap: 8px; font-size: 13px; font-weight: 700;
+  }
+  .notif-mark-all {
+    margin-left: auto; font-size: 11px; font-weight: 700; cursor: pointer;
+    background: transparent; border: none; color: var(--nw-primary);
+  }
+  .notif-prefs-link {
+    font-size: 11px; cursor: pointer; background: transparent; border: none;
+    color: var(--nw-muted); text-decoration: underline;
+  }
+  .notif-empty { padding: 30px 16px; text-align: center; color: var(--nw-muted); font-size: 13px; }
+  .notif-item {
+    padding: 10px 14px; border-bottom: 1px solid var(--nw-border); cursor: pointer;
+    display: flex; gap: 10px; align-items: flex-start; transition: background .12s;
+  }
+  .notif-item:hover { background: #f8fafc; }
+  .notif-item.unread { background: #eff6ff; }
+  .notif-item.unread:hover { background: #dbeafe; }
+  .notif-icon {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+    background: #e0f2fe;
+  }
+  .notif-icon.entry_created  { background: #dbeafe; }
+  .notif-icon.entry_updated  { background: #fef3c7; }
+  .notif-icon.comment_added  { background: #d1fae5; }
+  .notif-body { flex: 1; min-width: 0; }
+  .notif-title {
+    font-size: 13px; font-weight: 600; color: var(--nw-text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .notif-item.unread .notif-title { font-weight: 700; }
+  .notif-preview {
+    font-size: 12px; color: var(--nw-muted); margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .notif-time { font-size: 10px; color: var(--nw-muted); margin-top: 3px; }
+
+  /* Notification preferences modal */
+  .pref-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--nw-border); font-size: 13px;
+  }
+  .pref-row:last-child { border-bottom: none; }
+  .pref-row .pref-label { flex: 1; color: var(--nw-text); font-weight: 500; }
+  .pref-toggle { position: relative; width: 38px; height: 22px; cursor: pointer; }
+  .pref-toggle input { opacity: 0; width: 0; height: 0; }
+  .pref-toggle .slider {
+    position: absolute; inset: 0; background: #cbd5e1; border-radius: 22px;
+    transition: .2s;
+  }
+  .pref-toggle .slider::before {
+    content: ''; position: absolute; left: 3px; top: 3px;
+    width: 16px; height: 16px; background: #fff; border-radius: 50%;
+    transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+  .pref-toggle input:checked + .slider { background: #16a34a; }
+  .pref-toggle input:checked + .slider::before { transform: translateX(16px); }
   .comment-action-btn.del:hover { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
   .comment-body { margin-top: 4px; white-space: pre-wrap; }
   .comment-edit-area {
@@ -422,7 +548,60 @@
     <div class="header-content">
       <h1>Schedule</h1>
     </div>
+
+    <div class="bell-wrap">
+      <button class="bell-btn" id="bellBtn" aria-label="Notifications" title="Notifications">
+        🔔
+        <span class="bell-badge" id="bellBadge">0</span>
+      </button>
+      <div class="notif-panel" id="notifPanel">
+        <div class="notif-panel-header">
+          <span>Notifications</span>
+          <button class="notif-prefs-link" id="btnNotifPrefs">prefs</button>
+          <button class="notif-mark-all" id="btnMarkAllRead">Mark all read</button>
+        </div>
+        <div id="notifList"></div>
+      </div>
+    </div>
+
     <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <!-- Notification preferences modal -->
+  <div class="modal-overlay" id="prefsModal">
+    <div class="modal-card" style="max-width:440px">
+      <h2 style="font-size:18px;margin:0 0 10px">Notification preferences</h2>
+      <div style="font-size:12px;color:var(--nw-muted);margin-bottom:10px">
+        Email is sent only when you’re subscribed to the entry
+        (creator, foreman, project PM, or commenter).
+      </div>
+
+      <div class="pref-row">
+        <span class="pref-label">📅 Email — new schedule entries</span>
+        <label class="pref-toggle">
+          <input type="checkbox" id="prefEmailCreated">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">✏️ Email — entry changes</span>
+        <label class="pref-toggle">
+          <input type="checkbox" id="prefEmailUpdated">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">💬 Email — new comments</span>
+        <label class="pref-toggle">
+          <input type="checkbox" id="prefEmailComment">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnPrefsClose">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- Toolbar -->
@@ -536,11 +715,18 @@
 
     <!-- Comments (only shown when editing) -->
     <div class="comments-section" id="commentsSection" style="display:none">
-      <label style="font-size:13px;font-weight:700;color:var(--nw-text);margin-bottom:8px;display:block">Notes &amp; Requests</label>
+      <div class="subscribe-row">
+        <span class="grow" id="subscribeStatus">You receive notifications for this entry.</span>
+        <button class="subscribe-toggle subscribed" id="btnSubscribeToggle" type="button">✓ Following</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <label style="font-size:13px;font-weight:700;color:var(--nw-text);margin:0">Notes &amp; Requests</label>
+        <span class="live-badge" id="chatLiveBadge" style="display:none">Live</span>
+      </div>
       <div id="commentsList"></div>
       <div class="comment-add">
-        <input type="text" id="commentInput" placeholder="Add a note or request...">
-        <button id="btnAddComment">Add</button>
+        <input type="text" id="commentInput" placeholder="Add a note, question, or request...">
+        <button id="btnAddComment">Send</button>
       </div>
     </div>
 
@@ -620,6 +806,19 @@ requireAuth().catch(function(){});
 
     bindEvents();
     refreshSchedule();
+
+    // Notifications: bell badge + realtime subscription
+    if (currentUserId) {
+      setupBell();
+      setupRealtimeNotifications();
+    }
+
+    // Deep link: ?entry=<uuid> opens that entry
+    var params = new URLSearchParams(window.location.search);
+    var deepEntryId = params.get('entry');
+    if (deepEntryId) {
+      openModal(deepEntryId);
+    }
   }
 
   // ─── DROPDOWNS ─────────────────────────────────────────────────────────
@@ -753,6 +952,221 @@ requireAuth().catch(function(){});
     document.getElementById('entryModal').addEventListener('click', function(e) {
       if (e.target === this) closeModal();
     });
+
+    // ─── Bell / notifications ───
+    var bell = document.getElementById('bellBtn');
+    var panel = document.getElementById('notifPanel');
+    if (bell && panel) {
+      bell.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        var open = panel.classList.toggle('open');
+        if (open) refreshNotifPanel();
+      });
+      document.addEventListener('click', function(ev) {
+        if (!panel.contains(ev.target) && ev.target !== bell) {
+          panel.classList.remove('open');
+        }
+      });
+      document.getElementById('btnMarkAllRead').addEventListener('click', async function(ev) {
+        ev.stopPropagation();
+        await NWSchedule.markAllNotificationsRead();
+        refreshBell();
+        refreshNotifPanel();
+      });
+      document.getElementById('btnNotifPrefs').addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        panel.classList.remove('open');
+        openPrefsModal();
+      });
+    }
+
+    // ─── Subscribe toggle in entry modal ───
+    var subBtn = document.getElementById('btnSubscribeToggle');
+    if (subBtn) subBtn.addEventListener('click', toggleEntrySubscription);
+
+    // ─── Notification preferences modal ───
+    document.getElementById('btnPrefsClose').addEventListener('click', function() {
+      document.getElementById('prefsModal').classList.remove('open');
+    });
+    document.getElementById('prefsModal').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('open');
+    });
+    ['prefEmailCreated','prefEmailUpdated','prefEmailComment'].forEach(function(id) {
+      document.getElementById(id).addEventListener('change', savePrefs);
+    });
+  }
+
+  // ─── BELL / NOTIFICATIONS ──────────────────────────────────────────────
+
+  var _realtimeNotifUnsub = null;
+
+  function setupBell() {
+    refreshBell();
+  }
+
+  async function refreshBell() {
+    var r = await NWSchedule.getUnreadNotificationCount();
+    var n = r.count || 0;
+    var b = document.getElementById('bellBadge');
+    if (n > 0) {
+      b.textContent = n > 99 ? '99+' : String(n);
+      b.classList.add('show');
+    } else {
+      b.classList.remove('show');
+    }
+  }
+
+  async function refreshNotifPanel() {
+    var list = document.getElementById('notifList');
+    list.innerHTML = '<div class="notif-empty">Loading…</div>';
+    var r = await NWSchedule.listNotifications({ limit: 30 });
+    var rows = r.data || [];
+    if (!rows.length) {
+      list.innerHTML = '<div class="notif-empty">🎉 You’re all caught up.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(renderNotifItem).join('');
+    list.querySelectorAll('.notif-item').forEach(function(el) {
+      el.addEventListener('click', function() {
+        handleNotifClick(el.getAttribute('data-id'),
+                         el.getAttribute('data-entry'),
+                         el.classList.contains('unread'));
+      });
+    });
+  }
+
+  function renderNotifItem(n) {
+    var icon = n.type === 'comment_added' ? '💬' :
+               n.type === 'entry_updated' ? '✏️' : '📅';
+    var time = relTime(n.created_at);
+    return '<div class="notif-item ' + (n.is_read ? '' : 'unread') +
+             '" data-id="' + n.id + '" data-entry="' + (n.entry_id || '') + '">' +
+             '<div class="notif-icon ' + n.type + '">' + icon + '</div>' +
+             '<div class="notif-body">' +
+               '<div class="notif-title">' + escHtml(n.title || '') + '</div>' +
+               (n.body ? '<div class="notif-preview">' + escHtml(n.body) + '</div>' : '') +
+               '<div class="notif-time">' + time + '</div>' +
+             '</div>' +
+           '</div>';
+  }
+
+  async function handleNotifClick(notifId, entryId, wasUnread) {
+    if (wasUnread) {
+      await NWSchedule.markNotificationRead(notifId);
+      refreshBell();
+    }
+    document.getElementById('notifPanel').classList.remove('open');
+    if (entryId) openModal(entryId);
+  }
+
+  function setupRealtimeNotifications() {
+    if (_realtimeNotifUnsub) _realtimeNotifUnsub();
+    _realtimeNotifUnsub = NWSchedule.subscribeToNotifications(currentUserId, function(notif) {
+      // New notification arrived for me
+      refreshBell();
+      // If the panel is open, refresh it
+      if (document.getElementById('notifPanel').classList.contains('open')) {
+        refreshNotifPanel();
+      } else {
+        // Subtle ping — flash badge
+        var b = document.getElementById('bellBadge');
+        b.style.transition = 'transform .15s';
+        b.style.transform = 'scale(1.4)';
+        setTimeout(function() { b.style.transform = 'scale(1)'; }, 200);
+      }
+    });
+  }
+
+  function relTime(iso) {
+    if (!iso) return '';
+    var ms = Date.now() - new Date(iso).getTime();
+    var s = Math.floor(ms / 1000);
+    if (s < 60)    return 'just now';
+    if (s < 3600)  return Math.floor(s / 60)   + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    if (s < 604800) return Math.floor(s / 86400) + 'd ago';
+    return new Date(iso).toLocaleDateString();
+  }
+
+  // ─── ENTRY SUBSCRIBE BUTTON ────────────────────────────────────────────
+
+  var _isSubscribed = false;
+
+  async function refreshSubscribeBtn(entryId) {
+    if (!entryId || !currentUserId) {
+      document.getElementById('btnSubscribeToggle').style.display = 'none';
+      return;
+    }
+    var r = await NWSchedule.isSubscribedToEntry(entryId);
+    _isSubscribed = !!r.subscribed;
+    var btn = document.getElementById('btnSubscribeToggle');
+    var status = document.getElementById('subscribeStatus');
+    btn.style.display = '';
+    if (_isSubscribed) {
+      btn.classList.add('subscribed');
+      btn.textContent = '✓ Following';
+      status.textContent = 'You receive notifications for this entry.';
+    } else {
+      btn.classList.remove('subscribed');
+      btn.textContent = '+ Follow';
+      status.textContent = 'Follow to get notified about changes & comments.';
+    }
+  }
+
+  async function toggleEntrySubscription() {
+    if (!editingEntryId || !currentUserId) return;
+    if (_isSubscribed) {
+      await NWSchedule.unsubscribeFromEntry(editingEntryId);
+    } else {
+      await NWSchedule.subscribeToEntry(editingEntryId);
+    }
+    refreshSubscribeBtn(editingEntryId);
+  }
+
+  // ─── REALTIME COMMENTS (mini-chat for the open entry) ──────────────────
+
+  var _chatUnsub = null;
+  var _chatRecentIds = {};   // ids that just animated
+
+  function setupChatForEntry(entryId) {
+    teardownChat();
+    if (!entryId) return;
+    document.getElementById('chatLiveBadge').style.display = '';
+    _chatUnsub = NWSchedule.subscribeToEntryComments(entryId, async function(eventType, row) {
+      if (eventType === 'INSERT') {
+        // Mark this id as "fresh" so it animates
+        if (row && row.id) _chatRecentIds[row.id] = true;
+      }
+      // Refetch list to get author_name + ordering
+      var c = await NWSchedule.listComments(editingEntryId);
+      renderComments(c.data || []);
+    });
+  }
+
+  function teardownChat() {
+    if (_chatUnsub) { _chatUnsub(); _chatUnsub = null; }
+    _chatRecentIds = {};
+    document.getElementById('chatLiveBadge').style.display = 'none';
+  }
+
+  // ─── PREFERENCES MODAL ─────────────────────────────────────────────────
+
+  async function openPrefsModal() {
+    var r = await NWSchedule.getNotificationPrefs();
+    var p = r.data || {};
+    document.getElementById('prefEmailCreated').checked = p.email_on_entry_created !== false;
+    document.getElementById('prefEmailUpdated').checked = p.email_on_entry_updated !== false;
+    document.getElementById('prefEmailComment').checked = p.email_on_comment_added !== false;
+    document.getElementById('prefsModal').classList.add('open');
+  }
+
+  async function savePrefs() {
+    var patch = {
+      email_on_entry_created: document.getElementById('prefEmailCreated').checked,
+      email_on_entry_updated: document.getElementById('prefEmailUpdated').checked,
+      email_on_comment_added: document.getElementById('prefEmailComment').checked
+    };
+    await NWSchedule.updateNotificationPrefs(patch);
   }
 
   // ─── REFRESH ───────────────────────────────────────────────────────────
@@ -1364,9 +1778,14 @@ requireAuth().catch(function(){});
       conflictMap = cR.data || {};
       renderTechPicker(e.assigned_tech_ids || []);
       renderComments(e.comments || []);
+      // Subscribe button + realtime chat
+      refreshSubscribeBtn(entryId);
+      setupChatForEntry(entryId);
     } else {
       // New entry — load conflicts for today (default range)
       refreshConflictsAndRender();
+      document.getElementById('btnSubscribeToggle').style.display = 'none';
+      teardownChat();
     }
 
     document.getElementById('entryModal').classList.add('open');
@@ -1378,6 +1797,7 @@ requireAuth().catch(function(){});
     // Clear the comment input on close so reopening doesn't show stale text
     document.getElementById('commentInput').value = '';
     document.getElementById('commentsList').innerHTML = '';
+    teardownChat();
   }
 
   function renderTechPicker(selectedIds) {
@@ -1579,7 +1999,10 @@ requireAuth().catch(function(){});
             '<button class="comment-action-btn del" data-cmt-del="' + escHtml(cm.id) + '">Delete</button>' +
           '</span>'
         : '';
-      html += '<div class="comment" data-cmt-id="' + escHtml(cm.id) + '">' +
+      var classes = 'comment';
+      if (cm.author_id && cm.author_id === currentUserId) classes += ' mine';
+      if (_chatRecentIds && _chatRecentIds[cm.id])         classes += ' fresh';
+      html += '<div class="' + classes + '" data-cmt-id="' + escHtml(cm.id) + '">' +
         '<div class="comment-header">' +
           '<span class="comment-author">' + escHtml(cm.author_name || 'Anonymous') + '</span>' +
           '<span class="comment-time">' + when + '</span>' +
@@ -1590,6 +2013,8 @@ requireAuth().catch(function(){});
     });
     c.innerHTML = html;
     bindCommentActions();
+    // Auto-scroll to the bottom (newest) so chat feels live
+    c.scrollTop = c.scrollHeight;
   }
 
   function bindCommentActions() {
@@ -1676,6 +2101,6 @@ requireAuth().catch(function(){});
 </script>
 
 <script src="form-utils.js?v=114"></script>
-<script src="sw-register.js?v=126"></script>
+<script src="sw-register.js?v=138"></script>
 </body>
 </html>

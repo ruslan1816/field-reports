@@ -1,0 +1,162 @@
+// =============================================================================
+// Northern Wolves — Apps Script email handler for Supabase notifications
+// =============================================================================
+// PASTE this into your existing Apps Script project alongside the Drive
+// uploader. It adds a new endpoint that Supabase Database Webhook hits whenever
+// a notification row is inserted. The handler sends a Gmail email and posts
+// back to Supabase to mark email_sent=true.
+//
+// SETUP (one time, ~3 min):
+//   1. Open your existing Apps Script project (the one with the Drive uploader).
+//   2. Add a new file (File → New → Script). Paste the code below.
+//   3. Hit "Deploy → Manage Deployments → Edit (pencil) → New Version" so the
+//      web app reflects the new code. Re-copy the /exec URL if it changed.
+//   4. In Supabase dashboard:
+//        Database → Webhooks → Create a new hook
+//        Name:           notifications_email
+//        Table:          public.notifications
+//        Events:         INSERT
+//        Type:           HTTP Request
+//        URL:            <your /exec URL from step 3>
+//        HTTP Method:    POST
+//        HTTP Headers:   Content-Type: application/json
+//   5. Test by creating a schedule entry from another user's account — the
+//      subscribers should receive a Gmail within ~10 seconds.
+//
+// SUPABASE_SERVICE_KEY (optional): set this if you want Apps Script to mark
+// email_sent=true on the notification row. Leave blank to skip the callback.
+// Get it from Supabase: Project Settings → API → service_role key.
+// =============================================================================
+
+const SUPABASE_URL         = 'https://vrscvnebznmomkdlhooi.supabase.co';
+const SUPABASE_SERVICE_KEY = '';  // optional — paste service_role to update email_sent
+
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+
+    // The Supabase webhook body looks like:
+    //   { type:'INSERT', table:'notifications', record:{...}, schema:'public', old_record:null }
+    // We also support a manual { action:'sendNotification', record:{...} } shape for testing.
+
+    var record = (payload && payload.record) ? payload.record :
+                 (payload && payload.action === 'sendNotification' ? payload.record : null);
+
+    if (!record) {
+      return _json({ ok: false, error: 'no record in payload' });
+    }
+    if (!record.recipient_email) {
+      return _json({ ok: false, skipped: 'no recipient_email' });
+    }
+
+    // Honor user preferences. Skip if the user opted out for this type.
+    var typeCol = ({
+      entry_created:  'email_on_entry_created',
+      entry_updated:  'email_on_entry_updated',
+      comment_added:  'email_on_comment_added'
+    })[record.type];
+    if (typeCol) {
+      var prefs = _fetchPrefs(record.recipient_id);
+      if (prefs && prefs[typeCol] === false) {
+        return _json({ ok: true, skipped: 'user opted out of ' + record.type });
+      }
+    }
+
+    // Build subject + html body
+    var subject = '[NW Schedule] ' + record.title;
+    var actor   = record.actor_name || 'Someone';
+    var bodyTxt = record.body || '';
+    var link    = record.link_url || 'https://app.northernwolvesac.com/schedule.html';
+
+    var html =
+      '<div style="font-family:Inter,Arial,sans-serif;max-width:560px">' +
+        '<div style="background:#0696D7;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0">' +
+          '<div style="font-size:18px;font-weight:700">Northern Wolves Schedule</div>' +
+          '<div style="font-size:12px;opacity:.85;margin-top:2px">' + _esc(_typeLabel(record.type)) + '</div>' +
+        '</div>' +
+        '<div style="background:#fff;border:1px solid #e2e8f0;border-top:0;padding:16px 18px;border-radius:0 0 8px 8px">' +
+          '<div style="font-weight:700;font-size:15px;color:#0f172a;margin-bottom:8px">' +
+            _esc(record.title) +
+          '</div>' +
+          (bodyTxt
+            ? '<div style="font-size:14px;color:#334155;white-space:pre-wrap;margin-bottom:14px">' + _esc(bodyTxt) + '</div>'
+            : '') +
+          '<a href="' + link + '" style="display:inline-block;background:#0696D7;color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;font-weight:600;font-size:14px">Open in app →</a>' +
+          '<div style="font-size:11px;color:#94a3b8;margin-top:14px">' +
+            'You’re receiving this because you’re subscribed to this schedule entry. ' +
+            'Adjust email preferences in the app.' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    var plain = record.title + '\n\n' + (bodyTxt ? bodyTxt + '\n\n' : '') + 'Open: ' + link;
+
+    GmailApp.sendEmail(record.recipient_email, subject, plain, {
+      htmlBody: html,
+      name:     'Northern Wolves Schedule',
+      noReply:  true
+    });
+
+    // Mark as sent (optional — only if SUPABASE_SERVICE_KEY is set)
+    if (SUPABASE_SERVICE_KEY && record.id) {
+      _markEmailSent(record.id);
+    }
+
+    return _json({ ok: true, sent_to: record.recipient_email });
+  } catch (err) {
+    return _json({ ok: false, error: String(err && err.message || err) });
+  }
+}
+
+function _fetchPrefs(userId) {
+  if (!SUPABASE_SERVICE_KEY || !userId) return null;
+  try {
+    var url = SUPABASE_URL + '/rest/v1/notification_preferences?user_id=eq.' + encodeURIComponent(userId) + '&select=*';
+    var resp = UrlFetchApp.fetch(url, {
+      method: 'get',
+      headers: {
+        'apikey':        SUPABASE_SERVICE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY
+      },
+      muteHttpExceptions: true
+    });
+    var arr = JSON.parse(resp.getContentText() || '[]');
+    return arr[0] || null;
+  } catch (e) { return null; }
+}
+
+function _markEmailSent(notifId) {
+  try {
+    var url = SUPABASE_URL + '/rest/v1/notifications?id=eq.' + encodeURIComponent(notifId);
+    UrlFetchApp.fetch(url, {
+      method: 'patch',
+      contentType: 'application/json',
+      headers: {
+        'apikey':        SUPABASE_SERVICE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY,
+        'Prefer':        'return=minimal'
+      },
+      payload: JSON.stringify({ email_sent: true, email_sent_at: new Date().toISOString() }),
+      muteHttpExceptions: true
+    });
+  } catch (e) { /* swallow */ }
+}
+
+function _typeLabel(t) {
+  return ({
+    entry_created: 'New schedule entry',
+    entry_updated: 'Schedule entry updated',
+    comment_added: 'New comment'
+  })[t] || 'Update';
+}
+
+function _esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function _json(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
