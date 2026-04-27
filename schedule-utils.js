@@ -204,14 +204,16 @@
 
       // Graceful fallback if pending-crew-status.sql hasn't been applied yet:
       // older DB rejects 'pending-crew' via the CHECK constraint. Retry as 'scheduled'.
+      var warning = null;
       if (r.error && row.status === 'pending-crew') {
         var msg = (r.error.message || '') + ' ' + (r.error.details || '');
         if (/check constraint|status_check|invalid input value/i.test(msg)) {
           row.status = 'scheduled';
           r = await supabaseClient.from('schedule_entries').insert(row).select().single();
+          if (!r.error) warning = 'pending-crew-needs-migration';
         }
       }
-      return { data: r.data, error: r.error };
+      return { data: r.data, error: r.error, warning: warning };
     } catch (err) {
       return { data: null, error: err };
     }
@@ -240,6 +242,7 @@
     var r = await supabaseClient.from('schedule_entries').update(stampedPatch).eq('id', id).select().single();
 
     // Fallbacks if older schema is in place:
+    var warning = null;
     if (r.error) {
       var msg = (r.error.message || '') + ' ' + (r.error.details || '');
       // (a) updated_by column missing (pre-Phase 7)
@@ -251,9 +254,10 @@
       if (r.error && basePatch.status === 'pending-crew' && /check constraint|status_check|invalid input value/i.test(msg)) {
         basePatch.status = 'scheduled';
         r = await supabaseClient.from('schedule_entries').update(basePatch).eq('id', id).select().single();
+        if (!r.error) warning = 'pending-crew-needs-migration';
       }
     }
-    return { data: r.data, error: r.error };
+    return { data: r.data, error: r.error, warning: warning };
   }
 
   async function deleteEntry(id) {

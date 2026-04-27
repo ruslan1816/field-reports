@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=123"></script>
 <script src="auth.js?v=123"></script>
-<script src="schedule-utils.js?v=141"></script>
+<script src="schedule-utils.js?v=144"></script>
 <style>
   body { padding-bottom: 24px; }
   .header .profile-circle { margin-left: auto; }
@@ -2052,6 +2052,12 @@ requireAuth().catch(function(){});
       ? await NWSchedule.updateEntry(editingEntryId, entry)
       : await NWSchedule.createEntry(entry);
     if (r.error) { showError('Save failed: ' + r.error.message); return; }
+    if (r.warning === 'pending-crew-needs-migration') {
+      showConflictToast(
+        'Saved as "Scheduled" — DB does not yet accept "Pending Crew". ' +
+        'Run pending-crew-status.sql in Supabase SQL Editor to enable it.'
+      );
+    }
     closeModal();
     refreshSchedule();
   }
