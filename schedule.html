@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=123"></script>
 <script src="auth.js?v=123"></script>
-<script src="schedule-utils.js?v=144"></script>
+<script src="schedule-utils.js?v=145"></script>
 <style>
   body { padding-bottom: 24px; }
   .header .profile-circle { margin-left: auto; }
@@ -1240,8 +1240,8 @@ requireAuth().catch(function(){});
         var hasCrew = (e.assigned_tech_ids && e.assigned_tech_ids.length > 0) ||
                       (e.is_subcontractor && e.subcontractor_name);
         if (hasCrew) return false;
-        // Only count as pending-crew when status is implicit — explicit Delayed/Blocked/etc. wins
-        return !e.status || e.status === 'scheduled' || e.status === 'pending-approval';
+        // Only count as pending-crew when status is implicit — explicit Delayed/etc. wins
+        return !e.status || e.status === 'scheduled';
       });
     }
     // "My Schedule" view auto-filters to entries assigned to current user
@@ -1522,10 +1522,10 @@ requireAuth().catch(function(){});
           var hasNeed = needCount > 0;
           var prio = (e.priority === 'urgent') ? ' tl-block-priority-urgent' : '';
           // Highlight pending-crew (no internal crew, no sub) with a red block.
-          // Explicit Delayed/Blocked/In Progress/Completed/Cancelled win — no red.
+          // Explicit Delayed / In Progress / Completed / Cancelled win — no red.
           var hasInternalCrew = e.assigned_tech_ids && e.assigned_tech_ids.length > 0;
           var hasSub          = e.is_subcontractor && e.subcontractor_name;
-          var implicitStatus  = !e.status || e.status === 'scheduled' || e.status === 'pending-approval';
+          var implicitStatus  = !e.status || e.status === 'scheduled';
           var blockNeedsCrew  = (e.status === 'pending-crew') ||
                                 (!hasInternalCrew && !hasSub && implicitStatus);
           if (blockNeedsCrew) prio += ' tl-block-needs-crew';
@@ -1753,11 +1753,11 @@ requireAuth().catch(function(){});
     }
 
     // "Pending Crew Assignment" banner — a job is on the books but no one is on it yet.
-    // Only triggers when status is implicit (scheduled / pending-approval / unset) —
-    // an explicit choice like Delayed / Blocked / In Progress / Completed wins.
+    // Only triggers when status is implicit (scheduled / unset) —
+    // an explicit choice like Delayed / In Progress / Completed / Cancelled wins.
     var hasInternalCrew = e.assigned_tech_ids && e.assigned_tech_ids.length > 0;
     var hasSub          = e.is_subcontractor && e.subcontractor_name;
-    var implicitStatus  = !e.status || e.status === 'scheduled' || e.status === 'pending-approval';
+    var implicitStatus  = !e.status || e.status === 'scheduled';
     var needsCrew       = (e.status === 'pending-crew') ||
                           (!hasInternalCrew && !hasSub && implicitStatus);
     var needsCrewBanner = '';

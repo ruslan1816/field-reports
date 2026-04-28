@@ -32,12 +32,10 @@
 
   var STATUSES = [
     { value: 'pending-crew',     label: '🚨 Pending Crew Assignment', color: '#dc2626' },
-    { value: 'pending-approval', label: '⏳ Pending Approval',         color: '#a855f7' },
     { value: 'scheduled',        label: 'Scheduled',                   color: '#0696D7' },
     { value: 'in-progress',      label: 'In Progress',                 color: '#f59e0b' },
     { value: 'completed',        label: 'Completed',                   color: '#10b981' },
     { value: 'delayed',          label: 'Delayed',                     color: '#ef4444' },
-    { value: 'blocked',          label: 'Blocked',                     color: '#7c3aed' },
     { value: 'cancelled',        label: 'Cancelled',                   color: '#94a3b8' }
   ];
 
@@ -50,10 +48,13 @@
     var hasCrew = (entry.assigned_tech_ids && entry.assigned_tech_ids.length > 0) ||
                   (entry.is_subcontractor && entry.subcontractor_name);
     if (!hasCrew) {
-      if (!entry.status || entry.status === 'scheduled' || entry.status === 'pending-approval') {
+      // No crew → auto-flip to pending-crew unless user picked an explicit
+      // working/terminal state (in-progress / completed / delayed / cancelled).
+      if (!entry.status || entry.status === 'scheduled') {
         entry.status = 'pending-crew';
       }
     } else if (entry.status === 'pending-crew') {
+      // Crew assigned, was pending-crew → auto-flip to scheduled.
       entry.status = 'scheduled';
     }
     return entry;
