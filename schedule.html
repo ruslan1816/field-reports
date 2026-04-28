@@ -642,8 +642,8 @@
 
   <!-- Toolbar -->
   <div class="schedule-toolbar">
-    <div class="view-tab active" data-view="list">📋 List</div>
-    <div class="view-tab" data-view="timeline">📊 Timeline</div>
+    <div class="view-tab" data-view="list">📋 List</div>
+    <div class="view-tab active" data-view="timeline">📊 Timeline</div>
     <div class="view-tab" data-view="by-crew">👷 By Crew</div>
     <div class="view-tab" data-view="by-project">📁 By Project</div>
     <div class="view-tab" data-view="availability">🟢 Availability</div>
@@ -786,7 +786,7 @@ requireAuth().catch(function(){});
   var currentUserId = null;   // profiles.id of the signed-in user (for comment ownership)
   var editingEntryId = null;
   var lookaheadDays = 14;
-  var currentView = 'list';
+  var currentView = 'timeline';
   var conflictMap = {};   // techId -> [conflicts] for the current modal date range
   var conflictDebounce = null;
   var myTechId = null;    // schedule_techs.id for the current user (if linked)
