@@ -981,6 +981,10 @@ requireAuth().catch(function(){});
     // Re-evaluate tech availability when start/end date changes
     document.getElementById('mEntryStart').addEventListener('change', scheduleConflictRefresh);
     document.getElementById('mEntryEnd').addEventListener('change', scheduleConflictRefresh);
+    // iOS Safari sometimes doesn't fire 'change' on the native date picker —
+    // also listen to 'input' so the conflict refresh runs reliably.
+    document.getElementById('mEntryStart').addEventListener('input', scheduleConflictRefresh);
+    document.getElementById('mEntryEnd').addEventListener('input', scheduleConflictRefresh);
     document.getElementById('btnAddComment').addEventListener('click', addCommentHandler);
     document.getElementById('commentInput').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') addCommentHandler();
@@ -1888,6 +1892,26 @@ requireAuth().catch(function(){});
   function renderTechPicker(selectedIds) {
     var c = document.getElementById('mEntryTechs');
     var html = '';
+
+    // Date-range banner so it's obvious which dates availability is evaluated for
+    var startVal = document.getElementById('mEntryStart').value || '';
+    var endVal   = document.getElementById('mEntryEnd').value || '';
+    var conflictCount = 0;
+    Object.keys(conflictMap).forEach(function(k) {
+      if (conflictMap[k] && conflictMap[k].length) conflictCount++;
+    });
+    if (startVal && endVal) {
+      var rangeLabel = startVal === endVal
+        ? startVal
+        : (startVal + ' → ' + endVal);
+      html += '<div style="font-size:11px;color:var(--nw-muted);margin:0 4px 6px;padding:6px 10px;background:#f8fafc;border:1px solid var(--nw-border);border-radius:6px">' +
+        'Availability for <b style="color:var(--nw-text)">' + rangeLabel + '</b>' +
+        (conflictCount > 0
+          ? ' · <span style="color:#92400e">' + conflictCount + ' tech' + (conflictCount === 1 ? '' : 's') + ' booked elsewhere</span>'
+          : ' · <span style="color:#16a34a">all clear</span>') +
+        '</div>';
+    }
+
     var grouped = {};
     allTechs.forEach(function(t) {
       var k = t.primary_skill;
@@ -1910,13 +1934,18 @@ requireAuth().catch(function(){});
         if (t.is_foreman) classes += ' foreman';
         if (unavailable) classes += ' unavailable';
         var titleAttr = '';
+        var inlineConflict = '';
         if (unavailable) {
           var c0 = conflicts[0];
           var label = (c0.projectShortCode ? c0.projectShortCode + ' · ' : '') + (c0.projectName || 'another job');
           titleAttr = ' title="Already booked on ' + escHtml(label) + ' (' + c0.startDate + ' to ' + c0.endDate + ')"';
+          // Visible inline tag — works on mobile where there's no hover
+          inlineConflict = ' <small style="font-weight:600;opacity:.85">· ' +
+            escHtml(c0.projectShortCode || c0.projectName || 'job') +
+            ' until ' + c0.endDate.substring(5) + '</small>';
         }
         html += '<span class="' + classes + '" data-tech-id="' + t.id + '"' + titleAttr + '>' +
-          escHtml(t.full_name) +
+          escHtml(t.full_name) + inlineConflict +
           '</span>';
       });
     });
