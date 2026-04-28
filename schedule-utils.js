@@ -283,10 +283,13 @@
    * id of the entry currently being edited — we skip it so a tech doesn't
    * "conflict with themselves" when the user is just resaving.
    */
-  async function findTechConflicts(startDate, endDate, excludeEntryId) {
+  async function findTechConflicts(startDate, endDate, excludeEntryId, opts) {
     if (!startDate || !endDate) return { data: {}, error: null };
+    opts = opts || {};
+    var newStartTime = opts.startTime || null;   // 'HH:MM' or null = all-day
+    var newEndTime   = opts.endTime   || null;
     try {
-      var sel = 'id,project_id,crew_type,start_date,end_date,assigned_tech_ids,status,' +
+      var sel = 'id,project_id,crew_type,start_date,end_date,start_time,end_time,assigned_tech_ids,status,' +
                 'project:projects(project_name,short_code)';
       var q = supabaseClient.from('schedule_entries').select(sel)
         // Overlap test: A.start <= B.end AND A.end >= B.start
@@ -297,18 +300,44 @@
       var r = await q;
       if (r.error) return { data: {}, error: r.error };
 
+      // Helper: do two HH:MM[:SS] time windows overlap on the same calendar day?
+      function timesOverlap(aStart, aEnd, bStart, bEnd) {
+        // Normalize to HH:MM for comparison (string compare works)
+        var as = String(aStart).substring(0, 5);
+        var ae = String(aEnd).substring(0, 5);
+        var bs = String(bStart).substring(0, 5);
+        var be = String(bEnd).substring(0, 5);
+        // No overlap if A ends at-or-before B starts, or B ends at-or-before A starts
+        return !(ae <= bs || be <= as);
+      }
+
       var rows = r.data || [];
       var map = {};
       rows.forEach(function(row) {
         if (excludeEntryId && row.id === excludeEntryId) return;
         var ids = row.assigned_tech_ids || [];
         if (!ids.length) return;
+
+        // Time-window check: if BOTH entries are single-day on the same date
+        // AND BOTH have explicit time windows, only conflict when they overlap.
+        // (Either one being all-day → blocks the whole day → conflict.)
+        var rowSingleDay = (row.start_date === row.end_date);
+        var newSingleDay = (startDate === endDate);
+        var sameDay = rowSingleDay && newSingleDay && (row.start_date === startDate);
+        if (sameDay && newStartTime && newEndTime && row.start_time && row.end_time) {
+          if (!timesOverlap(newStartTime, newEndTime, row.start_time, row.end_time)) {
+            return; // skip — non-overlapping time windows on same day
+          }
+        }
+
         var info = {
           entryId: row.id,
           projectName: row.project ? (row.project.project_name || '') : '',
           projectShortCode: row.project ? (row.project.short_code || '') : '',
           startDate: row.start_date,
           endDate: row.end_date,
+          startTime: row.start_time || null,
+          endTime: row.end_time || null,
           crewType: row.crew_type
         };
         ids.forEach(function(tid) {

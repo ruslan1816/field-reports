@@ -715,6 +715,20 @@
       </div>
     </div>
 
+    <div class="row">
+      <div class="field">
+        <label>Start Time <small style="font-weight:500;text-transform:none;color:var(--nw-muted)">(optional — leave blank for all-day)</small></label>
+        <input type="time" id="mEntryStartTime">
+      </div>
+      <div class="field">
+        <label>End Time</label>
+        <input type="time" id="mEntryEndTime">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--nw-muted);margin:-4px 0 12px;line-height:1.4">
+      💡 Use time windows to assign the <b>same crew to multiple sites in one day</b> — e.g. 7-11am at Site A and 12-4pm at Site B. Conflict checker will allow it as long as the times don't overlap.
+    </div>
+
     <div class="field">
       <label>Manpower Needed (count)</label>
       <input type="number" id="mEntryManpower" min="0" placeholder="e.g. 2 pipefitters → 2">
@@ -981,10 +995,14 @@ requireAuth().catch(function(){});
     // Re-evaluate tech availability when start/end date changes
     document.getElementById('mEntryStart').addEventListener('change', scheduleConflictRefresh);
     document.getElementById('mEntryEnd').addEventListener('change', scheduleConflictRefresh);
-    // iOS Safari sometimes doesn't fire 'change' on the native date picker —
+    document.getElementById('mEntryStartTime').addEventListener('change', scheduleConflictRefresh);
+    document.getElementById('mEntryEndTime').addEventListener('change', scheduleConflictRefresh);
+    // iOS Safari sometimes doesn't fire 'change' on native date/time pickers —
     // also listen to 'input' so the conflict refresh runs reliably.
     document.getElementById('mEntryStart').addEventListener('input', scheduleConflictRefresh);
     document.getElementById('mEntryEnd').addEventListener('input', scheduleConflictRefresh);
+    document.getElementById('mEntryStartTime').addEventListener('input', scheduleConflictRefresh);
+    document.getElementById('mEntryEndTime').addEventListener('input', scheduleConflictRefresh);
     document.getElementById('btnAddComment').addEventListener('click', addCommentHandler);
     document.getElementById('commentInput').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') addCommentHandler();
@@ -1559,8 +1577,12 @@ requireAuth().catch(function(){});
             fullCrewList = [e.subcontractor_name];
           }
 
-          // Line 1: crew icon + scope or crew label
-          var line1 = ct.icon + ' ' + (e.scope_summary || ct.label);
+          // Line 1: crew icon + time window (if any) + scope or crew label
+          var timePrefix = '';
+          if (e.start_time && e.end_time) {
+            timePrefix = e.start_time.substring(0,5) + '–' + e.end_time.substring(0,5) + ' · ';
+          }
+          var line1 = ct.icon + ' ' + timePrefix + (e.scope_summary || ct.label);
           // Line 2: crew names — or pending-crew banner — or "Need N more" badge
           var line2Html = '';
           if (blockNeedsCrew) {
@@ -1575,7 +1597,10 @@ requireAuth().catch(function(){});
             line2Html = '<span class="tl-line tl-line-2">' + escHtml(crewLabel) + '</span>';
           }
 
-          var tooltip = ct.label + ' · ' + e.start_date + ' → ' + e.end_date +
+          var tooltipTime = (e.start_time && e.end_time)
+            ? (' (' + e.start_time.substring(0,5) + '–' + e.end_time.substring(0,5) + ')')
+            : '';
+          var tooltip = ct.label + ' · ' + e.start_date + ' → ' + e.end_date + tooltipTime +
                         (fullCrewList.length ? '\nCrew: ' + fullCrewList.join(', ') : '') +
                         (e.scope_summary ? '\n' + e.scope_summary : '') +
                         (hasNeed ? '\n⚠ Need ' + needCount + ' more crew' : '');
@@ -1780,7 +1805,12 @@ requireAuth().catch(function(){});
     var dateStr;
     if (e.start_date === e.end_date) dateStr = NWSchedule.fmtDateShort(e.start_date);
     else dateStr = NWSchedule.fmtDateShort(e.start_date) + ' → ' + NWSchedule.fmtDateShort(e.end_date);
-    if (e.start_time) dateStr = e.start_time.substring(0,5) + ' · ' + dateStr;
+    if (e.start_time && e.end_time) {
+      // Show full time window e.g. "7:00–11:00 · Apr 28"
+      dateStr = e.start_time.substring(0,5) + '–' + e.end_time.substring(0,5) + ' · ' + dateStr;
+    } else if (e.start_time) {
+      dateStr = e.start_time.substring(0,5) + ' · ' + dateStr;
+    }
 
     var p = e.project;
     var projTitle = p ? ((p.short_code ? p.short_code + ' · ' : '') + p.name) : 'No project';
@@ -1828,6 +1858,8 @@ requireAuth().catch(function(){});
     document.getElementById('mEntryCrew').value = '';
     document.getElementById('mEntryStart').value = NWSchedule.todayISO();
     document.getElementById('mEntryEnd').value = NWSchedule.todayISO();
+    document.getElementById('mEntryStartTime').value = '';
+    document.getElementById('mEntryEndTime').value = '';
     document.getElementById('mEntryManpower').value = '';
     document.getElementById('mEntrySub').value = '';
     document.getElementById('mEntryScope').value = '';
@@ -1842,7 +1874,7 @@ requireAuth().catch(function(){});
     renderTechPicker([]);
 
     // Lock for non-managers
-    var fields = ['mEntryProject','mEntryCrew','mEntryStart','mEntryEnd','mEntryManpower','mEntrySub','mEntryScope','mEntryNotes','mEntryPriority','mEntryStatus'];
+    var fields = ['mEntryProject','mEntryCrew','mEntryStart','mEntryEnd','mEntryStartTime','mEntryEndTime','mEntryManpower','mEntrySub','mEntryScope','mEntryNotes','mEntryPriority','mEntryStatus'];
     fields.forEach(function(id) {
       document.getElementById(id).disabled = !canWrite;
     });
@@ -1856,14 +1888,19 @@ requireAuth().catch(function(){});
       document.getElementById('mEntryCrew').value = e.crew_type;
       document.getElementById('mEntryStart').value = e.start_date;
       document.getElementById('mEntryEnd').value = e.end_date;
+      // Time inputs accept HH:MM, DB returns HH:MM:SS — trim to first 5 chars
+      document.getElementById('mEntryStartTime').value = e.start_time ? String(e.start_time).substring(0, 5) : '';
+      document.getElementById('mEntryEndTime').value   = e.end_time   ? String(e.end_time).substring(0, 5)   : '';
       document.getElementById('mEntryManpower').value = e.manpower_needed || '';
       document.getElementById('mEntrySub').value = e.subcontractor_name || '';
       document.getElementById('mEntryScope').value = e.scope_summary || '';
       document.getElementById('mEntryNotes').value = e.notes || '';
       document.getElementById('mEntryPriority').value = e.priority || 'normal';
       document.getElementById('mEntryStatus').value = e.status || 'scheduled';
-      // Load conflicts for this date range FIRST, then render with selected
-      var cR = await NWSchedule.findTechConflicts(e.start_date, e.end_date, entryId);
+      // Load conflicts for this date range + time window FIRST
+      var cR = await NWSchedule.findTechConflicts(e.start_date, e.end_date, entryId, {
+        startTime: e.start_time, endTime: e.end_time
+      });
       conflictMap = cR.data || {};
       renderTechPicker(e.assigned_tech_ids || []);
       renderComments(e.comments || []);
@@ -1977,13 +2014,17 @@ requireAuth().catch(function(){});
   async function refreshConflictsAndRender() {
     var start = document.getElementById('mEntryStart').value;
     var end   = document.getElementById('mEntryEnd').value;
+    var startTime = document.getElementById('mEntryStartTime').value || null;
+    var endTime   = document.getElementById('mEntryEndTime').value   || null;
     if (!start || !end || end < start) {
       conflictMap = {};
       var current = getSelectedTechs().ids;
       renderTechPicker(current);
       return;
     }
-    var r = await NWSchedule.findTechConflicts(start, end, editingEntryId);
+    var r = await NWSchedule.findTechConflicts(start, end, editingEntryId, {
+      startTime: startTime, endTime: endTime
+    });
     conflictMap = r.data || {};
     var current = getSelectedTechs().ids;
     var freshlyConflicting = [];
@@ -2043,9 +2084,23 @@ requireAuth().catch(function(){});
     }
     if (end < start) { showError('End date must be ≥ start date.'); return; }
 
+    // Time window (optional). If only one of the two is set, ignore.
+    var startTime = document.getElementById('mEntryStartTime').value || null;
+    var endTime   = document.getElementById('mEntryEndTime').value   || null;
+    if ((startTime && !endTime) || (!startTime && endTime)) {
+      showError('Set both Start Time and End Time, or leave both blank for all-day.');
+      return;
+    }
+    if (startTime && endTime && endTime <= startTime) {
+      showError('End Time must be after Start Time.');
+      return;
+    }
+
     // Final server-side conflict check (in case the user selected a tech and
     // then someone else booked them on a different page right before save).
-    var freshConflicts = await NWSchedule.findTechConflicts(start, end, editingEntryId);
+    var freshConflicts = await NWSchedule.findTechConflicts(start, end, editingEntryId, {
+      startTime: startTime, endTime: endTime
+    });
     if (!freshConflicts.error) conflictMap = freshConflicts.data || {};
 
     var techs = getSelectedTechs();
@@ -2066,6 +2121,8 @@ requireAuth().catch(function(){});
       crew_type: crew,
       start_date: start,
       end_date: end,
+      start_time: startTime,
+      end_time: endTime,
       manpower_needed: parseInt(document.getElementById('mEntryManpower').value, 10) || null,
       assigned_tech_ids: techs.ids,
       assigned_tech_names: techs.names,
