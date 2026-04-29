@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=123"></script>
 <script src="auth.js?v=123"></script>
-<script src="schedule-utils.js?v=145"></script>
+<script src="schedule-utils.js?v=149"></script>
 <style>
   body { padding-bottom: 24px; }
   .header .profile-circle { margin-left: auto; }
@@ -634,6 +634,17 @@
         </label>
       </div>
 
+      <div style="margin: 16px 0 6px; font-size: 13px; font-weight: 700; color: var(--nw-text); border-top: 1px solid var(--nw-border); padding-top: 14px;">
+        🔔 Push notifications on this device
+      </div>
+      <div class="pref-row" id="pushPrefRow">
+        <span class="pref-label">
+          <span id="pushPrefLabel">Loading…</span>
+          <small style="display:block;font-weight:400;color:var(--nw-muted);font-size:11px;margin-top:2px" id="pushPrefHint"></small>
+        </span>
+        <button class="subscribe-toggle" id="btnPushToggle" style="display:none">Enable</button>
+      </div>
+
       <div class="modal-actions">
         <button class="btn-cancel" id="btnPrefsClose">Close</button>
       </div>
@@ -1052,6 +1063,8 @@ requireAuth().catch(function(){});
     ['prefEmailCreated','prefEmailUpdated','prefEmailComment'].forEach(function(id) {
       document.getElementById(id).addEventListener('change', savePrefs);
     });
+    var pushBtn = document.getElementById('btnPushToggle');
+    if (pushBtn) pushBtn.addEventListener('click', togglePush);
   }
 
   // ─── BELL / NOTIFICATIONS ──────────────────────────────────────────────
@@ -1215,6 +1228,7 @@ requireAuth().catch(function(){});
     document.getElementById('prefEmailCreated').checked = p.email_on_entry_created !== false;
     document.getElementById('prefEmailUpdated').checked = p.email_on_entry_updated !== false;
     document.getElementById('prefEmailComment').checked = p.email_on_comment_added !== false;
+    refreshPushPrefRow();
     document.getElementById('prefsModal').classList.add('open');
   }
 
@@ -1225,6 +1239,59 @@ requireAuth().catch(function(){});
       email_on_comment_added: document.getElementById('prefEmailComment').checked
     };
     await NWSchedule.updateNotificationPrefs(patch);
+  }
+
+  // ─── PUSH NOTIFICATIONS (Phase 3) ──────────────────────────────────────
+
+  async function refreshPushPrefRow() {
+    var label = document.getElementById('pushPrefLabel');
+    var hint  = document.getElementById('pushPrefHint');
+    var btn   = document.getElementById('btnPushToggle');
+
+    if (!NWSchedule.isPushSupported()) {
+      label.textContent = 'Not supported on this device';
+      hint.textContent  = 'Install the app to your home screen first (iPhone: Safari → Share → Add to Home Screen)';
+      btn.style.display = 'none';
+      return;
+    }
+    var perm = NWSchedule.getPushPermission();
+    if (perm === 'denied') {
+      label.textContent = 'Blocked by browser';
+      hint.textContent  = 'Open device Settings → Notifications → NW Field → enable, then refresh.';
+      btn.style.display = 'none';
+      return;
+    }
+
+    var subbed = await NWSchedule.isPushSubscribed();
+    if (subbed) {
+      label.textContent = '✓ Push enabled';
+      hint.textContent  = 'You’ll get a push when subscribers see new activity';
+      btn.textContent   = 'Disable';
+      btn.classList.remove('subscribed');
+      btn.style.display = '';
+    } else {
+      label.textContent = 'Not enabled';
+      hint.textContent  = 'Enable to receive push on the lock screen';
+      btn.textContent   = 'Enable';
+      btn.classList.add('subscribed');
+      btn.style.display = '';
+    }
+  }
+
+  async function togglePush() {
+    var btn = document.getElementById('btnPushToggle');
+    btn.disabled = true;
+    var subbed = await NWSchedule.isPushSubscribed();
+    if (subbed) {
+      var r = await NWSchedule.disablePushNotifications();
+      if (r.error) showConflictToast('Failed to disable push: ' + (r.error.message || r.error));
+    } else {
+      var r = await NWSchedule.enablePushNotifications();
+      if (r.error) showConflictToast('Failed to enable push: ' + (r.error.message || r.error));
+      else showConflictToast('Push notifications enabled. Test by asking another PM to create an entry.');
+    }
+    btn.disabled = false;
+    refreshPushPrefRow();
   }
 
   // ─── REFRESH ───────────────────────────────────────────────────────────

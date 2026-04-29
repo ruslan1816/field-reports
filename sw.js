@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nw-field-v148';
+const CACHE_NAME = 'nw-field-v149';
 const ASSETS = [
   './',
   './index.html',
@@ -87,6 +87,43 @@ self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// Web Push — show notification when Edge Function delivers a push
+self.addEventListener('push', event => {
+  if (!event.data) return;
+  let payload = {};
+  try { payload = event.data.json(); }
+  catch (e) { payload = { title: 'Northern Wolves', body: event.data.text() }; }
+  const title = payload.title || 'Northern Wolves Schedule';
+  const options = {
+    body: payload.body || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    data: { url: payload.url || './schedule.html', entry_id: payload.entry_id || null },
+    tag: 'nw-' + (payload.entry_id || payload.notification_id || Date.now()),
+    renotify: true,
+    requireInteraction: false
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// When the user taps the push notification, focus an existing window or open a new one.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || './schedule.html';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      for (const client of windowClients) {
+        // Match by app origin (PWA scope)
+        if (client.url && client.url.indexOf(self.registration.scope) === 0 && 'focus' in client) {
+          if ('navigate' in client) client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
 });
 
 // Fetch strategy:

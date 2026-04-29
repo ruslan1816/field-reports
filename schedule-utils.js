@@ -556,6 +556,100 @@
     return { data: r.data, error: r.error };
   }
 
+  // ─── WEB PUSH (Phase 3) ─────────────────────────────────────────────────────
+
+  // VAPID public key for Northern Wolves push subscriptions
+  var VAPID_PUBLIC_KEY = 'BIeh5wDv_IGOBRRWofV_bNkarERUb026oejR6gckelXAWY1mqq34kev0YjvcQephGiEcA-W7HT2qSSt3AvQKBdk';
+
+  function _urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = window.atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  function _bufToB64(buf) {
+    var bytes = new Uint8Array(buf);
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return window.btoa(bin);
+  }
+
+  /** Returns true if Web Push is supported (PWA installed on iOS, modern Android, desktop Chrome/FF/Edge). */
+  function isPushSupported() {
+    return ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+  }
+
+  /** Returns the current Notification permission ('default' | 'granted' | 'denied'). */
+  function getPushPermission() {
+    if (!('Notification' in window)) return 'unsupported';
+    return Notification.permission;
+  }
+
+  /**
+   * Subscribe to web push, save the subscription to push_subscriptions, and return it.
+   * Triggers the browser permission prompt the first time.
+   */
+  async function enablePushNotifications() {
+    if (!isPushSupported()) return { error: { message: 'Push not supported on this device/browser' } };
+
+    var perm = await Notification.requestPermission();
+    if (perm !== 'granted') return { error: { message: 'Notification permission denied' } };
+
+    var reg = await navigator.serviceWorker.ready;
+    var existing = await reg.pushManager.getSubscription();
+    if (!existing) {
+      existing = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+
+    var json = existing.toJSON();
+    var p256dh = json.keys && json.keys.p256dh;
+    var auth   = json.keys && json.keys.auth;
+    if (!p256dh || !auth) return { error: { message: 'subscription missing keys' } };
+
+    var u = await supabaseClient.auth.getUser();
+    var userId = u.data && u.data.user ? u.data.user.id : null;
+    if (!userId) return { error: { message: 'not signed in' } };
+
+    // Upsert by endpoint
+    var r = await supabaseClient.from('push_subscriptions').upsert({
+      user_id:    userId,
+      endpoint:   json.endpoint,
+      p256dh:     p256dh,
+      auth:       auth,
+      user_agent: navigator.userAgent
+    }, { onConflict: 'endpoint' }).select().single();
+
+    return { data: r.data, error: r.error, subscription: existing };
+  }
+
+  /** Unsubscribe + delete the row in push_subscriptions */
+  async function disablePushNotifications() {
+    if (!isPushSupported()) return { error: null };
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    if (!sub) return { error: null };
+    var endpoint = sub.endpoint;
+    try { await sub.unsubscribe(); } catch (e) {}
+    var r = await supabaseClient.from('push_subscriptions').delete().eq('endpoint', endpoint);
+    return { error: r.error };
+  }
+
+  /** Returns true if THIS browser is currently subscribed (and the row exists in DB). */
+  async function isPushSubscribed() {
+    if (!isPushSupported()) return false;
+    try {
+      var reg = await navigator.serviceWorker.ready;
+      var sub = await reg.pushManager.getSubscription();
+      return !!sub;
+    } catch (e) { return false; }
+  }
+
   // ─── PROJECTS (lookup helper for the picker) ──────────────────────────────
 
   var _projectCache = null;
@@ -926,6 +1020,11 @@
     unsubscribeFromEntry: unsubscribeFromEntry,
     getNotificationPrefs: getNotificationPrefs,
     updateNotificationPrefs: updateNotificationPrefs,
+    isPushSupported: isPushSupported,
+    getPushPermission: getPushPermission,
+    enablePushNotifications: enablePushNotifications,
+    disablePushNotifications: disablePushNotifications,
+    isPushSubscribed: isPushSubscribed,
     listScheduleProjects: listScheduleProjects,
     invalidateProjectCache: invalidateProjectCache,
     canWriteSchedule: canWriteSchedule,
