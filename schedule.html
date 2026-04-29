@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=123"></script>
 <script src="auth.js?v=123"></script>
-<script src="schedule-utils.js?v=149"></script>
+<script src="schedule-utils.js?v=150"></script>
 <style>
   body { padding-bottom: 24px; }
   .header .profile-circle { margin-left: auto; }
@@ -290,6 +290,41 @@
     border: 2px solid var(--nw-card);
   }
   .bell-badge.show { display: inline-flex; }
+  /* Push enable banner — auto-shows for users who haven't enabled push yet */
+  .push-banner {
+    display: none;
+    background: linear-gradient(135deg, #0696D7, #0479B2);
+    color: #fff;
+    padding: 12px 16px;
+    margin: 0 0 8px;
+    border-radius: 0;
+    box-shadow: 0 2px 8px rgba(6,150,215,.25);
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .push-banner.show { display: flex; }
+  .push-banner .icon { font-size: 24px; flex-shrink: 0; }
+  .push-banner .text { flex: 1; min-width: 200px; font-size: 13px; line-height: 1.35; }
+  .push-banner .text b { font-weight: 700; }
+  .push-banner .text small { display: block; opacity: .85; font-size: 11px; margin-top: 2px; }
+  .push-banner button {
+    background: #fff; color: #0696D7; border: none;
+    padding: 8px 16px; border-radius: 7px; font-weight: 700; font-size: 13px;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .push-banner button:hover { background: #f0f9ff; }
+  .push-banner .skip {
+    background: transparent; color: #fff; opacity: .8;
+    border: 1px solid rgba(255,255,255,.4);
+    padding: 7px 12px;
+  }
+  .push-banner .skip:hover { background: rgba(255,255,255,.15); opacity: 1; }
+  @media (max-width: 600px) {
+    .push-banner .text { font-size: 12px; }
+    .push-banner button { padding: 7px 12px; font-size: 12px; }
+  }
+
   .notif-panel {
     display: none; position: absolute; top: calc(100% + 6px); right: 0;
     width: min(360px, 92vw); max-height: 70vh; overflow-y: auto;
@@ -651,6 +686,17 @@
     </div>
   </div>
 
+  <!-- Push enable banner — auto-shows once per user until they enable or dismiss -->
+  <div class="push-banner" id="pushBanner">
+    <span class="icon">🔔</span>
+    <span class="text">
+      <b>Get instant notifications on your phone</b>
+      <small>Tap Enable so you don't miss schedule changes — works on lock screen even when the app is closed</small>
+    </span>
+    <button id="pushBannerEnable">Enable</button>
+    <button class="skip" id="pushBannerSkip">Not now</button>
+  </div>
+
   <!-- Toolbar -->
   <div class="schedule-toolbar">
     <div class="view-tab" data-view="list">📋 List</div>
@@ -872,6 +918,8 @@ requireAuth().catch(function(){});
     if (currentUserId) {
       setupBell();
       setupRealtimeNotifications();
+      // Auto-prompt push enable for users who haven't enabled yet (Phase 3)
+      maybeShowPushBanner();
     }
 
     // Deep link: ?entry=<uuid> opens that entry
@@ -1292,6 +1340,38 @@ requireAuth().catch(function(){});
     }
     btn.disabled = false;
     refreshPushPrefRow();
+  }
+
+  // Auto-prompt banner — shows on schedule.html open if push isn't enabled yet
+  // and user hasn't dismissed before. One tap = enabled.
+  async function maybeShowPushBanner() {
+    var banner = document.getElementById('pushBanner');
+    if (!banner) return;
+    if (!NWSchedule.isPushSupported()) return;
+    if (NWSchedule.getPushPermission() === 'denied') return;
+    if (await NWSchedule.isPushSubscribed()) return;
+    if (localStorage.getItem('nw-push-banner-dismissed')) return;
+
+    banner.classList.add('show');
+
+    document.getElementById('pushBannerEnable').addEventListener('click', async function() {
+      this.disabled = true;
+      this.textContent = 'Enabling…';
+      var r = await NWSchedule.enablePushNotifications();
+      if (r.error) {
+        showConflictToast('Could not enable: ' + (r.error.message || r.error));
+        this.disabled = false;
+        this.textContent = 'Enable';
+        return;
+      }
+      banner.classList.remove('show');
+      localStorage.setItem('nw-push-banner-dismissed', '1');
+      showConflictToast('🔔 Push enabled — you’ll get instant alerts');
+    });
+    document.getElementById('pushBannerSkip').addEventListener('click', function() {
+      banner.classList.remove('show');
+      localStorage.setItem('nw-push-banner-dismissed', '1');
+    });
   }
 
   // ─── REFRESH ───────────────────────────────────────────────────────────
