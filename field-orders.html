@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Field Orders — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=150"></script>
+<script src="auth.js?v=150"></script>
+<script src="schedule-utils.js?v=150"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .fo-wrap { max-width: 1100px; margin: 0 auto; }
+
+  /* 10am cutoff banner */
+  .cutoff-banner {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-left: 4px solid #f59e0b;
+    color: #78350f;
+    padding: 10px 16px;
+    margin: 0;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .cutoff-banner .icon { font-size: 20px; }
+  .cutoff-banner b { font-weight: 700; }
+
+  /* Toolbar */
+  .fo-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px; align-items: center; flex-wrap: wrap;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+  }
+  .fo-toolbar .grow { flex: 1; }
+  .fo-tab {
+    padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 700;
+    cursor: pointer; background: var(--nw-section); color: var(--nw-text);
+    border: 1px solid var(--nw-border);
+  }
+  .fo-tab.active { background: var(--nw-primary); color: #fff; border-color: var(--nw-primary); }
+  .new-btn {
+    background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+    padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(6,150,215,.25);
+  }
+
+  /* Filter bar */
+  .fo-filters {
+    padding: 10px 16px; background: #f8fafc; border-bottom: 1px solid var(--nw-border);
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .fo-filters select { padding: 6px 10px; border: 1px solid var(--nw-border); border-radius: 6px; font-size: 13px; }
+
+  /* Order cards */
+  .order-card {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 10px; padding: 14px 16px; margin: 10px 16px;
+    border-left: 4px solid #94a3b8;
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .order-card:hover { border-color: var(--nw-primary); box-shadow: 0 2px 8px rgba(6,150,215,.08); }
+  .order-card.requested  { border-left-color: #f59e0b; }
+  .order-card.in_progress { border-left-color: #0696D7; }
+  .order-card.delivered  { border-left-color: #10b981; opacity: 0.75; }
+  .order-card.cancelled  { border-left-color: #94a3b8; opacity: 0.55; }
+  .order-card.urgent::before {
+    content: '🚨 URGENT';
+    display: inline-block;
+    background: #dc2626; color: #fff;
+    font-size: 10px; font-weight: 800;
+    padding: 2px 8px; border-radius: 10px;
+    margin-right: 8px;
+    vertical-align: middle;
+    animation: urgent-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes urgent-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,.45); }
+    50%      { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+  }
+
+  .order-top {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+  }
+  .order-project { font-weight: 700; font-size: 15px; color: var(--nw-text); }
+  .order-status {
+    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .order-status.requested  { background: #fef3c7; color: #92400e; }
+  .order-status.in_progress { background: #dbeafe; color: #1e40af; }
+  .order-status.delivered  { background: #d1fae5; color: #065f46; }
+  .order-status.cancelled  { background: #f1f5f9; color: #475569; }
+  .order-meta {
+    font-size: 12px; color: var(--nw-muted); margin: 2px 0;
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  }
+  .order-meta b { color: var(--nw-text); font-weight: 600; }
+  .order-items {
+    font-size: 13px; color: var(--nw-text); margin-top: 6px;
+    background: var(--nw-section); padding: 8px 12px; border-radius: 6px;
+    white-space: pre-wrap;
+    max-height: 80px;
+    overflow: hidden;
+    position: relative;
+  }
+  .order-photos {
+    display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;
+  }
+  .order-photos img {
+    width: 64px; height: 64px; object-fit: cover; border-radius: 6px;
+    border: 1px solid var(--nw-border);
+  }
+  .order-delivery {
+    font-size: 12px; color: #1e40af; margin-top: 6px;
+    background: #dbeafe; padding: 6px 10px; border-radius: 6px;
+    display: inline-block; font-weight: 600;
+  }
+
+  .fo-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .fo-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 600px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card textarea { min-height: 90px; resize: vertical; font-family: inherit; }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+  .modal-card .field-hint {
+    font-size: 11px; color: var(--nw-muted); margin-top: 4px;
+  }
+
+  .photo-upload-area {
+    border: 2px dashed var(--nw-border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+    cursor: pointer;
+    background: var(--nw-section);
+  }
+  .photo-upload-area:hover { border-color: var(--nw-primary); background: #f0f9ff; }
+  .photo-upload-area .icon { font-size: 28px; }
+  .photo-upload-area input[type="file"] { display: none; }
+
+  .photo-previews {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+  }
+  .photo-preview {
+    position: relative; width: 80px; height: 80px;
+  }
+  .photo-preview img {
+    width: 100%; height: 100%; object-fit: cover;
+    border-radius: 6px; border: 1px solid var(--nw-border);
+  }
+  .photo-preview .remove {
+    position: absolute; top: -6px; right: -6px;
+    background: #dc2626; color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid #fff;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; flex-wrap: wrap;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save   { background: var(--nw-primary); color: #fff; }
+  .btn-delete { background: var(--nw-danger); color: #fff; margin-right: auto; }
+  .btn-secondary { background: #fff; color: var(--nw-primary); border: 1px solid var(--nw-primary) !important; }
+
+  /* Order detail modal */
+  .detail-section {
+    border-top: 1px solid var(--nw-border);
+    padding-top: 12px;
+    margin-top: 12px;
+  }
+  .detail-section h3 {
+    font-size: 11px; font-weight: 700; color: var(--nw-muted);
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin: 0 0 8px;
+  }
+  .detail-row {
+    display: flex; gap: 8px; align-items: baseline; padding: 4px 0;
+    font-size: 14px;
+  }
+  .detail-row .label {
+    color: var(--nw-muted); font-size: 12px; min-width: 110px;
+    text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600;
+  }
+  .detail-row .value { color: var(--nw-text); flex: 1; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error { background: #dc2626; }
+
+  @media (max-width: 600px) {
+    .modal-card .row { flex-direction: column; gap: 0; }
+    .order-card { margin: 8px 8px; padding: 12px 14px; }
+    .detail-row { flex-direction: column; gap: 2px; }
+    .detail-row .label { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="fo-wrap">
+
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Field Orders</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <!-- 10am cutoff rule banner -->
+  <div class="cutoff-banner">
+    <span class="icon">🕙</span>
+    <span>
+      <b>Submit before 10 AM</b> for delivery in <b>2–3 days</b>.
+      After 10 AM: delivery shifts by one day.
+    </span>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="fo-toolbar">
+    <div class="fo-tab active" data-view="my">📋 My Orders</div>
+    <div class="fo-tab" data-view="all" id="tabAll" style="display:none">📦 All Orders</div>
+    <div class="grow"></div>
+    <button class="new-btn" id="btnNew">+ Request Materials</button>
+  </div>
+
+  <!-- Filters (admin / all view) -->
+  <div class="fo-filters" id="filterBar" style="display:none">
+    <select id="filterStatus">
+      <option value="">All statuses</option>
+      <option value="requested">Requested</option>
+      <option value="in_progress">In Progress</option>
+      <option value="delivered">Delivered</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+    <select id="filterProject">
+      <option value="">All projects</option>
+    </select>
+    <select id="filterPriority">
+      <option value="">All priorities</option>
+      <option value="urgent">🚨 Urgent</option>
+      <option value="normal">Normal</option>
+      <option value="low">Low</option>
+    </select>
+  </div>
+
+  <div id="orderList"></div>
+</div>
+
+<!-- New / Edit Order Modal -->
+<div class="modal-overlay" id="orderModal">
+  <div class="modal-card">
+    <h2 id="modalTitle">Request Materials</h2>
+
+    <div class="field">
+      <label>Project *</label>
+      <select id="mProject"></select>
+    </div>
+
+    <div class="field">
+      <label>What do you need? *</label>
+      <textarea id="mItems" placeholder="e.g.&#10;- 2 boxes of 1/2&quot; copper pipe&#10;- 4 elbows, 90°&#10;- 10 ft flex duct&#10;- 1 York thermostat"></textarea>
+      <div class="field-hint">Be specific — list each item with quantity if possible</div>
+    </div>
+
+    <div class="field">
+      <label>📷 Photos (optional)</label>
+      <div class="photo-upload-area" id="photoUploadArea">
+        <div class="icon">📷</div>
+        <div>Tap to attach photos of the part / nameplate / what's missing</div>
+        <input type="file" id="photoInput" accept="image/*" multiple capture="environment">
+      </div>
+      <div class="photo-previews" id="photoPreviews"></div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Needed By</label>
+        <input type="date" id="mNeededBy">
+        <div class="field-hint" id="cutoffHint"></div>
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select id="mPriority">
+          <option value="normal">Normal</option>
+          <option value="urgent">🚨 Urgent</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="mNotes" placeholder="Extra context — preferred brand, vendor, where to leave on site, etc." style="min-height:50px"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancel">Cancel</button>
+      <button class="btn-save" id="btnSubmit">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- Order Detail / Fulfillment Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal-card" style="max-width:640px">
+    <h2 id="detailTitle">Order Details</h2>
+
+    <div id="detailContent"></div>
+
+    <!-- Admin-only controls (Jonathan / PMs / Andrei / Vlad) -->
+    <div class="detail-section" id="adminControls" style="display:none">
+      <h3>Fulfillment</h3>
+      <div class="row">
+        <div class="field">
+          <label>Status</label>
+          <select id="dStatus">
+            <option value="requested">Requested</option>
+            <option value="in_progress">In Progress</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Driver</label>
+          <select id="dDriver">
+            <option value="">— No driver yet —</option>
+            <option value="Roman">Roman</option>
+            <option value="Vagif">Vagif</option>
+            <option value="Other">Other / Supplier delivers</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Delivery Date</label>
+          <input type="date" id="dDeliveryDate">
+        </div>
+        <div class="field">
+          <label>Start Time</label>
+          <input type="time" id="dDeliveryStart">
+        </div>
+        <div class="field">
+          <label>End Time</label>
+          <input type="time" id="dDeliveryEnd">
+        </div>
+      </div>
+      <div class="field">
+        <label>Delivery / Status Notes</label>
+        <textarea id="dDeliveryNotes" placeholder="e.g. Left with foreman, supplier ETA, vendor PO #..." style="min-height:50px"></textarea>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-delete" id="btnDeleteOrder" style="display:none">Delete</button>
+      <button class="btn-cancel" id="btnDetailClose">Close</button>
+      <button class="btn-save" id="btnSaveDetail" style="display:none">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var currentUserId = null;
+  var currentUserEmail = null;
+  var currentUserName = null;
+  var isAdmin = false;
+  var currentView = 'my';     // 'my' or 'all'
+  var allOrders = [];
+  var allProjects = [];
+  var editingOrderId = null;
+  var pendingPhotoFiles = [];   // File objects awaiting upload
+
+  init();
+
+  async function init() {
+    // Resolve user role
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) {
+        currentUserId = u.data.user.id;
+        currentUserEmail = u.data.user.email;
+      }
+      var profRes = await supabaseClient.from('profiles').select('full_name,role').eq('id', currentUserId).maybeSingle();
+      if (profRes.data) {
+        currentUserName = profRes.data.full_name || currentUserEmail;
+        isAdmin = (profRes.data.role === 'admin' || profRes.data.role === 'manager');
+      }
+    } catch (e) { console.warn(e); }
+
+    // Show admin tab if admin
+    if (isAdmin) {
+      document.getElementById('tabAll').style.display = '';
+    }
+
+    // Preload projects
+    var projsRes = await NWSchedule.listScheduleProjects();
+    allProjects = projsRes.data || [];
+    populateProjectDropdowns();
+
+    bindEvents();
+    refresh();
+    refreshCutoffHint();
+
+    // Deep link: ?order=<uuid>
+    var params = new URLSearchParams(window.location.search);
+    var orderId = params.get('order');
+    if (orderId) {
+      setTimeout(function() { openDetail(orderId); }, 400);
+    }
+  }
+
+  function populateProjectDropdowns() {
+    var mProject = document.getElementById('mProject');
+    var fProject = document.getElementById('filterProject');
+    mProject.innerHTML = '<option value="">Select project…</option>';
+    fProject.innerHTML = '<option value="">All projects</option>';
+    var sorted = allProjects.slice().sort(function(a, b) {
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    sorted.forEach(function(p) {
+      if (p.status === 'completed' || p.status === 'cancelled') return;
+      var label = (p.short_code ? p.short_code + ' · ' : '') + (p.name || '(no name)');
+      var o1 = document.createElement('option'); o1.value = p.id; o1.textContent = label; mProject.appendChild(o1);
+      var o2 = document.createElement('option'); o2.value = p.id; o2.textContent = label; fProject.appendChild(o2);
+    });
+  }
+
+  function bindEvents() {
+    document.querySelectorAll('.fo-tab').forEach(function(t) {
+      t.addEventListener('click', function() {
+        document.querySelectorAll('.fo-tab').forEach(function(x) { x.classList.remove('active'); });
+        t.classList.add('active');
+        currentView = t.getAttribute('data-view');
+        document.getElementById('filterBar').style.display = (currentView === 'all') ? 'flex' : 'none';
+        refresh();
+      });
+    });
+
+    document.getElementById('btnNew').addEventListener('click', openNewOrder);
+    document.getElementById('btnCancel').addEventListener('click', closeNewOrder);
+    document.getElementById('btnSubmit').addEventListener('click', submitOrder);
+    document.getElementById('orderModal').addEventListener('click', function(e) {
+      if (e.target === this) closeNewOrder();
+    });
+
+    // Photo input
+    var photoArea = document.getElementById('photoUploadArea');
+    var photoInput = document.getElementById('photoInput');
+    photoArea.addEventListener('click', function() { photoInput.click(); });
+    photoInput.addEventListener('change', handlePhotoSelect);
+
+    // Detail modal
+    document.getElementById('btnDetailClose').addEventListener('click', closeDetail);
+    document.getElementById('btnSaveDetail').addEventListener('click', saveDetailChanges);
+    document.getElementById('btnDeleteOrder').addEventListener('click', deleteOrder);
+    document.getElementById('detailModal').addEventListener('click', function(e) {
+      if (e.target === this) closeDetail();
+    });
+
+    // Filters
+    ['filterStatus','filterProject','filterPriority'].forEach(function(id) {
+      document.getElementById(id).addEventListener('change', refresh);
+    });
+
+    // Needed-by date listener — re-show hint when changed
+    document.getElementById('mNeededBy').addEventListener('change', refreshCutoffHint);
+  }
+
+  // ─── Cut-off rule helper ──────────────────────────────────────────────────
+
+  function refreshCutoffHint() {
+    var hint = document.getElementById('cutoffHint');
+    var nowH = new Date().getHours();
+    var before10 = nowH < 10;
+    var earliestDate = new Date();
+    earliestDate.setDate(earliestDate.getDate() + (before10 ? 2 : 3));
+    var earliestStr = earliestDate.toISOString().slice(0, 10);
+    var msg = before10
+      ? '✅ Before 10 AM — earliest delivery ' + earliestStr + ' (in 2 days)'
+      : '⚠️ After 10 AM cutoff — earliest delivery ' + earliestStr + ' (in 3 days)';
+    hint.textContent = msg;
+
+    // Pre-fill needed_by if empty
+    var input = document.getElementById('mNeededBy');
+    if (input && !input.value) input.value = earliestStr;
+  }
+
+  // ─── List / Refresh ────────────────────────────────────────────────────────
+
+  async function refresh() {
+    var listEl = document.getElementById('orderList');
+    listEl.innerHTML = '<div class="fo-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
+
+    var q = supabaseClient.from('field_orders')
+      .select('*, project:projects(id,project_name,short_code,address)')
+      .order('requested_at', { ascending: false })
+      .limit(200);
+    if (currentView === 'my') {
+      q = q.eq('requested_by', currentUserId);
+    } else {
+      // 'all' view filters
+      var st = document.getElementById('filterStatus').value;
+      var pj = document.getElementById('filterProject').value;
+      var pr = document.getElementById('filterPriority').value;
+      if (st) q = q.eq('status', st);
+      if (pj) q = q.eq('project_id', pj);
+      if (pr) q = q.eq('priority', pr);
+    }
+    var r = await q;
+    if (r.error) {
+      listEl.innerHTML = '<div class="fo-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
+      return;
+    }
+    allOrders = r.data || [];
+    renderOrders();
+  }
+
+  function renderOrders() {
+    var listEl = document.getElementById('orderList');
+    if (!allOrders.length) {
+      var msg = currentView === 'my'
+        ? 'No orders yet. Tap <b>+ Request Materials</b> to create your first.'
+        : 'No orders match the current filters.';
+      listEl.innerHTML = '<div class="fo-empty"><div class="icon">📦</div><p>' + msg + '</p></div>';
+      return;
+    }
+    listEl.innerHTML = allOrders.map(renderCard).join('');
+    document.querySelectorAll('.order-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        openDetail(card.getAttribute('data-id'));
+      });
+    });
+  }
+
+  function renderCard(o) {
+    var status = o.status || 'requested';
+    var cls = 'order-card ' + status + (o.priority === 'urgent' ? ' urgent' : '');
+    var projLabel = o.project
+      ? ((o.project.short_code ? o.project.short_code + ' · ' : '') + (o.project.project_name || ''))
+      : '(no project)';
+    var reqWhen = formatDateTime(o.requested_at);
+    var deliveryInfo = '';
+    if (o.scheduled_delivery_date) {
+      deliveryInfo =
+        '🚐 Delivery: <b>' + escHtml(o.scheduled_delivery_date) + '</b>' +
+        (o.scheduled_delivery_start
+          ? ' (' + String(o.scheduled_delivery_start).substring(0,5) +
+            (o.scheduled_delivery_end ? '–' + String(o.scheduled_delivery_end).substring(0,5) : '') + ')'
+          : '') +
+        (o.driver_name ? ' · driver: <b>' + escHtml(o.driver_name) + '</b>' : '');
+    } else if (status === 'requested') {
+      deliveryInfo = 'Awaiting scheduling';
+    }
+
+    var photosHtml = '';
+    if (o.photo_urls && o.photo_urls.length) {
+      photosHtml = '<div class="order-photos">' +
+        o.photo_urls.slice(0, 4).map(function(u) {
+          return '<img src="' + escHtml(u) + '" alt="">';
+        }).join('') +
+        (o.photo_urls.length > 4 ? '<span style="color:var(--nw-muted);font-size:11px;align-self:center">+' + (o.photo_urls.length - 4) + '</span>' : '') +
+      '</div>';
+    }
+
+    return '<div class="' + cls + '" data-id="' + o.id + '">' +
+      '<div class="order-top">' +
+        '<span class="order-project">' + escHtml(projLabel) + '</span>' +
+        '<span class="order-status ' + status + '">' + statusLabel(status) + '</span>' +
+        (o.priority === 'low' ? '<span style="font-size:11px;color:var(--nw-muted)">low</span>' : '') +
+      '</div>' +
+      '<div class="order-meta">' +
+        '<b>' + escHtml(o.requested_by_name || 'Someone') + '</b> · ' + escHtml(reqWhen) +
+        (o.needed_by_date ? ' · needs by <b>' + escHtml(o.needed_by_date) + '</b>' : '') +
+      '</div>' +
+      '<div class="order-items">' + escHtml(o.items || '') + '</div>' +
+      photosHtml +
+      (deliveryInfo ? '<div class="order-delivery">' + deliveryInfo + '</div>' : '') +
+    '</div>';
+  }
+
+  function statusLabel(s) {
+    return ({
+      requested:   '📦 Requested',
+      in_progress: '⏳ In Progress',
+      delivered:   '✅ Delivered',
+      cancelled:   '❌ Cancelled'
+    })[s] || s;
+  }
+
+  // ─── New Order ─────────────────────────────────────────────────────────────
+
+  function openNewOrder() {
+    editingOrderId = null;
+    pendingPhotoFiles = [];
+    document.getElementById('modalTitle').textContent = 'Request Materials';
+    document.getElementById('mProject').value = '';
+    document.getElementById('mItems').value = '';
+    document.getElementById('mNotes').value = '';
+    document.getElementById('mPriority').value = 'normal';
+    document.getElementById('mNeededBy').value = '';
+    document.getElementById('photoPreviews').innerHTML = '';
+    refreshCutoffHint();
+    document.getElementById('orderModal').classList.add('open');
+  }
+  function closeNewOrder() {
+    document.getElementById('orderModal').classList.remove('open');
+    pendingPhotoFiles = [];
+  }
+
+  function handlePhotoSelect(ev) {
+    var files = Array.from(ev.target.files || []);
+    if (!files.length) return;
+    files.forEach(function(file) {
+      pendingPhotoFiles.push(file);
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var wrap = document.createElement('div');
+        wrap.className = 'photo-preview';
+        wrap.innerHTML = '<img src="' + e.target.result + '"><div class="remove" data-idx="">×</div>';
+        var rm = wrap.querySelector('.remove');
+        rm.addEventListener('click', function(e2) {
+          e2.stopPropagation();
+          var idx = pendingPhotoFiles.indexOf(file);
+          if (idx >= 0) pendingPhotoFiles.splice(idx, 1);
+          wrap.remove();
+        });
+        document.getElementById('photoPreviews').appendChild(wrap);
+      };
+      reader.readAsDataURL(file);
+    });
+    ev.target.value = '';   // allow re-selecting the same file
+  }
+
+  async function uploadPhotos(files, orderId) {
+    if (!files || !files.length) return [];
+    var urls = [];
+    var bucket = 'field-order-photos';
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      var ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+      var path = orderId + '/' + Date.now() + '-' + i + '.' + ext;
+      try {
+        var up = await supabaseClient.storage.from(bucket).upload(path, f, { upsert: false, contentType: f.type });
+        if (up.error) { console.error('upload error', up.error); continue; }
+        var pub = supabaseClient.storage.from(bucket).getPublicUrl(path);
+        urls.push(pub.data.publicUrl);
+      } catch (e) { console.error('photo upload exception', e); }
+    }
+    return urls;
+  }
+
+  async function submitOrder() {
+    var pid = document.getElementById('mProject').value;
+    var items = document.getElementById('mItems').value.trim();
+    if (!pid || !items) {
+      showToast('Project and items are required', 'error');
+      return;
+    }
+    var btn = document.getElementById('btnSubmit');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+
+    // Get project address for delivery default
+    var proj = allProjects.find(function(p) { return p.id === pid; });
+    var deliveryAddr = proj && proj.address ? proj.address : null;
+
+    var newRow = {
+      project_id: pid,
+      requested_by: currentUserId,
+      requested_by_name: currentUserName,
+      items: items,
+      notes: document.getElementById('mNotes').value.trim() || null,
+      priority: document.getElementById('mPriority').value || 'normal',
+      needed_by_date: document.getElementById('mNeededBy').value || null,
+      delivery_address: deliveryAddr,
+      status: 'requested',
+      photo_urls: []
+    };
+    var ins = await supabaseClient.from('field_orders').insert(newRow).select().single();
+    if (ins.error) {
+      btn.disabled = false; btn.textContent = 'Submit Request';
+      showToast('Failed to submit: ' + (ins.error.message || ins.error), 'error');
+      return;
+    }
+    var orderId = ins.data.id;
+
+    // Upload photos (if any) and update row
+    if (pendingPhotoFiles.length) {
+      btn.textContent = 'Uploading photos…';
+      var urls = await uploadPhotos(pendingPhotoFiles, orderId);
+      if (urls.length) {
+        await supabaseClient.from('field_orders').update({ photo_urls: urls }).eq('id', orderId);
+      }
+    }
+
+    closeNewOrder();
+    showToast('✅ Order submitted — notifications sent to PM, Jonathan, Andrei, Vlad', 'success');
+    refresh();
+    btn.disabled = false; btn.textContent = 'Submit Request';
+  }
+
+  // ─── Order Detail / Fulfillment ────────────────────────────────────────────
+
+  async function openDetail(orderId) {
+    editingOrderId = orderId;
+    var r = await supabaseClient.from('field_orders')
+      .select('*, project:projects(id,project_name,short_code,address)')
+      .eq('id', orderId).maybeSingle();
+    if (r.error || !r.data) {
+      showToast('Order not found', 'error');
+      return;
+    }
+    var o = r.data;
+    var projLabel = o.project
+      ? ((o.project.short_code ? o.project.short_code + ' · ' : '') + (o.project.project_name || ''))
+      : '(no project)';
+    document.getElementById('detailTitle').textContent = projLabel;
+
+    var content = '<div class="detail-section">' +
+      '<h3>Request</h3>' +
+      detailRow('Requested by', escHtml(o.requested_by_name || '—')) +
+      detailRow('Requested at', formatDateTime(o.requested_at)) +
+      detailRow('Status', '<span class="order-status ' + (o.status||'requested') + '">' + statusLabel(o.status||'requested') + '</span>') +
+      detailRow('Priority', o.priority === 'urgent' ? '🚨 Urgent' : (o.priority || 'normal')) +
+      (o.needed_by_date ? detailRow('Needed by', escHtml(o.needed_by_date)) : '') +
+      (o.delivery_address ? detailRow('Deliver to', escHtml(o.delivery_address) +
+        ' <a href="https://maps.google.com/?q=' + encodeURIComponent(o.delivery_address) + '" target="_blank" style="margin-left:6px">📍 map</a>') : '') +
+    '</div>' +
+    '<div class="detail-section">' +
+      '<h3>Materials</h3>' +
+      '<div class="order-items" style="max-height:none">' + escHtml(o.items || '') + '</div>' +
+      (o.notes ? '<div style="margin-top:8px;font-size:13px"><b>Notes:</b> ' + escHtml(o.notes) + '</div>' : '') +
+    '</div>';
+
+    if (o.photo_urls && o.photo_urls.length) {
+      content += '<div class="detail-section">' +
+        '<h3>Photos</h3>' +
+        '<div class="order-photos">' +
+        o.photo_urls.map(function(u) {
+          return '<a href="' + escHtml(u) + '" target="_blank"><img src="' + escHtml(u) + '" style="width:96px;height:96px"></a>';
+        }).join('') +
+      '</div></div>';
+    }
+
+    if (o.scheduled_delivery_date || o.driver_name) {
+      content += '<div class="detail-section">' +
+        '<h3>Delivery</h3>' +
+        (o.scheduled_delivery_date ? detailRow('Scheduled', escHtml(o.scheduled_delivery_date) +
+          (o.scheduled_delivery_start
+            ? ' ' + String(o.scheduled_delivery_start).substring(0,5) +
+              (o.scheduled_delivery_end ? '–' + String(o.scheduled_delivery_end).substring(0,5) : '')
+            : '')) : '') +
+        (o.driver_name ? detailRow('Driver', escHtml(o.driver_name)) : '') +
+        (o.delivered_at ? detailRow('Delivered at', formatDateTime(o.delivered_at)) : '') +
+        (o.delivery_notes ? detailRow('Notes', escHtml(o.delivery_notes)) : '') +
+      '</div>';
+    }
+    document.getElementById('detailContent').innerHTML = content;
+
+    // Admin controls — only show for admin / manager
+    if (isAdmin) {
+      document.getElementById('adminControls').style.display = '';
+      document.getElementById('dStatus').value           = o.status || 'requested';
+      document.getElementById('dDriver').value           = o.driver_name || '';
+      document.getElementById('dDeliveryDate').value     = o.scheduled_delivery_date || '';
+      document.getElementById('dDeliveryStart').value    = o.scheduled_delivery_start ? String(o.scheduled_delivery_start).substring(0,5) : '';
+      document.getElementById('dDeliveryEnd').value      = o.scheduled_delivery_end   ? String(o.scheduled_delivery_end).substring(0,5)   : '';
+      document.getElementById('dDeliveryNotes').value    = o.delivery_notes || '';
+      document.getElementById('btnSaveDetail').style.display = '';
+      document.getElementById('btnDeleteOrder').style.display = '';
+    } else {
+      document.getElementById('adminControls').style.display = 'none';
+      document.getElementById('btnSaveDetail').style.display = 'none';
+      // requester can cancel their own
+      var canCancel = (o.requested_by === currentUserId && o.status !== 'delivered' && o.status !== 'cancelled');
+      document.getElementById('btnDeleteOrder').style.display = canCancel ? '' : 'none';
+      document.getElementById('btnDeleteOrder').textContent = canCancel ? 'Cancel order' : '';
+    }
+
+    document.getElementById('detailModal').classList.add('open');
+  }
+  function closeDetail() {
+    document.getElementById('detailModal').classList.remove('open');
+    editingOrderId = null;
+  }
+  function detailRow(label, value) {
+    return '<div class="detail-row"><span class="label">' + label + '</span><span class="value">' + value + '</span></div>';
+  }
+
+  async function saveDetailChanges() {
+    if (!editingOrderId) return;
+    var btn = document.getElementById('btnSaveDetail');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    var patch = {
+      status:                   document.getElementById('dStatus').value,
+      driver_name:              document.getElementById('dDriver').value || null,
+      scheduled_delivery_date:  document.getElementById('dDeliveryDate').value || null,
+      scheduled_delivery_start: document.getElementById('dDeliveryStart').value || null,
+      scheduled_delivery_end:   document.getElementById('dDeliveryEnd').value   || null,
+      delivery_notes:           document.getElementById('dDeliveryNotes').value || null,
+      updated_by:               currentUserId
+    };
+    if (patch.status === 'delivered') patch.delivered_at = new Date().toISOString();
+
+    var r = await supabaseClient.from('field_orders').update(patch).eq('id', editingOrderId);
+    btn.disabled = false; btn.textContent = 'Save changes';
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    showToast('Updated', 'success');
+    closeDetail();
+    refresh();
+  }
+
+  async function deleteOrder() {
+    if (!editingOrderId) return;
+    // For requester: this is a "cancel" action (soft-set status to cancelled)
+    // For admin: real delete via RLS
+    var order = allOrders.find(function(o) { return o.id === editingOrderId; });
+    var isOwner = order && order.requested_by === currentUserId;
+
+    if (isOwner && !isAdmin) {
+      if (!confirm('Cancel this order?')) return;
+      var r = await supabaseClient.from('field_orders')
+        .update({ status: 'cancelled', updated_by: currentUserId })
+        .eq('id', editingOrderId);
+      if (r.error) { showToast('Failed: ' + r.error.message, 'error'); return; }
+      showToast('Order cancelled', 'success');
+    } else {
+      if (!confirm('Delete this order permanently? This cannot be undone.')) return;
+      var d = await supabaseClient.from('field_orders').delete().eq('id', editingOrderId);
+      if (d.error) { showToast('Delete failed: ' + d.error.message, 'error'); return; }
+      showToast('Deleted', 'success');
+    }
+    closeDetail();
+    refresh();
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  function formatDateTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+           d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 4000);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=151"></script>
+</body>
+</html>

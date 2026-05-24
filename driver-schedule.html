@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Driver Schedule — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=150"></script>
+<script src="auth.js?v=150"></script>
+<script src="schedule-utils.js?v=150"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .ds-wrap { max-width: 900px; margin: 0 auto; }
+
+  .ds-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px; align-items: center; flex-wrap: wrap;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+  }
+  .ds-toolbar .grow { flex: 1; }
+  .ds-toolbar select {
+    padding: 7px 11px; font-size: 13px; border: 1px solid var(--nw-border);
+    border-radius: 7px; background: #fff;
+  }
+
+  .day-group { margin: 14px 0; }
+  .day-header {
+    background: #f1f5f9;
+    border-left: 4px solid var(--nw-primary);
+    padding: 8px 16px;
+    margin: 0 0 8px;
+    font-weight: 700; font-size: 14px; color: var(--nw-text);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .day-header.today { background: var(--nw-primary); color: #fff; border-left-color: #0479B2; }
+  .day-header.past  { opacity: 0.55; }
+  .day-header .count {
+    margin-left: auto; font-size: 12px; opacity: 0.8; font-weight: 600;
+  }
+
+  .delivery-card {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 10px; padding: 14px 16px; margin: 8px 16px;
+    cursor: pointer;
+    border-left: 4px solid #0696D7;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .delivery-card:hover { border-color: var(--nw-primary); box-shadow: 0 2px 8px rgba(6,150,215,.08); }
+  .delivery-card.delivered { opacity: 0.6; border-left-color: #10b981; }
+  .delivery-card.urgent { border-left-color: #dc2626; }
+  .delivery-card.urgent::before {
+    content: '🚨 URGENT';
+    display: inline-block;
+    background: #dc2626; color: #fff;
+    font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 10px;
+    margin-bottom: 6px;
+  }
+
+  .dc-top {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+  }
+  .dc-time {
+    background: var(--nw-primary); color: #fff;
+    padding: 3px 10px; border-radius: 6px;
+    font-weight: 700; font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .dc-time.no-time { background: #94a3b8; }
+  .dc-project { font-weight: 700; font-size: 16px; color: var(--nw-text); flex: 1; }
+  .dc-driver-pill {
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .dc-driver-pill.roman { background: #dbeafe; color: #1e40af; }
+  .dc-driver-pill.vagif { background: #fef3c7; color: #92400e; }
+  .dc-driver-pill.other { background: #f1f5f9; color: #475569; }
+
+  .dc-address {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--nw-text);
+    margin: 4px 0;
+  }
+  .dc-address a {
+    margin-left: auto;
+    background: #dbeafe; color: #1e40af;
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    text-decoration: none;
+  }
+  .dc-address a:hover { background: #bfdbfe; }
+
+  .dc-items {
+    margin-top: 6px;
+    background: var(--nw-section);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--nw-text);
+    white-space: pre-wrap;
+    max-height: 100px;
+    overflow: hidden;
+  }
+  .dc-requester {
+    font-size: 12px; color: var(--nw-muted); margin-top: 6px;
+  }
+  .dc-requester b { color: var(--nw-text); }
+  .dc-photos {
+    display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;
+  }
+  .dc-photos img {
+    width: 56px; height: 56px; object-fit: cover;
+    border-radius: 6px; border: 1px solid var(--nw-border);
+  }
+
+  .ds-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .ds-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* Detail modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 640px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card textarea { min-height: 60px; resize: vertical; }
+  .detail-section {
+    border-top: 1px solid var(--nw-border);
+    padding-top: 12px;
+    margin-top: 12px;
+  }
+  .detail-section h3 {
+    font-size: 11px; font-weight: 700; color: var(--nw-muted);
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin: 0 0 8px;
+  }
+  .detail-row {
+    display: flex; gap: 8px; align-items: baseline; padding: 4px 0;
+    font-size: 14px;
+  }
+  .detail-row .label {
+    color: var(--nw-muted); font-size: 12px; min-width: 110px;
+    text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600;
+  }
+  .detail-row .value { color: var(--nw-text); flex: 1; }
+
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; flex-wrap: wrap;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-delivered { background: #10b981; color: #fff; }
+  .btn-save { background: var(--nw-primary); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error { background: #dc2626; }
+
+  @media (max-width: 600px) {
+    .delivery-card { margin: 6px 8px; padding: 12px 14px; }
+    .detail-row { flex-direction: column; gap: 2px; }
+    .detail-row .label { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ds-wrap">
+
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Driver Schedule</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="ds-toolbar">
+    <select id="filterDriver">
+      <option value="">All drivers</option>
+      <option value="Roman">Roman</option>
+      <option value="Vagif">Vagif</option>
+      <option value="Other">Other / Supplier</option>
+    </select>
+    <select id="filterRange">
+      <option value="upcoming">Upcoming (today + 14 days)</option>
+      <option value="today">Today only</option>
+      <option value="this-week">This week</option>
+      <option value="next-week">Next week</option>
+      <option value="past">Past (delivered)</option>
+    </select>
+    <select id="filterStatus">
+      <option value="active">Active (not delivered)</option>
+      <option value="all">All statuses</option>
+      <option value="in_progress">In Progress</option>
+      <option value="delivered">Delivered</option>
+    </select>
+  </div>
+
+  <div id="deliveryList"></div>
+</div>
+
+<!-- Delivery detail modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal-card">
+    <h2 id="detailTitle">Delivery Details</h2>
+    <div id="detailContent"></div>
+
+    <div class="detail-section" id="driverControls">
+      <h3>Driver actions</h3>
+      <div class="field">
+        <label>Delivery notes</label>
+        <textarea id="dNotes" placeholder="e.g. Left at security desk, called foreman Manuel, materials handed to crew..."></textarea>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnClose">Close</button>
+      <button class="btn-save"      id="btnMarkInProgress">⏳ Mark In Progress</button>
+      <button class="btn-delivered" id="btnMarkDelivered">✅ Mark Delivered</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var currentUserId = null;
+  var currentUserName = null;
+  var allDeliveries = [];
+  var openOrderId = null;
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) {
+        currentUserId = u.data.user.id;
+        var prof = await supabaseClient.from('profiles').select('full_name').eq('id', currentUserId).maybeSingle();
+        if (prof.data) currentUserName = prof.data.full_name;
+      }
+    } catch (e) {}
+
+    bindEvents();
+    refresh();
+  }
+
+  function bindEvents() {
+    ['filterDriver','filterRange','filterStatus'].forEach(function(id) {
+      document.getElementById(id).addEventListener('change', refresh);
+    });
+    document.getElementById('btnClose').addEventListener('click', closeDetail);
+    document.getElementById('btnMarkInProgress').addEventListener('click', function() { setStatus('in_progress'); });
+    document.getElementById('btnMarkDelivered').addEventListener('click', function() { setStatus('delivered'); });
+    document.getElementById('detailModal').addEventListener('click', function(e) {
+      if (e.target === this) closeDetail();
+    });
+  }
+
+  // ─── Refresh ───────────────────────────────────────────────────────────────
+
+  async function refresh() {
+    var listEl = document.getElementById('deliveryList');
+    listEl.innerHTML = '<div class="ds-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
+
+    var driver = document.getElementById('filterDriver').value;
+    var range  = document.getElementById('filterRange').value;
+    var status = document.getElementById('filterStatus').value;
+
+    var q = supabaseClient.from('field_orders')
+      .select('*, project:projects(id,project_name,short_code,address)')
+      .order('scheduled_delivery_date', { ascending: true })
+      .order('scheduled_delivery_start', { ascending: true });
+
+    if (driver) q = q.eq('driver_name', driver);
+    if (status === 'active')      q = q.in('status', ['requested','in_progress']);
+    else if (status === 'in_progress') q = q.eq('status', 'in_progress');
+    else if (status === 'delivered')   q = q.eq('status', 'delivered');
+
+    // Date range filter
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var ymd = function(d) { return d.toISOString().slice(0, 10); };
+    if (range === 'today') {
+      q = q.eq('scheduled_delivery_date', ymd(today));
+    } else if (range === 'this-week') {
+      var start = new Date(today); start.setDate(today.getDate() - today.getDay());
+      var end   = new Date(start); end.setDate(start.getDate() + 6);
+      q = q.gte('scheduled_delivery_date', ymd(start)).lte('scheduled_delivery_date', ymd(end));
+    } else if (range === 'next-week') {
+      var ns = new Date(today); ns.setDate(today.getDate() + (7 - today.getDay()));
+      var ne = new Date(ns);    ne.setDate(ns.getDate() + 6);
+      q = q.gte('scheduled_delivery_date', ymd(ns)).lte('scheduled_delivery_date', ymd(ne));
+    } else if (range === 'past') {
+      q = q.lt('scheduled_delivery_date', ymd(today));
+    } else { // upcoming
+      var fwd = new Date(today); fwd.setDate(today.getDate() + 14);
+      q = q.gte('scheduled_delivery_date', ymd(today)).lte('scheduled_delivery_date', ymd(fwd));
+    }
+
+    // Only orders with a scheduled date (i.e. ready for the driver)
+    q = q.not('scheduled_delivery_date', 'is', null);
+
+    var r = await q;
+    if (r.error) {
+      listEl.innerHTML = '<div class="ds-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
+      return;
+    }
+    allDeliveries = r.data || [];
+    renderGroupedByDay();
+  }
+
+  function renderGroupedByDay() {
+    var listEl = document.getElementById('deliveryList');
+    if (!allDeliveries.length) {
+      listEl.innerHTML =
+        '<div class="ds-empty"><div class="icon">🚐</div>' +
+          '<p>No scheduled deliveries in this range.<br>' +
+          'Deliveries appear here once Jonathan / PM schedules them.</p>' +
+        '</div>';
+      return;
+    }
+    var byDay = {};
+    allDeliveries.forEach(function(d) {
+      var key = d.scheduled_delivery_date || 'unscheduled';
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(d);
+    });
+    var todayStr = (new Date()).toISOString().slice(0, 10);
+    var keys = Object.keys(byDay).sort();
+    var html = keys.map(function(date) {
+      var entries = byDay[date];
+      var dt = new Date(date + 'T00:00:00');
+      var dayLabel = dt.toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric'
+      });
+      var cls = 'day-header';
+      if (date === todayStr) cls += ' today';
+      else if (date < todayStr) cls += ' past';
+      var header = '<div class="' + cls + '">' +
+        '<span>' + dayLabel + (date === todayStr ? ' · TODAY' : '') + '</span>' +
+        '<span class="count">' + entries.length + ' deliver' + (entries.length === 1 ? 'y' : 'ies') + '</span>' +
+      '</div>';
+      return '<div class="day-group">' + header +
+        entries.map(renderDelivery).join('') +
+      '</div>';
+    }).join('');
+    listEl.innerHTML = html;
+    document.querySelectorAll('.delivery-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        openDetail(card.getAttribute('data-id'));
+      });
+    });
+  }
+
+  function renderDelivery(d) {
+    var cls = 'delivery-card';
+    if (d.status === 'delivered') cls += ' delivered';
+    if (d.priority === 'urgent')  cls += ' urgent';
+
+    var projLabel = d.project
+      ? ((d.project.short_code ? d.project.short_code + ' · ' : '') + (d.project.project_name || ''))
+      : '(no project)';
+    var timeLabel = d.scheduled_delivery_start
+      ? String(d.scheduled_delivery_start).substring(0,5) +
+        (d.scheduled_delivery_end ? '–' + String(d.scheduled_delivery_end).substring(0,5) : '')
+      : 'All day';
+    var driverCls = (d.driver_name === 'Roman' ? 'roman' :
+                     d.driver_name === 'Vagif' ? 'vagif' : 'other');
+    var addr = d.delivery_address || (d.project && d.project.address) || '';
+
+    var photosHtml = '';
+    if (d.photo_urls && d.photo_urls.length) {
+      photosHtml = '<div class="dc-photos">' +
+        d.photo_urls.slice(0, 4).map(function(u) { return '<img src="' + escHtml(u) + '">'; }).join('') +
+      '</div>';
+    }
+
+    return '<div class="' + cls + '" data-id="' + d.id + '">' +
+      '<div class="dc-top">' +
+        '<span class="dc-time ' + (d.scheduled_delivery_start ? '' : 'no-time') + '">' + timeLabel + '</span>' +
+        '<span class="dc-project">' + escHtml(projLabel) + '</span>' +
+        (d.driver_name ? '<span class="dc-driver-pill ' + driverCls + '">🚐 ' + escHtml(d.driver_name) + '</span>' : '') +
+      '</div>' +
+      (addr ?
+        '<div class="dc-address">' +
+          '📍 ' + escHtml(addr) +
+          '<a href="https://maps.google.com/?q=' + encodeURIComponent(addr) + '" target="_blank" rel="noopener">Open in maps</a>' +
+        '</div>' : '') +
+      '<div class="dc-items">' + escHtml(d.items || '') + '</div>' +
+      photosHtml +
+      '<div class="dc-requester">Requested by <b>' + escHtml(d.requested_by_name || '—') + '</b> · ' + formatDateTime(d.requested_at) + '</div>' +
+    '</div>';
+  }
+
+  // ─── Detail modal ──────────────────────────────────────────────────────────
+
+  async function openDetail(orderId) {
+    openOrderId = orderId;
+    var r = await supabaseClient.from('field_orders')
+      .select('*, project:projects(id,project_name,short_code,address)')
+      .eq('id', orderId).maybeSingle();
+    if (r.error || !r.data) { showToast('Not found', 'error'); return; }
+    var d = r.data;
+    var projLabel = d.project
+      ? ((d.project.short_code ? d.project.short_code + ' · ' : '') + (d.project.project_name || ''))
+      : '(no project)';
+    document.getElementById('detailTitle').textContent = projLabel;
+
+    var addr = d.delivery_address || (d.project && d.project.address) || '';
+    var timeLabel = d.scheduled_delivery_start
+      ? String(d.scheduled_delivery_start).substring(0,5) +
+        (d.scheduled_delivery_end ? '–' + String(d.scheduled_delivery_end).substring(0,5) : '')
+      : 'All day';
+
+    var content = '<div class="detail-section">' +
+      '<h3>Delivery</h3>' +
+      detailRow('Date',    escHtml(d.scheduled_delivery_date || '—')) +
+      detailRow('Time',    escHtml(timeLabel)) +
+      detailRow('Driver',  escHtml(d.driver_name || '—')) +
+      detailRow('Status',  '<span style="font-weight:700">' + statusLabel(d.status||'requested') + '</span>') +
+      detailRow('Address', addr
+        ? escHtml(addr) + ' <a href="https://maps.google.com/?q=' + encodeURIComponent(addr) + '" target="_blank" style="margin-left:6px">📍 maps</a>'
+        : '—') +
+    '</div>' +
+    '<div class="detail-section">' +
+      '<h3>Materials to bring</h3>' +
+      '<div class="dc-items" style="max-height:none">' + escHtml(d.items || '') + '</div>' +
+      (d.notes ? '<div style="margin-top:8px;font-size:13px"><b>Notes:</b> ' + escHtml(d.notes) + '</div>' : '') +
+    '</div>';
+
+    if (d.photo_urls && d.photo_urls.length) {
+      content += '<div class="detail-section">' +
+        '<h3>Photos</h3>' +
+        '<div class="dc-photos">' +
+        d.photo_urls.map(function(u) {
+          return '<a href="' + escHtml(u) + '" target="_blank"><img src="' + escHtml(u) + '" style="width:96px;height:96px"></a>';
+        }).join('') +
+      '</div></div>';
+    }
+
+    content += '<div class="detail-section">' +
+      '<h3>Requested by</h3>' +
+      '<div style="font-size:14px"><b>' + escHtml(d.requested_by_name || '—') + '</b> at ' + formatDateTime(d.requested_at) + '</div>' +
+      (d.priority === 'urgent' ? '<div style="color:#dc2626;font-weight:700;margin-top:4px">🚨 URGENT</div>' : '') +
+    '</div>';
+
+    document.getElementById('detailContent').innerHTML = content;
+    document.getElementById('dNotes').value = d.delivery_notes || '';
+
+    // Show/hide buttons based on current status
+    document.getElementById('btnMarkInProgress').style.display = (d.status === 'requested') ? '' : 'none';
+    document.getElementById('btnMarkDelivered').style.display  = (d.status !== 'delivered' && d.status !== 'cancelled') ? '' : 'none';
+
+    document.getElementById('detailModal').classList.add('open');
+  }
+  function closeDetail() {
+    document.getElementById('detailModal').classList.remove('open');
+    openOrderId = null;
+  }
+  function detailRow(label, value) {
+    return '<div class="detail-row"><span class="label">' + label + '</span><span class="value">' + value + '</span></div>';
+  }
+
+  async function setStatus(newStatus) {
+    if (!openOrderId) return;
+    var patch = {
+      status: newStatus,
+      delivery_notes: document.getElementById('dNotes').value || null,
+      updated_by: currentUserId
+    };
+    if (newStatus === 'delivered') patch.delivered_at = new Date().toISOString();
+    var btn = (newStatus === 'delivered')
+      ? document.getElementById('btnMarkDelivered')
+      : document.getElementById('btnMarkInProgress');
+    btn.disabled = true;
+    var r = await supabaseClient.from('field_orders').update(patch).eq('id', openOrderId);
+    btn.disabled = false;
+    if (r.error) { showToast('Failed: ' + r.error.message, 'error'); return; }
+    showToast(newStatus === 'delivered' ? '✅ Marked delivered' : '⏳ Marked in progress', 'success');
+    closeDetail();
+    refresh();
+  }
+
+  function statusLabel(s) {
+    return ({
+      requested:   '📦 Requested',
+      in_progress: '⏳ In Progress',
+      delivered:   '✅ Delivered',
+      cancelled:   '❌ Cancelled'
+    })[s] || s;
+  }
+  function formatDateTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+           d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=151"></script>
+</body>
+</html>
