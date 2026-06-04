@@ -12,9 +12,9 @@
 <title>Field Orders — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=150"></script>
-<script src="auth.js?v=150"></script>
-<script src="schedule-utils.js?v=150"></script>
+<script src="supabase-config.js?v=152"></script>
+<script src="auth.js?v=152"></script>
+<script src="schedule-utils.js?v=152"></script>
 <style>
   body { padding-bottom: 24px; }
   .fo-wrap { max-width: 1100px; margin: 0 auto; }
@@ -424,7 +424,10 @@ requireAuth().catch(function(){});
   init();
 
   async function init() {
-    // Resolve user role
+    // Resolve user role + check if user can see ALL orders.
+    // Authoritative source: global_notification_subscribers table.
+    // Only those people (Russ / Andrei / Vlad / Jonathan) see All Orders.
+    // Everyone else (techs, PMs) sees only their own orders.
     try {
       var u = await supabaseClient.auth.getUser();
       if (u && u.data && u.data.user) {
@@ -434,9 +437,15 @@ requireAuth().catch(function(){});
       var profRes = await supabaseClient.from('profiles').select('full_name,role').eq('id', currentUserId).maybeSingle();
       if (profRes.data) {
         currentUserName = profRes.data.full_name || currentUserEmail;
-        isAdmin = (profRes.data.role === 'admin' || profRes.data.role === 'manager');
       }
-    } catch (e) { console.warn(e); }
+      // Check global subscribers — defense in depth, role-independent
+      var subRes = await supabaseClient
+        .from('global_notification_subscribers')
+        .select('user_id')
+        .eq('user_id', currentUserId)
+        .maybeSingle();
+      isAdmin = !!(subRes && subRes.data);
+    } catch (e) { console.warn(e); isAdmin = false; }
 
     // Show admin tab if admin
     if (isAdmin) {
@@ -904,6 +913,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=151"></script>
+<script src="sw-register.js?v=152"></script>
 </body>
 </html>
