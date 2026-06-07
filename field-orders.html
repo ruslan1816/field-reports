@@ -12,9 +12,9 @@
 <title>Field Orders — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=152"></script>
-<script src="auth.js?v=152"></script>
-<script src="schedule-utils.js?v=152"></script>
+<script src="supabase-config.js?v=153"></script>
+<script src="auth.js?v=153"></script>
+<script src="schedule-utils.js?v=153"></script>
 <style>
   body { padding-bottom: 24px; }
   .fo-wrap { max-width: 1100px; margin: 0 auto; }
@@ -367,12 +367,40 @@
           </select>
         </div>
         <div class="field">
-          <label>Driver</label>
+          <label>Driver / Vendor</label>
           <select id="dDriver">
-            <option value="">— No driver yet —</option>
-            <option value="Roman">Roman</option>
-            <option value="Vagif">Vagif</option>
-            <option value="Other">Other / Supplier delivers</option>
+            <option value="">— Not assigned yet —</option>
+            <optgroup label="🚐 NW Drivers">
+              <option value="Roman">Roman</option>
+              <option value="Vagif">Vagif</option>
+              <option value="Other">Other (NW staff)</option>
+            </optgroup>
+            <optgroup label="📦 Vendor delivers direct">
+              <option value="Ferguson">Ferguson</option>
+              <option value="Lion HVAC">Lion HVAC</option>
+              <option value="BZ Metal">BZ Metal</option>
+              <option value="Quality Cooling">Quality Cooling</option>
+              <option value="Homans">Homans</option>
+              <option value="ABCO">ABCO</option>
+              <option value="Daikin Applied">Daikin Applied</option>
+              <option value="Trane">Trane</option>
+              <option value="Klima">Klima</option>
+              <option value="Carrier">Carrier</option>
+              <option value="Lennox">Lennox</option>
+              <option value="ADE">ADE</option>
+              <option value="SRS">SRS</option>
+              <option value="EAS (Randy)">EAS (Randy)</option>
+              <option value="CaptiveAire">CaptiveAire</option>
+              <option value="General Insulation">General Insulation</option>
+              <option value="United Refrigeration">United Refrigeration</option>
+              <option value="BUSH">BUSH</option>
+              <option value="Cobalt">Cobalt</option>
+              <option value="JM Haley">JM Haley</option>
+              <option value="Y&amp;C">Y&amp;C</option>
+              <option value="Mayer Malbin">Mayer Malbin</option>
+              <option value="Hilti">Hilti</option>
+              <option value="Highmark">Highmark</option>
+            </optgroup>
           </select>
         </div>
       </div>
@@ -913,6 +941,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=152"></script>
+<script src="sw-register.js?v=153"></script>
 </body>
 </html>
