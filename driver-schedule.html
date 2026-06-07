@@ -9,12 +9,12 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0696D7">
-<title>Driver Schedule — Northern Wolves AC</title>
+<title>Delivery Schedule — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=150"></script>
-<script src="auth.js?v=150"></script>
-<script src="schedule-utils.js?v=150"></script>
+<script src="supabase-config.js?v=154"></script>
+<script src="auth.js?v=154"></script>
+<script src="schedule-utils.js?v=154"></script>
 <style>
   body { padding-bottom: 24px; }
   .ds-wrap { max-width: 900px; margin: 0 auto; }
@@ -77,9 +77,32 @@
     font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 10px;
     text-transform: uppercase; letter-spacing: 0.4px;
   }
-  .dc-driver-pill.roman { background: #dbeafe; color: #1e40af; }
-  .dc-driver-pill.vagif { background: #fef3c7; color: #92400e; }
-  .dc-driver-pill.other { background: #f1f5f9; color: #475569; }
+  .dc-driver-pill.roman  { background: #dbeafe; color: #1e40af; }
+  .dc-driver-pill.vagif  { background: #fef3c7; color: #92400e; }
+  .dc-driver-pill.other  { background: #f1f5f9; color: #475569; }
+  .dc-driver-pill.vendor { background: #d1fae5; color: #065f46; }
+  .dc-driver-pill.none   { background: #fee2e2; color: #991b1b; }
+
+  /* Top tabs */
+  .ds-tabs {
+    display: flex; gap: 8px; padding: 12px 16px 0;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+  }
+  .ds-tab {
+    padding: 9px 16px; border-radius: 8px 8px 0 0; font-size: 14px; font-weight: 700;
+    cursor: pointer; background: var(--nw-section); color: var(--nw-text);
+    border: 1px solid var(--nw-border); border-bottom: none;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ds-tab.active { background: var(--nw-primary); color: #fff; border-color: var(--nw-primary); }
+  .ds-tab .count {
+    background: rgba(255,255,255,.25); color: inherit;
+    padding: 1px 7px; border-radius: 10px;
+    font-size: 11px; font-weight: 700;
+  }
+  .ds-tab:not(.active) .count {
+    background: var(--nw-primary); color: #fff;
+  }
 
   .dc-address {
     display: flex; align-items: center; gap: 6px;
@@ -199,18 +222,25 @@
   <div class="header">
     <a href="index.html" class="back-btn">&#8592;</a>
     <div class="header-content">
-      <h1>Driver Schedule</h1>
+      <h1>Delivery Schedule</h1>
     </div>
     <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <!-- Tabs: NW Drivers vs Vendors/Suppliers -->
+  <div class="ds-tabs">
+    <div class="ds-tab active" data-tab="nw">
+      🚐 NW Drivers <span class="count" id="cntNW">0</span>
+    </div>
+    <div class="ds-tab" data-tab="vendors">
+      📦 Vendors / Suppliers <span class="count" id="cntVendors">0</span>
+    </div>
   </div>
 
   <!-- Toolbar -->
   <div class="ds-toolbar">
     <select id="filterDriver">
-      <option value="">All drivers</option>
-      <option value="Roman">Roman</option>
-      <option value="Vagif">Vagif</option>
-      <option value="Other">Other / Supplier</option>
+      <!-- Options populated dynamically based on active tab -->
     </select>
     <select id="filterRange">
       <option value="upcoming">Upcoming (today + 14 days)</option>
@@ -261,8 +291,21 @@ requireAuth().catch(function(){});
 
   var currentUserId = null;
   var currentUserName = null;
-  var allDeliveries = [];
+  var allDeliveries = [];        // current tab's filtered orders
   var openOrderId = null;
+  var currentTab = 'nw';         // 'nw' or 'vendors'
+
+  // NW staff drivers (in-house deliveries)
+  var NW_DRIVERS = ['Roman', 'Vagif', 'Other'];
+
+  // External vendors / suppliers (direct delivery)
+  var VENDORS = [
+    'Ferguson', 'Lion HVAC', 'BZ Metal', 'Quality Cooling', 'Homans',
+    'ABCO', 'Daikin Applied', 'Trane', 'Klima', 'Carrier', 'Lennox',
+    'ADE', 'SRS', 'EAS (Randy)', 'CaptiveAire', 'General Insulation',
+    'United Refrigeration', 'BUSH', 'Cobalt', 'JM Haley', 'Y&C',
+    'Mayer Malbin', 'Hilti', 'Highmark'
+  ];
 
   init();
 
@@ -276,11 +319,38 @@ requireAuth().catch(function(){});
       }
     } catch (e) {}
 
+    populateDriverDropdown();
     bindEvents();
     refresh();
+    refreshTabCounts();
+  }
+
+  function populateDriverDropdown() {
+    var sel = document.getElementById('filterDriver');
+    sel.innerHTML = '';
+    var allLabel = (currentTab === 'nw') ? 'All NW drivers' : 'All vendors';
+    var opts = ['<option value="">' + allLabel + '</option>'];
+    var list = (currentTab === 'nw') ? NW_DRIVERS : VENDORS;
+    list.forEach(function(name) {
+      opts.push('<option value="' + name.replace(/"/g, '&quot;') + '">' + name + '</option>');
+    });
+    sel.innerHTML = opts.join('');
   }
 
   function bindEvents() {
+    // Tab switching
+    document.querySelectorAll('.ds-tab').forEach(function(t) {
+      t.addEventListener('click', function() {
+        var newTab = t.getAttribute('data-tab');
+        if (newTab === currentTab) return;
+        document.querySelectorAll('.ds-tab').forEach(function(x) { x.classList.remove('active'); });
+        t.classList.add('active');
+        currentTab = newTab;
+        populateDriverDropdown();
+        refresh();
+      });
+    });
+
     ['filterDriver','filterRange','filterStatus'].forEach(function(id) {
       document.getElementById(id).addEventListener('change', refresh);
     });
@@ -290,6 +360,34 @@ requireAuth().catch(function(){});
     document.getElementById('detailModal').addEventListener('click', function(e) {
       if (e.target === this) closeDetail();
     });
+  }
+
+  // Background count refresh — shows total active orders in each tab
+  async function refreshTabCounts() {
+    var today = (new Date()).toISOString().slice(0, 10);
+    var fwd = new Date(); fwd.setDate(fwd.getDate() + 14);
+    var fwdStr = fwd.toISOString().slice(0, 10);
+    var base = supabaseClient.from('field_orders')
+      .select('id,driver_name', { count: 'exact', head: false })
+      .in('status', ['requested','in_progress'])
+      .gte('scheduled_delivery_date', today)
+      .lte('scheduled_delivery_date', fwdStr)
+      .not('scheduled_delivery_date', 'is', null);
+
+    try {
+      var nw = await base.in('driver_name', NW_DRIVERS);
+      document.getElementById('cntNW').textContent = (nw.data || []).length;
+    } catch (e) {}
+    try {
+      var vendor = await supabaseClient.from('field_orders')
+        .select('id,driver_name')
+        .in('status', ['requested','in_progress'])
+        .gte('scheduled_delivery_date', today)
+        .lte('scheduled_delivery_date', fwdStr)
+        .not('scheduled_delivery_date', 'is', null)
+        .in('driver_name', VENDORS);
+      document.getElementById('cntVendors').textContent = (vendor.data || []).length;
+    } catch (e) {}
   }
 
   // ─── Refresh ───────────────────────────────────────────────────────────────
@@ -307,7 +405,14 @@ requireAuth().catch(function(){});
       .order('scheduled_delivery_date', { ascending: true })
       .order('scheduled_delivery_start', { ascending: true });
 
-    if (driver) q = q.eq('driver_name', driver);
+    // Scope by active tab — NW staff vs Vendors
+    if (driver) {
+      q = q.eq('driver_name', driver);
+    } else if (currentTab === 'nw') {
+      q = q.in('driver_name', NW_DRIVERS);
+    } else {
+      q = q.in('driver_name', VENDORS);
+    }
     if (status === 'active')      q = q.in('status', ['requested','in_progress']);
     else if (status === 'in_progress') q = q.eq('status', 'in_progress');
     else if (status === 'delivered')   q = q.eq('status', 'delivered');
@@ -342,15 +447,18 @@ requireAuth().catch(function(){});
     }
     allDeliveries = r.data || [];
     renderGroupedByDay();
+    refreshTabCounts();
   }
 
   function renderGroupedByDay() {
     var listEl = document.getElementById('deliveryList');
     if (!allDeliveries.length) {
+      var emptyMsg = (currentTab === 'nw')
+        ? 'No NW driver deliveries in this range.<br>Once Jonathan / PM assigns Roman or Vagif to an order, it shows up here.'
+        : 'No vendor / supplier deliveries in this range.<br>Once a vendor (Ferguson, Lion HVAC, etc.) is assigned to an order, it shows up here.';
       listEl.innerHTML =
-        '<div class="ds-empty"><div class="icon">🚐</div>' +
-          '<p>No scheduled deliveries in this range.<br>' +
-          'Deliveries appear here once Jonathan / PM schedules them.</p>' +
+        '<div class="ds-empty"><div class="icon">' + (currentTab === 'nw' ? '🚐' : '📦') + '</div>' +
+          '<p>' + emptyMsg + '</p>' +
         '</div>';
       return;
     }
@@ -400,7 +508,11 @@ requireAuth().catch(function(){});
         (d.scheduled_delivery_end ? '–' + String(d.scheduled_delivery_end).substring(0,5) : '')
       : 'All day';
     var driverCls = (d.driver_name === 'Roman' ? 'roman' :
-                     d.driver_name === 'Vagif' ? 'vagif' : 'other');
+                     d.driver_name === 'Vagif' ? 'vagif' :
+                     d.driver_name === 'Other' ? 'other' :
+                     VENDORS.indexOf(d.driver_name) >= 0 ? 'vendor' :
+                     d.driver_name ? 'other' : 'none');
+    var driverIcon = (VENDORS.indexOf(d.driver_name) >= 0) ? '📦' : '🚐';
     var addr = d.delivery_address || (d.project && d.project.address) || '';
 
     var photosHtml = '';
@@ -414,7 +526,7 @@ requireAuth().catch(function(){});
       '<div class="dc-top">' +
         '<span class="dc-time ' + (d.scheduled_delivery_start ? '' : 'no-time') + '">' + timeLabel + '</span>' +
         '<span class="dc-project">' + escHtml(projLabel) + '</span>' +
-        (d.driver_name ? '<span class="dc-driver-pill ' + driverCls + '">🚐 ' + escHtml(d.driver_name) + '</span>' : '') +
+        (d.driver_name ? '<span class="dc-driver-pill ' + driverCls + '">' + driverIcon + ' ' + escHtml(d.driver_name) + '</span>' : '') +
       '</div>' +
       (addr ?
         '<div class="dc-address">' +
@@ -451,7 +563,7 @@ requireAuth().catch(function(){});
       '<h3>Delivery</h3>' +
       detailRow('Date',    escHtml(d.scheduled_delivery_date || '—')) +
       detailRow('Time',    escHtml(timeLabel)) +
-      detailRow('Driver',  escHtml(d.driver_name || '—')) +
+      detailRow((VENDORS.indexOf(d.driver_name) >= 0) ? 'Vendor' : 'Driver',  escHtml(d.driver_name || '—')) +
       detailRow('Status',  '<span style="font-weight:700">' + statusLabel(d.status||'requested') + '</span>') +
       detailRow('Address', addr
         ? escHtml(addr) + ' <a href="https://maps.google.com/?q=' + encodeURIComponent(addr) + '" target="_blank" style="margin-left:6px">📍 maps</a>'
@@ -541,6 +653,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=151"></script>
+<script src="sw-register.js?v=154"></script>
 </body>
 </html>
