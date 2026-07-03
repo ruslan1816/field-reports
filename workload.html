@@ -376,6 +376,15 @@
 
     <div class="section-header">Progress & Timeline</div>
 
+    <div class="field">
+      <label>Project Status</label>
+      <select id="fStatus">
+        <option value="active">▶️ In Progress</option>
+        <option value="onhold">⏸️ On Hold</option>
+        <option value="completed">✅ Completed</option>
+      </select>
+    </div>
+
     <div class="row">
       <div class="field">
         <label>% Complete</label>
@@ -878,6 +887,7 @@ requireAuth().catch(function(){});
       (p.short_code ? p.short_code + ' · ' : '') +
       (p.pm_name ? 'PM: ' + p.pm_name : '');
 
+    document.getElementById('fStatus').value     = p.status || 'active';
     document.getElementById('fPercent').value    = p.percent_complete != null ? p.percent_complete : '';
     document.getElementById('fTargetDate').value = p.target_completion_date || '';
     document.getElementById('fDays').value       = p.days_remaining != null ? p.days_remaining : '';
@@ -947,6 +957,7 @@ requireAuth().catch(function(){});
     };
     var subsOn = document.getElementById('fIncludeSubs').classList.contains('on');
     var patch = {
+      status:                 document.getElementById('fStatus').value || 'active',
       percent_complete:       num('fPercent'),
       days_remaining:         num('fDays'),
       target_completion_date: document.getElementById('fTargetDate').value || null,
