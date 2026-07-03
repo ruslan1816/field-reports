@@ -12,9 +12,9 @@
 <title>Workload Planner — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=161"></script>
-<script src="auth.js?v=161"></script>
-<script src="schedule-utils.js?v=161"></script>
+<script src="supabase-config.js?v=162"></script>
+<script src="auth.js?v=162"></script>
+<script src="schedule-utils.js?v=162"></script>
 <style>
   body { padding-bottom: 24px; }
   .wl-wrap { max-width: 1100px; margin: 0 auto; }
@@ -229,6 +229,63 @@
 
   .wl-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
   .wl-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* Work commitment panel */
+  .commit-panel {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 12px; margin: 0 16px 12px; padding: 14px 16px;
+  }
+  .commit-panel h3 {
+    font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin: 0 0 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .commit-panel h3 select {
+    padding: 4px 9px; font-size: 12px;
+    border: 1px solid var(--nw-border); border-radius: 6px;
+    background: #fff; font-weight: 700;
+    text-transform: none; letter-spacing: 0;
+  }
+  .commit-grid {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(120px, auto) minmax(120px, auto) minmax(150px, auto);
+    gap: 0;
+    align-items: center;
+  }
+  .commit-grid > div {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--nw-border);
+    font-size: 13px;
+  }
+  .commit-grid .head {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    color: var(--nw-muted); letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--nw-border);
+    background: #f8fafc;
+  }
+  .commit-grid .crew-cell { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+  .commit-grid .value { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .commit-grid .value b { font-size: 15px; }
+  .commit-grid .value .unit { color: var(--nw-muted); font-size: 11px; font-weight: 500; margin-left: 3px; }
+  .commit-grid .concurrent {
+    display: inline-block; padding: 3px 8px; border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    background: #f1f5f9; color: #334155;
+  }
+  .commit-grid .concurrent.warn  { background: #fef3c7; color: #92400e; }
+  .commit-grid .concurrent.short { background: #fee2e2; color: #991b1b; }
+  .commit-grid .concurrent.idle  { background: #f1f5f9; color: #475569; opacity: 0.6; }
+  .commit-grid .total-row > div {
+    background: #f0f9ff; border-bottom: none;
+    font-weight: 800;
+  }
+  @media (max-width: 700px) {
+    .commit-grid {
+      grid-template-columns: minmax(130px, 1fr) minmax(80px, auto) minmax(80px, auto);
+    }
+    .commit-grid .concurrent-col { display: none; }
+  }
 
   /* View tabs */
   .view-tabs {
@@ -497,6 +554,26 @@
     </div>
   </div>
 
+  <!-- Work commitment — labor demand by crew across horizon -->
+  <div class="commit-panel">
+    <h3>
+      📅 Work Commitment — next
+      <select id="commitHorizon">
+        <option value="30" selected>30 days</option>
+        <option value="60">60 days</option>
+        <option value="90">90 days</option>
+        <option value="120">120 days</option>
+      </select>
+      of pipeline
+    </h3>
+    <div class="commit-grid" id="commitGrid">
+      <div class="head">Crew</div>
+      <div class="head">Person-days</div>
+      <div class="head">Man-hours</div>
+      <div class="head concurrent-col">Equivalent men avg</div>
+    </div>
+  </div>
+
   <!-- View tabs -->
   <div class="view-tabs">
     <div class="view-tab active" data-view="timeline">📊 Timeline</div>
@@ -698,6 +775,7 @@ requireAuth().catch(function(){});
   var showSubsInCapacity = false;
   var currentView = 'timeline';   // 'timeline' or 'cards'
   var lookaheadDays = 30;
+  var commitHorizon = 30;         // days horizon for work-commitment panel
 
   // Company capacity — loaded from schedule_techs + subcontractors
   var companyCapacity = { sm: 0, pipe: 0, startup: 0, total: 0 };
@@ -752,6 +830,10 @@ requireAuth().catch(function(){});
     });
     document.getElementById('lookaheadDays').addEventListener('change', function() {
       lookaheadDays = parseInt(this.value, 10) || 30;
+      render();
+    });
+    document.getElementById('commitHorizon').addEventListener('change', function() {
+      commitHorizon = parseInt(this.value, 10) || 30;
       render();
     });
     document.getElementById('fIncludeSubs').addEventListener('click', function() {
@@ -872,11 +954,107 @@ requireAuth().catch(function(){});
     });
 
     renderCapacityPanel(filtered);
+    renderCommitPanel(filtered);
     if (currentView === 'timeline') {
       renderTimeline(filtered);
     } else {
       renderProjects(filtered);
     }
+  }
+
+  // ─── Work Commitment (pipeline demand within horizon) ─────────────────────
+  //
+  // For each crew: sum over active projects of (men × min(days, horizon))
+  // → total person-days of that crew's work booked in the next N days.
+  // Equivalent men avg = person-days / horizon (how many concurrent people
+  // it would take on average to burn through that pipeline in horizon days).
+
+  function renderCommitPanel(list) {
+    var active = list.filter(function(p) { return p.status === 'active'; });
+
+    var buckets = {
+      sm:      { pd: 0, hrs: 0 },
+      pipe:    { pd: 0, hrs: 0 },
+      startup: { pd: 0, hrs: 0 },
+      subs:    { pd: 0, hrs: 0 }
+    };
+
+    active.forEach(function(p) {
+      // NW crews
+      var smD    = Math.min(p.sm_days      || 0, commitHorizon);
+      var pipeD  = Math.min(p.pipe_days    || 0, commitHorizon);
+      var suD    = Math.min(p.startup_days || 0, commitHorizon);
+      buckets.sm.pd      += (p.sm_needed      || 0) * smD;
+      buckets.pipe.pd    += (p.pipe_needed    || 0) * pipeD;
+      buckets.startup.pd += (p.startup_needed || 0) * suD;
+
+      // Subs
+      if (p.include_subs) {
+        var ssmD  = Math.min(p.subs_sm_days      || 0, commitHorizon);
+        var spD   = Math.min(p.subs_pipe_days    || 0, commitHorizon);
+        var ssuD  = Math.min(p.subs_startup_days || 0, commitHorizon);
+        buckets.subs.pd += (p.subs_sm_needed      || 0) * ssmD;
+        buckets.subs.pd += (p.subs_pipe_needed    || 0) * spD;
+        buckets.subs.pd += (p.subs_startup_needed || 0) * ssuD;
+      }
+    });
+    // Man-hours = person-days × 8
+    Object.keys(buckets).forEach(function(k) { buckets[k].hrs = buckets[k].pd * HOURS_PER_DAY; });
+
+    var rows = [
+      { key: 'sm',      icon: '🔩', label: 'Sheetmetal',      avail: companyCapacity.sm },
+      { key: 'pipe',    icon: '🔧', label: 'Piping',          avail: companyCapacity.pipe },
+      { key: 'startup', icon: '⚡', label: 'Start-up',        avail: companyCapacity.startup }
+    ];
+    var showSubsRow = buckets.subs.pd > 0;
+    if (showSubsRow) {
+      rows.push({ key: 'subs', icon: '🤝', label: 'Subs (all crews)', avail: null });
+    }
+
+    var html =
+      '<div class="head">Crew</div>' +
+      '<div class="head">Person-days</div>' +
+      '<div class="head">Man-hours</div>' +
+      '<div class="head concurrent-col">Equivalent men avg</div>';
+
+    rows.forEach(function(r) {
+      var b = buckets[r.key];
+      var equiv = (b.pd > 0) ? (b.pd / commitHorizon) : 0;
+      // Compare avg concurrent to available crew for NW rows
+      var eqCls = 'concurrent';
+      var eqLabel;
+      if (b.pd === 0) {
+        eqCls += ' idle';
+        eqLabel = 'idle';
+      } else if (r.avail != null && equiv > r.avail) {
+        eqCls += ' short';
+        eqLabel = '≈ ' + equiv.toFixed(1) + ' men avg / ' + r.avail + ' avail';
+      } else if (r.avail != null && equiv > r.avail * 0.85) {
+        eqCls += ' warn';
+        eqLabel = '≈ ' + equiv.toFixed(1) + ' men avg / ' + r.avail + ' avail';
+      } else if (r.avail != null) {
+        eqLabel = '≈ ' + equiv.toFixed(1) + ' men avg / ' + r.avail + ' avail';
+      } else {
+        eqLabel = '≈ ' + equiv.toFixed(1) + ' men avg';
+      }
+      html +=
+        '<div class="crew-cell">' + r.icon + ' ' + escHtml(r.label) + '</div>' +
+        '<div class="value"><b>' + b.pd.toLocaleString() + '</b><span class="unit">pd</span></div>' +
+        '<div class="value"><b>' + b.hrs.toLocaleString() + '</b><span class="unit">hrs</span></div>' +
+        '<div class="concurrent-col"><span class="' + eqCls + '">' + eqLabel + '</span></div>';
+    });
+
+    // Total (NW crews only for the "equivalent men" comparison)
+    var totalPD  = buckets.sm.pd + buckets.pipe.pd + buckets.startup.pd + (showSubsRow ? buckets.subs.pd : 0);
+    var totalHrs = totalPD * HOURS_PER_DAY;
+    html += '<div class="total-row" style="display:contents">' +
+      '<div class="crew-cell">👥 TOTAL</div>' +
+      '<div class="value"><b>' + totalPD.toLocaleString() + '</b><span class="unit">pd</span></div>' +
+      '<div class="value"><b>' + totalHrs.toLocaleString() + '</b><span class="unit">hrs</span></div>' +
+      '<div class="concurrent-col"><span style="font-size:11px;color:var(--nw-muted)">across ' + commitHorizon + ' days</span></div>' +
+    '</div>';
+
+    document.getElementById('commitGrid').innerHTML = html;
   }
 
   // ─── Timeline (CSS Grid Gantt) ─────────────────────────────────────────────
@@ -1419,6 +1597,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=161"></script>
+<script src="sw-register.js?v=162"></script>
 </body>
 </html>
