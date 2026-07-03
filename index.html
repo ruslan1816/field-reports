@@ -839,6 +839,7 @@
       { type: 'customers', icon: '\uD83C\uDFE2', title: 'Customers', desc: 'Shared customer database', page: 'customers.html', accent: '#0696D7', iconBg: '#e0f2fe' },
       { type: 'equipment', icon: '\u2699\uFE0F', title: 'Equipment', desc: 'Track units, warranties, service', page: 'equipment.html', accent: '#64748b', iconBg: '#f1f5f9' },
       { type: 'projects', icon: '\uD83D\uDCC1', title: 'Projects', desc: 'Shared docs & drawings', page: 'projects.html', accent: '#f59e0b', iconBg: '#fef3c7' },
+      { type: 'workload', icon: '\uD83D\uDCC8', title: 'Workload Planner', desc: 'Capacity, timeline, staffing', page: 'workload.html', accent: '#8b5cf6', iconBg: '#ede9fe' },
       { type: 'management', icon: '\uD83D\uDCCA', title: 'Management', desc: 'All reports & status', page: 'management.html', accent: '#8b5cf6', iconBg: '#ede9fe' },
       { type: 'history', icon: '\uD83D\uDCC3', title: 'Activity', desc: 'Drafts & completed reports', page: 'history.html', accent: '#10b981', iconBg: '#d1fae5' }
     ];
@@ -973,11 +974,13 @@
   renderReportGrid();
   renderDispatches();
 
-  // Hide management card for techs
+  // Hide management + workload cards for techs
   getAuthProfile().then(function(profile) {
     if (profile && profile.role === 'tech') {
-      var mgmtLink = document.querySelector('a[href="management.html"]');
-      if (mgmtLink) mgmtLink.style.display = 'none';
+      ['management.html', 'workload.html'].forEach(function(page) {
+        var link = document.querySelector('a[href="' + page + '"]');
+        if (link) link.style.display = 'none';
+      });
     }
   }).catch(function(){});
 

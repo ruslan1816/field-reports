@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Workload Planner — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=156"></script>
+<script src="auth.js?v=156"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .wl-wrap { max-width: 1100px; margin: 0 auto; }
+
+  /* Aggregate summary cards */
+  .wl-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    padding: 16px;
+  }
+  .stat-card {
+    background: var(--nw-card);
+    border: 1px solid var(--nw-border);
+    border-left: 4px solid var(--nw-primary);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat-card .stat-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--nw-muted);
+  }
+  .stat-card .stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--nw-text);
+    margin: 4px 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-card .stat-sub {
+    font-size: 12px;
+    color: var(--nw-muted);
+  }
+  .stat-card.warn   { border-left-color: #f59e0b; }
+  .stat-card.good   { border-left-color: #10b981; }
+  .stat-card.danger { border-left-color: #dc2626; }
+
+  /* Toolbar */
+  .wl-toolbar {
+    display: flex; gap: 10px; padding: 8px 16px 12px;
+    align-items: center; flex-wrap: wrap;
+    background: var(--nw-card);
+    border-bottom: 1px solid var(--nw-border);
+  }
+  .wl-toolbar .grow { flex: 1; }
+  .wl-toolbar select {
+    padding: 7px 11px; font-size: 13px; border: 1px solid var(--nw-border);
+    border-radius: 7px; background: #fff;
+  }
+  .wl-toolbar .readonly-badge {
+    font-size: 11px; padding: 4px 8px; border-radius: 6px;
+    background: #f1f5f9; color: #475569; font-weight: 700;
+  }
+
+  /* Project card */
+  .project-card {
+    background: var(--nw-card);
+    border: 1px solid var(--nw-border);
+    border-left: 4px solid #94a3b8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 10px 16px;
+  }
+  .project-card.progress-low  { border-left-color: #dc2626; }
+  .project-card.progress-mid  { border-left-color: #f59e0b; }
+  .project-card.progress-high { border-left-color: #10b981; }
+  .project-card.stale         { background: #fef9c3; }
+
+  .pc-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .pc-title {
+    font-weight: 700; font-size: 16px; color: var(--nw-text); flex: 1;
+    min-width: 200px;
+  }
+  .pc-title .short-code {
+    background: var(--nw-primary); color: #fff;
+    font-size: 11px; padding: 2px 7px; border-radius: 5px;
+    margin-right: 6px; letter-spacing: 0.5px;
+  }
+  .pc-pm {
+    font-size: 12px; color: var(--nw-muted); font-weight: 600;
+  }
+  .pc-pm b { color: var(--nw-text); }
+
+  .pc-progress-bar {
+    height: 20px; background: #e2e8f0; border-radius: 10px;
+    overflow: hidden; position: relative;
+    margin: 6px 0 10px;
+  }
+  .pc-progress-fill {
+    height: 100%; background: linear-gradient(90deg, #0696D7, #0479B2);
+    transition: width 0.4s ease;
+  }
+  .pc-progress-fill.mid  { background: linear-gradient(90deg, #f59e0b, #d97706); }
+  .pc-progress-fill.low  { background: linear-gradient(90deg, #dc2626, #b91c1c); }
+  .pc-progress-fill.high { background: linear-gradient(90deg, #10b981, #059669); }
+  .pc-progress-label {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 12px; font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+
+  .pc-metrics {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    padding: 8px 0; font-size: 13px;
+  }
+  .pc-metric {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .pc-metric .icon { font-size: 16px; }
+  .pc-metric b { color: var(--nw-text); font-weight: 700; }
+  .pc-metric.warn b { color: #dc2626; }
+
+  .pc-tasks {
+    margin-top: 8px; padding: 8px 12px;
+    background: var(--nw-section); border-radius: 6px;
+    font-size: 13px; color: var(--nw-text);
+    white-space: pre-wrap;
+  }
+  .pc-tasks-label {
+    font-size: 11px; font-weight: 700; color: var(--nw-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+
+  .pc-hours {
+    margin-top: 8px; padding: 8px 12px;
+    background: #f0f9ff; border-radius: 6px;
+    font-size: 12px;
+    display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+  }
+  .pc-hours .label { font-weight: 700; color: var(--nw-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .pc-hours .value { font-weight: 700; color: var(--nw-text); font-variant-numeric: tabular-nums; }
+  .pc-hours .variance.over  { color: #dc2626; font-weight: 700; }
+  .pc-hours .variance.under { color: #059669; font-weight: 700; }
+  .pc-hours .variance.on    { color: #475569; font-weight: 700; }
+
+  .pc-footer {
+    margin-top: 10px; padding-top: 8px;
+    border-top: 1px solid var(--nw-border);
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11px; color: var(--nw-muted);
+    flex-wrap: wrap;
+  }
+  .pc-footer .grow { flex: 1; }
+  .pc-footer button {
+    padding: 6px 12px; border: 1px solid var(--nw-primary);
+    background: #fff; color: var(--nw-primary);
+    font-weight: 700; font-size: 12px; border-radius: 6px;
+    cursor: pointer;
+  }
+  .pc-footer button:hover { background: var(--nw-primary); color: #fff; }
+  .pc-footer .stale-flag {
+    background: #fbbf24; color: #78350f;
+    padding: 3px 8px; border-radius: 6px; font-weight: 700;
+  }
+
+  .wl-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .wl-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 24px 12px; z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 620px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 4px; }
+  .modal-card .subtitle { font-size: 13px; color: var(--nw-muted); margin-bottom: 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 10px 12px; font-size: 14px;
+    border: 1px solid var(--nw-border); border-radius: 7px;
+    box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card textarea { min-height: 80px; resize: vertical; }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+  .modal-card .section-header {
+    font-size: 13px; font-weight: 700; color: var(--nw-primary);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin: 16px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--nw-border);
+  }
+  .modal-card .optional-badge {
+    font-size: 10px; color: var(--nw-muted);
+    background: #f1f5f9; padding: 2px 7px; border-radius: 4px;
+    margin-left: 4px; text-transform: none; letter-spacing: 0;
+    font-weight: 600;
+  }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px;
+    justify-content: flex-end; flex-wrap: wrap;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700;
+    font-size: 14px; cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save   { background: var(--nw-primary); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error   { background: #dc2626; }
+
+  @media (max-width: 600px) {
+    .modal-card .row { flex-direction: column; gap: 0; }
+    .project-card { margin: 8px 8px; padding: 12px 14px; }
+    .pc-metrics { gap: 10px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wl-wrap">
+
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Workload Planner</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <!-- Aggregate summary -->
+  <div class="wl-summary" id="summary">
+    <div class="stat-card">
+      <div class="stat-label">Active projects</div>
+      <div class="stat-value" id="statActive">—</div>
+      <div class="stat-sub" id="statActiveSub">tracked in the app</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-label">People needed now</div>
+      <div class="stat-value" id="statHeadcount">—</div>
+      <div class="stat-sub">total concurrent across active</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Person-days remaining</div>
+      <div class="stat-value" id="statPersonDays">—</div>
+      <div class="stat-sub">sum: people × days per project</div>
+    </div>
+    <div class="stat-card good">
+      <div class="stat-label">Completing this month</div>
+      <div class="stat-value" id="statCompleting">—</div>
+      <div class="stat-sub" id="statCompletingSub">by target date</div>
+    </div>
+  </div>
+
+  <!-- Toolbar / filters -->
+  <div class="wl-toolbar">
+    <select id="filterPM">
+      <option value="">All PMs</option>
+    </select>
+    <select id="filterStatus">
+      <option value="active">Active only</option>
+      <option value="all">Active + On-hold</option>
+      <option value="completed">Completed</option>
+    </select>
+    <select id="sortBy">
+      <option value="target">Sort by target date</option>
+      <option value="progress">Sort by % complete</option>
+      <option value="headcount">Sort by headcount</option>
+      <option value="updated">Sort by last updated</option>
+    </select>
+    <div class="grow"></div>
+    <span class="readonly-badge" id="readonlyBadge" style="display:none">👁️ Read-only</span>
+  </div>
+
+  <div id="projectList"></div>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-card">
+    <h2 id="editTitle">Update project workload</h2>
+    <div class="subtitle" id="editSubtitle"></div>
+
+    <div class="section-header">Progress & Timeline</div>
+
+    <div class="row">
+      <div class="field">
+        <label>% Complete</label>
+        <input type="number" id="fPercent" min="0" max="100" step="5" placeholder="0-100">
+      </div>
+      <div class="field">
+        <label>Target completion date</label>
+        <input type="date" id="fTargetDate">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>👥 People needed</label>
+        <input type="number" id="fHeadcount" min="0" placeholder="e.g. 3">
+      </div>
+      <div class="field">
+        <label>📅 Days remaining</label>
+        <input type="number" id="fDays" min="0" placeholder="e.g. 10">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Remaining tasks</label>
+      <textarea id="fTasks" placeholder="e.g.&#10;- Rough-in second floor&#10;- Install RTU-2&#10;- Startup + commissioning&#10;- Final walk-through"></textarea>
+    </div>
+
+    <div class="section-header">Man Hours <span class="optional-badge">optional — for post-project comparison</span></div>
+
+    <div class="row">
+      <div class="field">
+        <label>Planned man hours (bid)</label>
+        <input type="number" id="fPlannedHrs" min="0" placeholder="from original estimate">
+      </div>
+      <div class="field">
+        <label>Actual man hours (to date)</label>
+        <input type="number" id="fActualHrs" min="0" placeholder="hours already used">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="fNotes" placeholder="Blockers, dependencies, coordination items..." style="min-height:60px"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancel">Cancel</button>
+      <button class="btn-save" id="btnSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var MGMT_ROLES = ['admin', 'manager', 'lead_pm', 'project_manager', 'apm'];
+  var STALE_DAYS = 8;   // warn when a project hasn't been updated in 8+ days
+
+  var currentUserId = null;
+  var currentUserName = null;
+  var currentUserRole = null;
+  var canEdit = false;
+  var allProjects = [];
+  var editingId = null;
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) {
+        currentUserId = u.data.user.id;
+      }
+      var prof = await supabaseClient.from('profiles')
+        .select('full_name,role')
+        .eq('id', currentUserId).maybeSingle();
+      if (prof.data) {
+        currentUserName = prof.data.full_name;
+        currentUserRole = prof.data.role;
+        canEdit = MGMT_ROLES.indexOf(currentUserRole) >= 0;
+      }
+    } catch (e) { console.warn(e); }
+
+    if (!canEdit) {
+      document.getElementById('readonlyBadge').style.display = '';
+    }
+
+    bindEvents();
+    await refresh();
+  }
+
+  function bindEvents() {
+    ['filterPM','filterStatus','sortBy'].forEach(function(id) {
+      document.getElementById(id).addEventListener('change', render);
+    });
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+    document.getElementById('btnSave').addEventListener('click', saveWorkload);
+    document.getElementById('editModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+  }
+
+  async function refresh() {
+    var listEl = document.getElementById('projectList');
+    listEl.innerHTML = '<div class="wl-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
+
+    var r = await supabaseClient.from('projects')
+      .select('*')
+      .in('status', ['active', 'onhold', 'completed'])
+      .order('target_completion_date', { ascending: true, nullsFirst: false });
+
+    if (r.error) {
+      listEl.innerHTML = '<div class="wl-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
+      return;
+    }
+    allProjects = (r.data || []).filter(function(p) { return !!p.project_name; });
+    populatePMFilter();
+    render();
+  }
+
+  function populatePMFilter() {
+    var select = document.getElementById('filterPM');
+    var currentVal = select.value;
+    var pms = {};
+    allProjects.forEach(function(p) {
+      if (p.pm_name) pms[p.pm_name] = true;
+    });
+    var opts = ['<option value="">All PMs</option>'];
+    Object.keys(pms).sort().forEach(function(pm) {
+      opts.push('<option value="' + escHtml(pm) + '">' + escHtml(pm) + '</option>');
+    });
+    select.innerHTML = opts.join('');
+    if (currentVal) select.value = currentVal;
+  }
+
+  function render() {
+    var pm = document.getElementById('filterPM').value;
+    var statusFilter = document.getElementById('filterStatus').value;
+    var sortBy = document.getElementById('sortBy').value;
+
+    var filtered = allProjects.filter(function(p) {
+      if (pm && p.pm_name !== pm) return false;
+      if (statusFilter === 'active')    return p.status === 'active';
+      if (statusFilter === 'completed') return p.status === 'completed';
+      /* 'all' → active + onhold */
+      return p.status === 'active' || p.status === 'onhold';
+    });
+
+    // Sort
+    filtered.sort(function(a, b) {
+      if (sortBy === 'target') {
+        var ta = a.target_completion_date || '9999-12-31';
+        var tb = b.target_completion_date || '9999-12-31';
+        return ta.localeCompare(tb);
+      }
+      if (sortBy === 'progress') {
+        return (a.percent_complete || 0) - (b.percent_complete || 0);
+      }
+      if (sortBy === 'headcount') {
+        return (b.headcount_needed || 0) - (a.headcount_needed || 0);
+      }
+      if (sortBy === 'updated') {
+        var ua = a.workload_updated_at || '';
+        var ub = b.workload_updated_at || '';
+        return ub.localeCompare(ua);
+      }
+      return 0;
+    });
+
+    renderSummary(filtered);
+    renderProjects(filtered);
+  }
+
+  function renderSummary(list) {
+    var activeList = list.filter(function(p) { return p.status === 'active'; });
+    var totalHeadcount = 0;
+    var totalPersonDays = 0;
+    var completingThisMonth = 0;
+
+    var now = new Date();
+    var monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      .toISOString().slice(0, 10);
+    var today = now.toISOString().slice(0, 10);
+
+    activeList.forEach(function(p) {
+      totalHeadcount += (p.headcount_needed || 0);
+      totalPersonDays += (p.headcount_needed || 0) * (p.days_remaining || 0);
+      if (p.target_completion_date &&
+          p.target_completion_date >= today &&
+          p.target_completion_date <= monthEnd) {
+        completingThisMonth++;
+      }
+    });
+
+    var trackedCount = activeList.filter(function(p) {
+      return (p.percent_complete != null) || (p.headcount_needed != null);
+    }).length;
+
+    document.getElementById('statActive').textContent    = activeList.length;
+    document.getElementById('statActiveSub').textContent = trackedCount + ' with workload data';
+    document.getElementById('statHeadcount').textContent = totalHeadcount || 0;
+    document.getElementById('statPersonDays').textContent = totalPersonDays || 0;
+    document.getElementById('statCompleting').textContent = completingThisMonth;
+    document.getElementById('statCompletingSub').textContent =
+      'by ' + new Date(monthEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function renderProjects(list) {
+    var listEl = document.getElementById('projectList');
+    if (!list.length) {
+      listEl.innerHTML = '<div class="wl-empty"><div class="icon">📊</div>' +
+        '<p>No projects match the current filters.</p></div>';
+      return;
+    }
+    listEl.innerHTML = list.map(renderProject).join('');
+    document.querySelectorAll('.pc-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { openEdit(btn.getAttribute('data-id')); });
+    });
+  }
+
+  function renderProject(p) {
+    var pct = p.percent_complete;
+    var cls = 'project-card';
+    if (pct == null) cls += '';
+    else if (pct < 30)  cls += ' progress-low';
+    else if (pct < 70)  cls += ' progress-mid';
+    else                cls += ' progress-high';
+
+    var fillCls =
+      pct == null ? '' :
+      pct < 30 ? 'low' :
+      pct < 70 ? 'mid' : 'high';
+
+    var isStale = false;
+    if (p.workload_updated_at) {
+      var days = (Date.now() - new Date(p.workload_updated_at).getTime()) / (1000 * 60 * 60 * 24);
+      if (days > STALE_DAYS && p.status === 'active') isStale = true;
+    } else if (p.status === 'active') {
+      isStale = true;   // never updated
+    }
+    if (isStale) cls += ' stale';
+
+    var progressBar = '';
+    if (pct != null) {
+      progressBar =
+        '<div class="pc-progress-bar">' +
+          '<div class="pc-progress-fill ' + fillCls + '" style="width:' + pct + '%"></div>' +
+          '<div class="pc-progress-label">' + pct + '% complete</div>' +
+        '</div>';
+    }
+
+    var metrics = [];
+    if (p.headcount_needed != null) {
+      metrics.push('<span class="pc-metric"><span class="icon">👥</span> <b>' + p.headcount_needed + '</b> ' +
+        (p.headcount_needed === 1 ? 'person' : 'people') + '</span>');
+    }
+    if (p.days_remaining != null) {
+      metrics.push('<span class="pc-metric"><span class="icon">📅</span> <b>' + p.days_remaining + '</b> ' +
+        (p.days_remaining === 1 ? 'day' : 'days') + '</span>');
+    }
+    if (p.headcount_needed != null && p.days_remaining != null) {
+      var pd = p.headcount_needed * p.days_remaining;
+      metrics.push('<span class="pc-metric">= <b>' + pd + '</b> person-days</span>');
+    }
+    if (p.target_completion_date) {
+      var td = new Date(p.target_completion_date + 'T00:00:00');
+      var todayD = new Date(); todayD.setHours(0,0,0,0);
+      var daysToTarget = Math.round((td - todayD) / (1000 * 60 * 60 * 24));
+      var warnCls = (daysToTarget < 0 || (daysToTarget < 14 && (pct || 0) < 70)) ? ' warn' : '';
+      var label = td.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      var sub = daysToTarget < 0 ? (Math.abs(daysToTarget) + ' days overdue') :
+                daysToTarget === 0 ? 'today' :
+                'in ' + daysToTarget + ' days';
+      metrics.push('<span class="pc-metric' + warnCls + '"><span class="icon">🎯</span> <b>' + label + '</b> <span style="color:var(--nw-muted);font-size:12px">(' + sub + ')</span></span>');
+    }
+
+    var tasksHtml = p.remaining_tasks
+      ? '<div class="pc-tasks-label">Remaining tasks</div>' +
+        '<div class="pc-tasks">' + escHtml(p.remaining_tasks) + '</div>'
+      : '';
+
+    var hoursHtml = '';
+    if (p.planned_man_hours != null || p.actual_man_hours != null) {
+      var planned = p.planned_man_hours;
+      var actual  = p.actual_man_hours;
+      var variance = '';
+      if (planned != null && actual != null) {
+        var diff = actual - planned;
+        if (diff > 0) {
+          variance = '<span class="variance over">+' + diff + ' hrs over</span>';
+        } else if (diff < 0) {
+          variance = '<span class="variance under">' + diff + ' hrs under</span>';
+        } else {
+          variance = '<span class="variance on">on budget</span>';
+        }
+      }
+      hoursHtml = '<div class="pc-hours">' +
+        '<span><span class="label">Planned:</span> <span class="value">' + (planned != null ? planned + ' hrs' : '—') + '</span></span>' +
+        '<span><span class="label">Actual:</span> <span class="value">' + (actual  != null ? actual  + ' hrs' : '—') + '</span></span>' +
+        variance +
+      '</div>';
+    }
+
+    var updated = p.workload_updated_at
+      ? 'Updated ' + timeAgo(p.workload_updated_at)
+      : 'Never updated';
+
+    var editBtn = canEdit
+      ? '<button class="pc-edit-btn" data-id="' + p.id + '">Update</button>'
+      : '';
+
+    var staleFlag = isStale
+      ? '<span class="stale-flag">⚠️ Update needed</span>'
+      : '';
+
+    var statusLabel = p.status === 'onhold' ? ' · ⏸️ On hold' :
+                      p.status === 'completed' ? ' · ✅ Completed' : '';
+
+    return '<div class="' + cls + '">' +
+      '<div class="pc-header">' +
+        '<div class="pc-title">' +
+          (p.short_code ? '<span class="short-code">' + escHtml(p.short_code) + '</span>' : '') +
+          escHtml(p.project_name || '(untitled)') +
+          '<span style="color:var(--nw-muted);font-size:12px">' + statusLabel + '</span>' +
+        '</div>' +
+        (p.pm_name ? '<span class="pc-pm">PM: <b>' + escHtml(p.pm_name) + '</b></span>' : '') +
+      '</div>' +
+      progressBar +
+      (metrics.length ? '<div class="pc-metrics">' + metrics.join('') + '</div>' : '') +
+      tasksHtml +
+      hoursHtml +
+      '<div class="pc-footer">' +
+        '<span>' + updated + '</span>' +
+        staleFlag +
+        '<div class="grow"></div>' +
+        editBtn +
+      '</div>' +
+    '</div>';
+  }
+
+  // ─── Edit modal ────────────────────────────────────────────────────────────
+
+  function openEdit(projectId) {
+    if (!canEdit) { showToast('Read-only — ask a PM or admin to update', 'error'); return; }
+    var p = allProjects.find(function(x) { return x.id === projectId; });
+    if (!p) return;
+    editingId = projectId;
+    document.getElementById('editTitle').textContent = 'Update workload — ' + (p.project_name || '');
+    document.getElementById('editSubtitle').textContent =
+      (p.short_code ? p.short_code + ' · ' : '') +
+      (p.pm_name ? 'PM: ' + p.pm_name : '');
+    document.getElementById('fPercent').value    = p.percent_complete    != null ? p.percent_complete    : '';
+    document.getElementById('fHeadcount').value  = p.headcount_needed    != null ? p.headcount_needed    : '';
+    document.getElementById('fDays').value       = p.days_remaining      != null ? p.days_remaining      : '';
+    document.getElementById('fTargetDate').value = p.target_completion_date || '';
+    document.getElementById('fTasks').value      = p.remaining_tasks     || '';
+    document.getElementById('fPlannedHrs').value = p.planned_man_hours   != null ? p.planned_man_hours   : '';
+    document.getElementById('fActualHrs').value  = p.actual_man_hours    != null ? p.actual_man_hours    : '';
+    document.getElementById('fNotes').value      = p.workload_notes      || '';
+    document.getElementById('editModal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('editModal').classList.remove('open');
+    editingId = null;
+  }
+
+  async function saveWorkload() {
+    if (!editingId) return;
+    var btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    var num = function(id) {
+      var v = document.getElementById(id).value;
+      return v === '' ? null : Number(v);
+    };
+    var patch = {
+      percent_complete:       num('fPercent'),
+      headcount_needed:       num('fHeadcount'),
+      days_remaining:         num('fDays'),
+      target_completion_date: document.getElementById('fTargetDate').value || null,
+      remaining_tasks:        document.getElementById('fTasks').value.trim() || null,
+      planned_man_hours:      num('fPlannedHrs'),
+      actual_man_hours:       num('fActualHrs'),
+      workload_notes:         document.getElementById('fNotes').value.trim() || null,
+      workload_updated_at:    new Date().toISOString(),
+      workload_updated_by:    currentUserId
+    };
+
+    var r = await supabaseClient.from('projects').update(patch).eq('id', editingId);
+    btn.disabled = false; btn.textContent = 'Save';
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    showToast('✅ Updated', 'success');
+    closeModal();
+    await refresh();
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  function timeAgo(iso) {
+    if (!iso) return 'never';
+    var s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 60)      return 'just now';
+    if (s < 3600)    return Math.floor(s / 60) + ' min ago';
+    if (s < 86400)   return Math.floor(s / 3600) + ' hr ago';
+    if (s < 2592000) return Math.floor(s / 86400) + ' days ago';
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=156"></script>
+</body>
+</html>
