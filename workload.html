@@ -12,9 +12,9 @@
 <title>Workload Planner — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=157"></script>
-<script src="auth.js?v=157"></script>
-<script src="schedule-utils.js?v=157"></script>
+<script src="supabase-config.js?v=160"></script>
+<script src="auth.js?v=160"></script>
+<script src="schedule-utils.js?v=160"></script>
 <style>
   body { padding-bottom: 24px; }
   .wl-wrap { max-width: 1100px; margin: 0 auto; }
@@ -396,25 +396,39 @@
       </div>
     </div>
 
-    <div class="field">
-      <label>📅 Days remaining <span style="text-transform:none;font-weight:400;color:var(--nw-muted)">(1 day = 8 hrs/person)</span></label>
-      <input type="number" id="fDays" min="0" placeholder="e.g. 10">
+    <div class="section-header">
+      NW Crew — men × days per crew
+      <span class="optional-badge">1 day = 8 hrs / person</span>
     </div>
-
-    <div class="section-header">NW Crew — how many men needed per day</div>
 
     <div class="row">
       <div class="field">
-        <label>🔩 Sheetmetal (men)</label>
+        <label>🔩 Sheetmetal — men</label>
         <input type="number" id="fSM" min="0" placeholder="0">
       </div>
       <div class="field">
-        <label>🔧 Piping (men)</label>
+        <label>🔩 Sheetmetal — days left</label>
+        <input type="number" id="fSMDays" min="0" placeholder="0">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>🔧 Piping — men</label>
         <input type="number" id="fPipe" min="0" placeholder="0">
       </div>
       <div class="field">
-        <label>⚡ Start-up (men)</label>
+        <label>🔧 Piping — days left</label>
+        <input type="number" id="fPipeDays" min="0" placeholder="0">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>⚡ Start-up — men</label>
         <input type="number" id="fStartup" min="0" placeholder="0">
+      </div>
+      <div class="field">
+        <label>⚡ Start-up — days left</label>
+        <input type="number" id="fStartupDays" min="0" placeholder="0">
       </div>
     </div>
     <div class="field-hint" id="crewHint" style="margin-top:-8px;margin-bottom:12px"></div>
@@ -426,19 +440,35 @@
     </div>
 
     <div class="subs-block" id="subsBlock">
-      <div class="field-hint" style="margin-bottom:8px">Sub crew — how many men needed per day (in addition to NW crew above)</div>
+      <div class="field-hint" style="margin-bottom:8px">Sub crews — men × days per crew (in addition to NW crew above)</div>
       <div class="row">
         <div class="field">
-          <label>🔩 Sheetmetal subs (men)</label>
+          <label>🔩 SM subs — men</label>
           <input type="number" id="fSubsSM" min="0" placeholder="0">
         </div>
         <div class="field">
-          <label>🔧 Piping subs (men)</label>
+          <label>🔩 SM subs — days left</label>
+          <input type="number" id="fSubsSMDays" min="0" placeholder="0">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>🔧 Piping subs — men</label>
           <input type="number" id="fSubsPipe" min="0" placeholder="0">
         </div>
         <div class="field">
-          <label>⚡ Start-up subs (men)</label>
+          <label>🔧 Piping subs — days left</label>
+          <input type="number" id="fSubsPipeDays" min="0" placeholder="0">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>⚡ Start-up subs — men</label>
           <input type="number" id="fSubsStartup" min="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>⚡ Start-up subs — days left</label>
+          <input type="number" id="fSubsStartupDays" min="0" placeholder="0">
         </div>
       </div>
     </div>
@@ -538,9 +568,11 @@ requireAuth().catch(function(){});
       document.getElementById('subsBlock').classList.toggle('on', on);
     });
     // Live projection hint
-    ['fSM','fPipe','fStartup','fSubsSM','fSubsPipe','fSubsStartup','fDays'].forEach(function(id) {
-      document.getElementById(id).addEventListener('input', updateProjectionHint);
-    });
+    ['fSM','fSMDays','fPipe','fPipeDays','fStartup','fStartupDays',
+     'fSubsSM','fSubsSMDays','fSubsPipe','fSubsPipeDays','fSubsStartup','fSubsStartupDays']
+      .forEach(function(id) {
+        document.getElementById(id).addEventListener('input', updateProjectionHint);
+      });
   }
 
   // ─── Company capacity ──────────────────────────────────────────────────────
@@ -776,31 +808,43 @@ requireAuth().catch(function(){});
         '<div class="pc-progress-label">' + pct + '% complete</div>' +
       '</div>' : '';
 
-    // Crew pills
+    // Crew pills — show men × days per crew
     var crewPills = [];
-    if (p.sm_needed)      crewPills.push('<span class="crew-pill sm">🔩 ' + p.sm_needed      + ' SM</span>');
-    if (p.pipe_needed)    crewPills.push('<span class="crew-pill p">🔧 '  + p.pipe_needed    + ' Piping</span>');
-    if (p.startup_needed) crewPills.push('<span class="crew-pill su">⚡ ' + p.startup_needed + ' Start-up</span>');
+    var dayLbl = function(d) { return d != null ? ' × ' + d + 'd' : ''; };
+    if (p.sm_needed)      crewPills.push('<span class="crew-pill sm">🔩 ' + p.sm_needed      + dayLbl(p.sm_days)      + '</span>');
+    if (p.pipe_needed)    crewPills.push('<span class="crew-pill p">🔧 '  + p.pipe_needed    + dayLbl(p.pipe_days)    + '</span>');
+    if (p.startup_needed) crewPills.push('<span class="crew-pill su">⚡ ' + p.startup_needed + dayLbl(p.startup_days) + '</span>');
     if (p.include_subs) {
-      var subTotal = (p.subs_sm_needed || 0) + (p.subs_pipe_needed || 0) + (p.subs_startup_needed || 0);
-      if (subTotal > 0) {
-        crewPills.push('<span class="crew-pill sub">🤝 ' + subTotal + ' subs</span>');
-      }
+      if (p.subs_sm_needed)      crewPills.push('<span class="crew-pill sub">🤝🔩 ' + p.subs_sm_needed      + dayLbl(p.subs_sm_days)      + '</span>');
+      if (p.subs_pipe_needed)    crewPills.push('<span class="crew-pill sub">🤝🔧 ' + p.subs_pipe_needed    + dayLbl(p.subs_pipe_days)    + '</span>');
+      if (p.subs_startup_needed) crewPills.push('<span class="crew-pill sub">🤝⚡ ' + p.subs_startup_needed + dayLbl(p.subs_startup_days) + '</span>');
     }
     var crewsHtml = crewPills.length ? '<div class="pc-crews">' + crewPills.join('') + '</div>' : '';
 
-    // Metrics
+    // Metrics — per-crew man-hours + max days as project timeline
     var metrics = [];
     var nwTotal = (p.sm_needed || 0) + (p.pipe_needed || 0) + (p.startup_needed || 0);
     if (nwTotal > 0) {
       metrics.push('<span class="pc-metric"><span class="icon">👥</span> <b>' + nwTotal + '</b> NW</span>');
     }
-    if (p.days_remaining != null) {
-      metrics.push('<span class="pc-metric"><span class="icon">📅</span> <b>' + p.days_remaining + '</b> days</span>');
+    var nwHrs = (p.sm_needed || 0)     * (p.sm_days || 0)     * HOURS_PER_DAY
+              + (p.pipe_needed || 0)   * (p.pipe_days || 0)   * HOURS_PER_DAY
+              + (p.startup_needed || 0)* (p.startup_days || 0)* HOURS_PER_DAY;
+    var subHrs = p.include_subs
+      ? (p.subs_sm_needed || 0)     * (p.subs_sm_days || 0)     * HOURS_PER_DAY
+      + (p.subs_pipe_needed || 0)   * (p.subs_pipe_days || 0)   * HOURS_PER_DAY
+      + (p.subs_startup_needed || 0)* (p.subs_startup_days || 0)* HOURS_PER_DAY
+      : 0;
+    var totalHrs = nwHrs + subHrs;
+    if (totalHrs > 0) {
+      metrics.push('<span class="pc-metric">≈ <b>' + totalHrs.toLocaleString() + '</b> man-hrs</span>');
     }
-    if (nwTotal > 0 && p.days_remaining != null) {
-      var manHours = nwTotal * p.days_remaining * HOURS_PER_DAY;
-      metrics.push('<span class="pc-metric">≈ <b>' + manHours.toLocaleString() + '</b> man-hrs</span>');
+    var maxDays = Math.max(p.sm_days || 0, p.pipe_days || 0, p.startup_days || 0,
+                           p.include_subs ? (p.subs_sm_days || 0) : 0,
+                           p.include_subs ? (p.subs_pipe_days || 0) : 0,
+                           p.include_subs ? (p.subs_startup_days || 0) : 0);
+    if (maxDays > 0) {
+      metrics.push('<span class="pc-metric"><span class="icon">📅</span> <b>' + maxDays + '</b> days left</span>');
     }
     if (p.target_completion_date) {
       var td = new Date(p.target_completion_date + 'T00:00:00');
@@ -890,20 +934,25 @@ requireAuth().catch(function(){});
     document.getElementById('fStatus').value     = p.status || 'active';
     document.getElementById('fPercent').value    = p.percent_complete != null ? p.percent_complete : '';
     document.getElementById('fTargetDate').value = p.target_completion_date || '';
-    document.getElementById('fDays').value       = p.days_remaining != null ? p.days_remaining : '';
 
-    document.getElementById('fSM').value      = p.sm_needed      != null ? p.sm_needed      : '';
-    document.getElementById('fPipe').value    = p.pipe_needed    != null ? p.pipe_needed    : '';
-    document.getElementById('fStartup').value = p.startup_needed != null ? p.startup_needed : '';
+    document.getElementById('fSM').value          = p.sm_needed      != null ? p.sm_needed      : '';
+    document.getElementById('fSMDays').value      = p.sm_days        != null ? p.sm_days        : '';
+    document.getElementById('fPipe').value        = p.pipe_needed    != null ? p.pipe_needed    : '';
+    document.getElementById('fPipeDays').value    = p.pipe_days      != null ? p.pipe_days      : '';
+    document.getElementById('fStartup').value     = p.startup_needed != null ? p.startup_needed : '';
+    document.getElementById('fStartupDays').value = p.startup_days   != null ? p.startup_days   : '';
 
     var subsOn = !!p.include_subs;
     var toggle = document.getElementById('fIncludeSubs');
     toggle.classList.toggle('on', subsOn);
     toggle.textContent = subsOn ? 'On' : 'Off';
     document.getElementById('subsBlock').classList.toggle('on', subsOn);
-    document.getElementById('fSubsSM').value      = p.subs_sm_needed      != null ? p.subs_sm_needed      : '';
-    document.getElementById('fSubsPipe').value    = p.subs_pipe_needed    != null ? p.subs_pipe_needed    : '';
-    document.getElementById('fSubsStartup').value = p.subs_startup_needed != null ? p.subs_startup_needed : '';
+    document.getElementById('fSubsSM').value          = p.subs_sm_needed      != null ? p.subs_sm_needed      : '';
+    document.getElementById('fSubsSMDays').value      = p.subs_sm_days        != null ? p.subs_sm_days        : '';
+    document.getElementById('fSubsPipe').value        = p.subs_pipe_needed    != null ? p.subs_pipe_needed    : '';
+    document.getElementById('fSubsPipeDays').value    = p.subs_pipe_days      != null ? p.subs_pipe_days      : '';
+    document.getElementById('fSubsStartup').value     = p.subs_startup_needed != null ? p.subs_startup_needed : '';
+    document.getElementById('fSubsStartupDays').value = p.subs_startup_days   != null ? p.subs_startup_days   : '';
 
     document.getElementById('fTasks').value      = p.remaining_tasks   || '';
     document.getElementById('fPlannedHrs').value = p.planned_man_hours != null ? p.planned_man_hours : '';
@@ -916,27 +965,49 @@ requireAuth().catch(function(){});
 
   function updateProjectionHint() {
     var num = function(id) { var v = document.getElementById(id).value; return v === '' ? 0 : Number(v); };
-    var sm    = num('fSM');
-    var pipe  = num('fPipe');
-    var su    = num('fStartup');
-    var days  = num('fDays');
+    var sm       = num('fSM'),      smDays       = num('fSMDays');
+    var pipe     = num('fPipe'),    pipeDays     = num('fPipeDays');
+    var su       = num('fStartup'), suDays       = num('fStartupDays');
+
     var subsOn = document.getElementById('fIncludeSubs').classList.contains('on');
-    var subsTotal = 0;
-    if (subsOn) subsTotal = num('fSubsSM') + num('fSubsPipe') + num('fSubsStartup');
+    var subSM = 0, subSMDays = 0, subPipe = 0, subPipeDays = 0, subSu = 0, subSuDays = 0;
+    if (subsOn) {
+      subSM    = num('fSubsSM');      subSMDays   = num('fSubsSMDays');
+      subPipe  = num('fSubsPipe');    subPipeDays = num('fSubsPipeDays');
+      subSu    = num('fSubsStartup'); subSuDays   = num('fSubsStartupDays');
+    }
 
     var nwTotal = sm + pipe + su;
+    var subsTotal = subSM + subPipe + subSu;
     var totalPeople = nwTotal + subsTotal;
+
     var crewHint = totalPeople > 0
       ? '👥 Total: <b>' + nwTotal + '</b> NW' +
         (subsOn && subsTotal > 0 ? ' + <b>' + subsTotal + '</b> subs = <b>' + totalPeople + '</b> people concurrent' : '') +
         ' · Available (NW): 🔩 ' + companyCapacity.sm + ' · 🔧 ' + companyCapacity.pipe + ' · ⚡ ' + companyCapacity.startup
-      : 'Enter how many people from each crew are needed on this project (concurrent, per day).';
+      : 'Enter men + days needed for each crew.';
     document.getElementById('crewHint').innerHTML = crewHint;
 
+    // Per-crew man-hours: men × days × 8
+    var hSM   = sm      * smDays   * HOURS_PER_DAY;
+    var hPipe = pipe    * pipeDays * HOURS_PER_DAY;
+    var hSU   = su      * suDays   * HOURS_PER_DAY;
+    var hSubSM   = subSM   * subSMDays   * HOURS_PER_DAY;
+    var hSubPipe = subPipe * subPipeDays * HOURS_PER_DAY;
+    var hSubSU   = subSu   * subSuDays   * HOURS_PER_DAY;
+
+    var nwHrs = hSM + hPipe + hSU;
+    var subHrs = hSubSM + hSubPipe + hSubSU;
+    var totalHrs = nwHrs + subHrs;
+
     var projHint = '';
-    if (totalPeople > 0 && days > 0) {
-      var projectedHrs = totalPeople * days * HOURS_PER_DAY;
-      projHint = '📊 Projected remaining: <b>' + projectedHrs.toLocaleString() + '</b> man-hrs (' + totalPeople + ' × ' + days + ' × 8)';
+    if (totalHrs > 0) {
+      var parts = [];
+      if (hSM   > 0) parts.push('🔩 ' + hSM.toLocaleString());
+      if (hPipe > 0) parts.push('🔧 ' + hPipe.toLocaleString());
+      if (hSU   > 0) parts.push('⚡ ' + hSU.toLocaleString());
+      if (subsOn && subHrs > 0) parts.push('🤝 ' + subHrs.toLocaleString());
+      projHint = '📊 Projected remaining: <b>' + totalHrs.toLocaleString() + '</b> man-hrs (' + parts.join(' + ') + ')';
     }
     document.getElementById('projectionHint').innerHTML = projHint;
   }
@@ -959,17 +1030,22 @@ requireAuth().catch(function(){});
     var patch = {
       status:                 document.getElementById('fStatus').value || 'active',
       percent_complete:       num('fPercent'),
-      days_remaining:         num('fDays'),
       target_completion_date: document.getElementById('fTargetDate').value || null,
 
       sm_needed:      num('fSM'),
+      sm_days:        num('fSMDays'),
       pipe_needed:    num('fPipe'),
+      pipe_days:      num('fPipeDays'),
       startup_needed: num('fStartup'),
+      startup_days:   num('fStartupDays'),
 
       include_subs:        subsOn,
-      subs_sm_needed:      subsOn ? num('fSubsSM')      : null,
-      subs_pipe_needed:    subsOn ? num('fSubsPipe')    : null,
-      subs_startup_needed: subsOn ? num('fSubsStartup') : null,
+      subs_sm_needed:      subsOn ? num('fSubsSM')          : null,
+      subs_sm_days:        subsOn ? num('fSubsSMDays')      : null,
+      subs_pipe_needed:    subsOn ? num('fSubsPipe')        : null,
+      subs_pipe_days:      subsOn ? num('fSubsPipeDays')    : null,
+      subs_startup_needed: subsOn ? num('fSubsStartup')     : null,
+      subs_startup_days:   subsOn ? num('fSubsStartupDays') : null,
 
       remaining_tasks:   document.getElementById('fTasks').value.trim() || null,
       planned_man_hours: num('fPlannedHrs'),
@@ -1013,6 +1089,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=157"></script>
+<script src="sw-register.js?v=160"></script>
 </body>
 </html>
