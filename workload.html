@@ -12,47 +12,82 @@
 <title>Workload Planner — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=156"></script>
-<script src="auth.js?v=156"></script>
+<script src="supabase-config.js?v=157"></script>
+<script src="auth.js?v=157"></script>
+<script src="schedule-utils.js?v=157"></script>
 <style>
   body { padding-bottom: 24px; }
   .wl-wrap { max-width: 1100px; margin: 0 auto; }
+  .hours-note {
+    padding: 6px 16px; background: #f8fafc; border-bottom: 1px solid var(--nw-border);
+    font-size: 12px; color: var(--nw-muted); text-align: center;
+  }
 
-  /* Aggregate summary cards */
-  .wl-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  /* Capacity — crew breakdown */
+  .capacity-panel {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 12px; margin: 12px 16px; padding: 14px 16px;
+  }
+  .capacity-panel h3 {
+    font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin: 0 0 10px;
+  }
+  .capacity-panel h3 .subs-toggle {
+    float: right; font-size: 11px;
+    background: var(--nw-section); padding: 3px 10px; border-radius: 12px;
+    color: var(--nw-text); font-weight: 700; cursor: pointer;
+    border: 1px solid var(--nw-border); text-transform: none; letter-spacing: 0;
+  }
+  .capacity-panel h3 .subs-toggle.on {
+    background: var(--nw-primary); color: #fff; border-color: var(--nw-primary);
+  }
+
+  .crew-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 12px;
-    padding: 16px;
   }
-  .stat-card {
-    background: var(--nw-card);
+  .crew-cell {
+    background: #f8fafc; border-radius: 10px; padding: 12px;
     border: 1px solid var(--nw-border);
-    border-left: 4px solid var(--nw-primary);
-    border-radius: 10px;
-    padding: 14px 16px;
   }
-  .stat-card .stat-label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--nw-muted);
+  .crew-cell .crew-icon { font-size: 22px; }
+  .crew-cell .crew-name {
+    font-size: 13px; font-weight: 700; color: var(--nw-text);
+    margin: 4px 0 8px;
   }
-  .stat-card .stat-value {
-    font-size: 26px;
-    font-weight: 800;
-    color: var(--nw-text);
-    margin: 4px 0;
-    font-variant-numeric: tabular-nums;
+  .crew-cell .crew-numbers {
+    display: flex; gap: 10px; align-items: baseline; font-variant-numeric: tabular-nums;
   }
-  .stat-card .stat-sub {
-    font-size: 12px;
-    color: var(--nw-muted);
+  .crew-cell .needed {
+    font-size: 26px; font-weight: 800; color: var(--nw-text);
   }
-  .stat-card.warn   { border-left-color: #f59e0b; }
-  .stat-card.good   { border-left-color: #10b981; }
-  .stat-card.danger { border-left-color: #dc2626; }
+  .crew-cell .divider {
+    font-size: 16px; color: var(--nw-muted);
+  }
+  .crew-cell .available {
+    font-size: 16px; color: var(--nw-muted); font-weight: 600;
+  }
+  .crew-cell .status-line {
+    margin-top: 8px; font-size: 12px; font-weight: 700;
+    padding: 4px 10px; border-radius: 6px;
+    display: inline-block;
+  }
+  .crew-cell.ok       { border-left: 4px solid #10b981; }
+  .crew-cell.ok       .status-line { background: #d1fae5; color: #065f46; }
+  .crew-cell.tight    { border-left: 4px solid #f59e0b; }
+  .crew-cell.tight    .status-line { background: #fef3c7; color: #92400e; }
+  .crew-cell.short    { border-left: 4px solid #dc2626; }
+  .crew-cell.short    .status-line { background: #fee2e2; color: #991b1b; }
+  .crew-cell.idle     { border-left: 4px solid #64748b; opacity: 0.75; }
+  .crew-cell.idle     .status-line { background: #f1f5f9; color: #475569; }
+
+  .subs-row {
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px dashed var(--nw-border);
+    font-size: 12px; color: var(--nw-muted);
+  }
+  .subs-row .sub-count { color: var(--nw-text); font-weight: 700; }
 
   /* Toolbar */
   .wl-toolbar {
@@ -122,14 +157,29 @@
     text-shadow: 0 1px 2px rgba(0,0,0,.3);
   }
 
+  /* Crew mini-pills inside project card */
+  .pc-crews {
+    display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0;
+  }
+  .crew-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 9px; border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    background: #f1f5f9; color: #334155;
+  }
+  .crew-pill.sm  { background: #fef3c7; color: #92400e; }
+  .crew-pill.p   { background: #dbeafe; color: #1e40af; }
+  .crew-pill.su  { background: #ede9fe; color: #5b21b6; }
+  .crew-pill.sub { background: #d1fae5; color: #065f46; border: 1px dashed #059669; }
+
   .pc-metrics {
-    display: flex; gap: 16px; flex-wrap: wrap;
-    padding: 8px 0; font-size: 13px;
+    display: flex; gap: 14px; flex-wrap: wrap;
+    padding: 6px 0; font-size: 13px;
   }
   .pc-metric {
     display: flex; align-items: center; gap: 4px;
   }
-  .pc-metric .icon { font-size: 16px; }
+  .pc-metric .icon { font-size: 15px; }
   .pc-metric b { color: var(--nw-text); font-weight: 700; }
   .pc-metric.warn b { color: #dc2626; }
 
@@ -188,7 +238,7 @@
   }
   .modal-overlay.open { display: flex; }
   .modal-card {
-    background: #fff; border-radius: 14px; width: 100%; max-width: 620px;
+    background: #fff; border-radius: 14px; width: 100%; max-width: 640px;
     box-shadow: 0 20px 60px rgba(0,0,0,.25);
     padding: 20px 22px 24px;
   }
@@ -213,6 +263,17 @@
     margin: 16px 0 8px;
     padding-bottom: 4px;
     border-bottom: 1px solid var(--nw-border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .modal-card .section-header .toggle-switch {
+    margin-left: auto; font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 12px;
+    background: var(--nw-section); color: var(--nw-text);
+    cursor: pointer; border: 1px solid var(--nw-border);
+    letter-spacing: 0; text-transform: none;
+  }
+  .modal-card .section-header .toggle-switch.on {
+    background: var(--nw-primary); color: #fff; border-color: var(--nw-primary);
   }
   .modal-card .optional-badge {
     font-size: 10px; color: var(--nw-muted);
@@ -220,6 +281,13 @@
     margin-left: 4px; text-transform: none; letter-spacing: 0;
     font-weight: 600;
   }
+  .modal-card .subs-block { display: none; }
+  .modal-card .subs-block.on { display: block; }
+
+  .modal-card .field-hint {
+    font-size: 11px; color: var(--nw-muted); margin-top: 4px;
+  }
+
   .modal-actions {
     display: flex; gap: 10px; margin-top: 18px;
     justify-content: flex-end; flex-wrap: wrap;
@@ -261,27 +329,19 @@
     <div class="profile-circle" id="profileCircle">--</div>
   </div>
 
-  <!-- Aggregate summary -->
-  <div class="wl-summary" id="summary">
-    <div class="stat-card">
-      <div class="stat-label">Active projects</div>
-      <div class="stat-value" id="statActive">—</div>
-      <div class="stat-sub" id="statActiveSub">tracked in the app</div>
-    </div>
-    <div class="stat-card warn">
-      <div class="stat-label">People needed now</div>
-      <div class="stat-value" id="statHeadcount">—</div>
-      <div class="stat-sub">total concurrent across active</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Person-days remaining</div>
-      <div class="stat-value" id="statPersonDays">—</div>
-      <div class="stat-sub">sum: people × days per project</div>
-    </div>
-    <div class="stat-card good">
-      <div class="stat-label">Completing this month</div>
-      <div class="stat-value" id="statCompleting">—</div>
-      <div class="stat-sub" id="statCompletingSub">by target date</div>
+  <div class="hours-note">
+    ⏱️ <b>1 day = 8 man-hours per person.</b>
+    &nbsp;Person-days × 8 = man-hours. Compare planned vs actual on each project.
+  </div>
+
+  <!-- Company capacity by crew type -->
+  <div class="capacity-panel">
+    <h3>
+      Capacity — Needed vs Available
+      <span class="subs-toggle" id="globalSubsToggle" title="Include subcontractors in Available totals">+ Subs OFF</span>
+    </h3>
+    <div class="crew-grid" id="crewGrid">
+      <div class="wl-empty" style="grid-column:1/-1"><div class="icon">⏳</div><p>Loading capacity…</p></div>
     </div>
   </div>
 
@@ -298,7 +358,7 @@
     <select id="sortBy">
       <option value="target">Sort by target date</option>
       <option value="progress">Sort by % complete</option>
-      <option value="headcount">Sort by headcount</option>
+      <option value="headcount">Sort by total headcount</option>
       <option value="updated">Sort by last updated</option>
     </select>
     <div class="grow"></div>
@@ -327,18 +387,53 @@
       </div>
     </div>
 
+    <div class="field">
+      <label>📅 Days remaining <span style="text-transform:none;font-weight:400;color:var(--nw-muted)">(1 day = 8 hrs/person)</span></label>
+      <input type="number" id="fDays" min="0" placeholder="e.g. 10">
+    </div>
+
+    <div class="section-header">NW Crew Needed (concurrent)</div>
+
     <div class="row">
       <div class="field">
-        <label>👥 People needed</label>
-        <input type="number" id="fHeadcount" min="0" placeholder="e.g. 3">
+        <label>🔩 Sheetmetal</label>
+        <input type="number" id="fSM" min="0" placeholder="0">
       </div>
       <div class="field">
-        <label>📅 Days remaining</label>
-        <input type="number" id="fDays" min="0" placeholder="e.g. 10">
+        <label>🔧 Piping</label>
+        <input type="number" id="fPipe" min="0" placeholder="0">
+      </div>
+      <div class="field">
+        <label>⚡ Start-up</label>
+        <input type="number" id="fStartup" min="0" placeholder="0">
+      </div>
+    </div>
+    <div class="field-hint" id="crewHint" style="margin-top:-8px;margin-bottom:12px"></div>
+
+    <div class="section-header">
+      Subcontractors
+      <span class="optional-badge">optional</span>
+      <span class="toggle-switch" id="fIncludeSubs">Off</span>
+    </div>
+
+    <div class="subs-block" id="subsBlock">
+      <div class="row">
+        <div class="field">
+          <label>🔩 Sheetmetal subs</label>
+          <input type="number" id="fSubsSM" min="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>🔧 Piping subs</label>
+          <input type="number" id="fSubsPipe" min="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>⚡ Start-up subs</label>
+          <input type="number" id="fSubsStartup" min="0" placeholder="0">
+        </div>
       </div>
     </div>
 
-    <div class="field">
+    <div class="field" style="margin-top:8px">
       <label>Remaining tasks</label>
       <textarea id="fTasks" placeholder="e.g.&#10;- Rough-in second floor&#10;- Install RTU-2&#10;- Startup + commissioning&#10;- Final walk-through"></textarea>
     </div>
@@ -355,6 +450,7 @@
         <input type="number" id="fActualHrs" min="0" placeholder="hours already used">
       </div>
     </div>
+    <div class="field-hint" id="projectionHint" style="margin-top:-8px;margin-bottom:12px"></div>
 
     <div class="field">
       <label>Notes</label>
@@ -376,39 +472,38 @@ requireAuth().catch(function(){});
   'use strict';
 
   var MGMT_ROLES = ['admin', 'manager', 'lead_pm', 'project_manager', 'apm'];
-  var STALE_DAYS = 8;   // warn when a project hasn't been updated in 8+ days
+  var STALE_DAYS = 8;
+  var HOURS_PER_DAY = 8;
 
   var currentUserId = null;
-  var currentUserName = null;
   var currentUserRole = null;
   var canEdit = false;
   var allProjects = [];
   var editingId = null;
+  var showSubsInCapacity = false;
+
+  // Company capacity — loaded from schedule_techs + subcontractors
+  var companyCapacity = { sm: 0, pipe: 0, startup: 0, total: 0 };
+  var subsCapacity    = { sm: 0, pipe: 0, startup: 0, total: 0 };
 
   init();
 
   async function init() {
     try {
       var u = await supabaseClient.auth.getUser();
-      if (u && u.data && u.data.user) {
-        currentUserId = u.data.user.id;
-      }
+      if (u && u.data && u.data.user) currentUserId = u.data.user.id;
       var prof = await supabaseClient.from('profiles')
-        .select('full_name,role')
-        .eq('id', currentUserId).maybeSingle();
+        .select('role').eq('id', currentUserId).maybeSingle();
       if (prof.data) {
-        currentUserName = prof.data.full_name;
         currentUserRole = prof.data.role;
         canEdit = MGMT_ROLES.indexOf(currentUserRole) >= 0;
       }
     } catch (e) { console.warn(e); }
 
-    if (!canEdit) {
-      document.getElementById('readonlyBadge').style.display = '';
-    }
+    if (!canEdit) document.getElementById('readonlyBadge').style.display = '';
 
     bindEvents();
-    await refresh();
+    await Promise.all([loadCompanyCapacity(), refresh()]);
   }
 
   function bindEvents() {
@@ -420,11 +515,70 @@ requireAuth().catch(function(){});
     document.getElementById('editModal').addEventListener('click', function(e) {
       if (e.target === this) closeModal();
     });
+    document.getElementById('globalSubsToggle').addEventListener('click', function() {
+      showSubsInCapacity = !showSubsInCapacity;
+      this.textContent = showSubsInCapacity ? '+ Subs ON' : '+ Subs OFF';
+      this.classList.toggle('on', showSubsInCapacity);
+      render();
+    });
+    document.getElementById('fIncludeSubs').addEventListener('click', function() {
+      var on = !this.classList.contains('on');
+      this.classList.toggle('on', on);
+      this.textContent = on ? 'On' : 'Off';
+      document.getElementById('subsBlock').classList.toggle('on', on);
+    });
+    // Live projection hint
+    ['fSM','fPipe','fStartup','fSubsSM','fSubsPipe','fSubsStartup','fDays'].forEach(function(id) {
+      document.getElementById(id).addEventListener('input', updateProjectionHint);
+    });
   }
+
+  // ─── Company capacity ──────────────────────────────────────────────────────
+
+  async function loadCompanyCapacity() {
+    // NW techs — primary_skill counted (secondary skills ignored for simplicity)
+    try {
+      var techs = await NWSchedule.listTechs({ activeOnly: true });
+      var list = (techs && techs.data) || techs || [];
+      companyCapacity = { sm: 0, pipe: 0, startup: 0, total: list.length };
+      list.forEach(function(t) {
+        var skill = t.primary_skill;
+        if (skill === 'sheetmetal')     companyCapacity.sm++;
+        else if (skill === 'pipe-fitters') companyCapacity.pipe++;
+        else if (skill === 'wiring-startup') companyCapacity.startup++;
+        // foreman / service-call / survey / maintenance / disconnect-demo counted in total only
+        // If foreman has secondary skill, credit it there
+        if (skill === 'foreman' && Array.isArray(t.skills)) {
+          if (t.skills.indexOf('sheetmetal')     >= 0) companyCapacity.sm++;
+          if (t.skills.indexOf('pipe-fitters')   >= 0) companyCapacity.pipe++;
+          if (t.skills.indexOf('wiring-startup') >= 0) companyCapacity.startup++;
+        }
+      });
+    } catch (e) { console.warn('techs load failed', e); }
+
+    // Subcontractors — count by trade; 'mixed' credited to all three
+    try {
+      var subs = await NWSchedule.listSubcontractors();
+      var slist = (subs && subs.data) || subs || [];
+      subsCapacity = { sm: 0, pipe: 0, startup: 0, total: slist.length };
+      slist.forEach(function(s) {
+        if (!s || s.is_active === false) return;
+        var trade = (s.trade || '').toLowerCase();
+        if (trade === 'sheetmetal') subsCapacity.sm++;
+        else if (trade === 'piping') subsCapacity.pipe++;
+        else if (trade === 'controls') subsCapacity.startup++;
+        else if (trade === 'mixed') {
+          subsCapacity.sm++; subsCapacity.pipe++; subsCapacity.startup++;
+        }
+      });
+    } catch (e) { console.warn('subs load failed', e); }
+  }
+
+  // ─── Refresh + Render ──────────────────────────────────────────────────────
 
   async function refresh() {
     var listEl = document.getElementById('projectList');
-    listEl.innerHTML = '<div class="wl-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
+    listEl.innerHTML = '<div class="wl-empty"><div class="icon">⏳</div><p>Loading projects…</p></div>';
 
     var r = await supabaseClient.from('projects')
       .select('*')
@@ -444,9 +598,7 @@ requireAuth().catch(function(){});
     var select = document.getElementById('filterPM');
     var currentVal = select.value;
     var pms = {};
-    allProjects.forEach(function(p) {
-      if (p.pm_name) pms[p.pm_name] = true;
-    });
+    allProjects.forEach(function(p) { if (p.pm_name) pms[p.pm_name] = true; });
     var opts = ['<option value="">All PMs</option>'];
     Object.keys(pms).sort().forEach(function(pm) {
       opts.push('<option value="' + escHtml(pm) + '">' + escHtml(pm) + '</option>');
@@ -464,68 +616,115 @@ requireAuth().catch(function(){});
       if (pm && p.pm_name !== pm) return false;
       if (statusFilter === 'active')    return p.status === 'active';
       if (statusFilter === 'completed') return p.status === 'completed';
-      /* 'all' → active + onhold */
       return p.status === 'active' || p.status === 'onhold';
     });
 
-    // Sort
     filtered.sort(function(a, b) {
       if (sortBy === 'target') {
-        var ta = a.target_completion_date || '9999-12-31';
-        var tb = b.target_completion_date || '9999-12-31';
-        return ta.localeCompare(tb);
+        return (a.target_completion_date || '9999-12-31')
+          .localeCompare(b.target_completion_date || '9999-12-31');
       }
       if (sortBy === 'progress') {
         return (a.percent_complete || 0) - (b.percent_complete || 0);
       }
       if (sortBy === 'headcount') {
-        return (b.headcount_needed || 0) - (a.headcount_needed || 0);
+        return totalHeadcount(b) - totalHeadcount(a);
       }
       if (sortBy === 'updated') {
-        var ua = a.workload_updated_at || '';
-        var ub = b.workload_updated_at || '';
-        return ub.localeCompare(ua);
+        return (b.workload_updated_at || '').localeCompare(a.workload_updated_at || '');
       }
       return 0;
     });
 
-    renderSummary(filtered);
+    renderCapacityPanel(filtered);
     renderProjects(filtered);
   }
 
-  function renderSummary(list) {
+  function totalHeadcount(p, includeSubs) {
+    var t = (p.sm_needed || 0) + (p.pipe_needed || 0) + (p.startup_needed || 0);
+    if (includeSubs && p.include_subs) {
+      t += (p.subs_sm_needed || 0) + (p.subs_pipe_needed || 0) + (p.subs_startup_needed || 0);
+    }
+    return t;
+  }
+
+  function renderCapacityPanel(list) {
     var activeList = list.filter(function(p) { return p.status === 'active'; });
-    var totalHeadcount = 0;
-    var totalPersonDays = 0;
-    var completingThisMonth = 0;
 
-    var now = new Date();
-    var monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      .toISOString().slice(0, 10);
-    var today = now.toISOString().slice(0, 10);
-
+    // Sum "needed" across active projects, per crew
+    var needed = { sm: 0, pipe: 0, startup: 0 };
     activeList.forEach(function(p) {
-      totalHeadcount += (p.headcount_needed || 0);
-      totalPersonDays += (p.headcount_needed || 0) * (p.days_remaining || 0);
-      if (p.target_completion_date &&
-          p.target_completion_date >= today &&
-          p.target_completion_date <= monthEnd) {
-        completingThisMonth++;
+      needed.sm      += (p.sm_needed      || 0);
+      needed.pipe    += (p.pipe_needed    || 0);
+      needed.startup += (p.startup_needed || 0);
+      if (p.include_subs) {
+        // If project uses subs, we account for the sub headcount contribution too
+        needed.sm      += (p.subs_sm_needed      || 0);
+        needed.pipe    += (p.subs_pipe_needed    || 0);
+        needed.startup += (p.subs_startup_needed || 0);
       }
     });
 
-    var trackedCount = activeList.filter(function(p) {
-      return (p.percent_complete != null) || (p.headcount_needed != null);
-    }).length;
+    // Available = NW crew, or NW crew + subs when toggle on
+    var avail = {
+      sm:      companyCapacity.sm      + (showSubsInCapacity ? subsCapacity.sm      : 0),
+      pipe:    companyCapacity.pipe    + (showSubsInCapacity ? subsCapacity.pipe    : 0),
+      startup: companyCapacity.startup + (showSubsInCapacity ? subsCapacity.startup : 0)
+    };
 
-    document.getElementById('statActive').textContent    = activeList.length;
-    document.getElementById('statActiveSub').textContent = trackedCount + ' with workload data';
-    document.getElementById('statHeadcount').textContent = totalHeadcount || 0;
-    document.getElementById('statPersonDays').textContent = totalPersonDays || 0;
-    document.getElementById('statCompleting').textContent = completingThisMonth;
-    document.getElementById('statCompletingSub').textContent =
-      'by ' + new Date(monthEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    var crews = [
+      { key: 'sm',      icon: '🔩', name: 'Sheetmetal / Ductwork', needed: needed.sm,      avail: avail.sm,      companyOnly: companyCapacity.sm,      subsOnly: subsCapacity.sm      },
+      { key: 'pipe',    icon: '🔧', name: 'Piping',                needed: needed.pipe,    avail: avail.pipe,    companyOnly: companyCapacity.pipe,    subsOnly: subsCapacity.pipe    },
+      { key: 'startup', icon: '⚡', name: 'Wiring / Start-up',     needed: needed.startup, avail: avail.startup, companyOnly: companyCapacity.startup, subsOnly: subsCapacity.startup }
+    ];
+
+    var totalNeeded = needed.sm + needed.pipe + needed.startup;
+    var totalAvail  = avail.sm  + avail.pipe  + avail.startup;
+    var totalCompanyOnly = companyCapacity.sm + companyCapacity.pipe + companyCapacity.startup;
+
+    crews.push({
+      key: 'total', icon: '👥', name: 'TOTAL (SM + P + SU)',
+      needed: totalNeeded, avail: totalAvail,
+      companyOnly: totalCompanyOnly, subsOnly: subsCapacity.sm + subsCapacity.pipe + subsCapacity.startup
+    });
+
+    var html = crews.map(function(c) {
+      var status, statusText;
+      if (c.needed === 0) {
+        status = 'idle';
+        statusText = 'No demand';
+      } else if (c.needed <= c.avail * 0.85) {
+        status = 'ok';
+        statusText = '✅ Comfortably staffed';
+      } else if (c.needed <= c.avail) {
+        status = 'tight';
+        statusText = '⚠️ Tight — near capacity';
+      } else {
+        status = 'short';
+        statusText = '🚨 Short by ' + (c.needed - c.avail) + ' — hire or add subs';
+      }
+
+      var subsRow = (c.subsOnly > 0)
+        ? '<div class="subs-row">+ <span class="sub-count">' + c.subsOnly + '</span> subs available' +
+          (showSubsInCapacity ? ' (included above)' : ' (toggle to include)') + '</div>'
+        : '';
+
+      return '<div class="crew-cell ' + status + '">' +
+        '<div class="crew-icon">' + c.icon + '</div>' +
+        '<div class="crew-name">' + escHtml(c.name) + '</div>' +
+        '<div class="crew-numbers">' +
+          '<span class="needed">' + c.needed + '</span>' +
+          '<span class="divider">need</span>' +
+          '<span class="available">/ ' + c.avail + ' available</span>' +
+        '</div>' +
+        '<div class="status-line">' + statusText + '</div>' +
+        subsRow +
+      '</div>';
+    }).join('');
+    document.getElementById('crewGrid').innerHTML = html;
   }
+
+  // ─── Project cards ─────────────────────────────────────────────────────────
 
   function renderProjects(list) {
     var listEl = document.getElementById('projectList');
@@ -543,50 +742,59 @@ requireAuth().catch(function(){});
   function renderProject(p) {
     var pct = p.percent_complete;
     var cls = 'project-card';
-    if (pct == null) cls += '';
-    else if (pct < 30)  cls += ' progress-low';
-    else if (pct < 70)  cls += ' progress-mid';
-    else                cls += ' progress-high';
+    if (pct != null) {
+      if      (pct < 30) cls += ' progress-low';
+      else if (pct < 70) cls += ' progress-mid';
+      else               cls += ' progress-high';
+    }
 
-    var fillCls =
-      pct == null ? '' :
-      pct < 30 ? 'low' :
-      pct < 70 ? 'mid' : 'high';
+    var fillCls = pct == null ? '' :
+      pct < 30 ? 'low' : pct < 70 ? 'mid' : 'high';
 
     var isStale = false;
     if (p.workload_updated_at) {
       var days = (Date.now() - new Date(p.workload_updated_at).getTime()) / (1000 * 60 * 60 * 24);
       if (days > STALE_DAYS && p.status === 'active') isStale = true;
     } else if (p.status === 'active') {
-      isStale = true;   // never updated
+      isStale = true;
     }
     if (isStale) cls += ' stale';
 
-    var progressBar = '';
-    if (pct != null) {
-      progressBar =
-        '<div class="pc-progress-bar">' +
-          '<div class="pc-progress-fill ' + fillCls + '" style="width:' + pct + '%"></div>' +
-          '<div class="pc-progress-label">' + pct + '% complete</div>' +
-        '</div>';
-    }
+    var progressBar = pct != null ?
+      '<div class="pc-progress-bar">' +
+        '<div class="pc-progress-fill ' + fillCls + '" style="width:' + pct + '%"></div>' +
+        '<div class="pc-progress-label">' + pct + '% complete</div>' +
+      '</div>' : '';
 
+    // Crew pills
+    var crewPills = [];
+    if (p.sm_needed)      crewPills.push('<span class="crew-pill sm">🔩 ' + p.sm_needed      + ' SM</span>');
+    if (p.pipe_needed)    crewPills.push('<span class="crew-pill p">🔧 '  + p.pipe_needed    + ' Piping</span>');
+    if (p.startup_needed) crewPills.push('<span class="crew-pill su">⚡ ' + p.startup_needed + ' Start-up</span>');
+    if (p.include_subs) {
+      var subTotal = (p.subs_sm_needed || 0) + (p.subs_pipe_needed || 0) + (p.subs_startup_needed || 0);
+      if (subTotal > 0) {
+        crewPills.push('<span class="crew-pill sub">🤝 ' + subTotal + ' subs</span>');
+      }
+    }
+    var crewsHtml = crewPills.length ? '<div class="pc-crews">' + crewPills.join('') + '</div>' : '';
+
+    // Metrics
     var metrics = [];
-    if (p.headcount_needed != null) {
-      metrics.push('<span class="pc-metric"><span class="icon">👥</span> <b>' + p.headcount_needed + '</b> ' +
-        (p.headcount_needed === 1 ? 'person' : 'people') + '</span>');
+    var nwTotal = (p.sm_needed || 0) + (p.pipe_needed || 0) + (p.startup_needed || 0);
+    if (nwTotal > 0) {
+      metrics.push('<span class="pc-metric"><span class="icon">👥</span> <b>' + nwTotal + '</b> NW</span>');
     }
     if (p.days_remaining != null) {
-      metrics.push('<span class="pc-metric"><span class="icon">📅</span> <b>' + p.days_remaining + '</b> ' +
-        (p.days_remaining === 1 ? 'day' : 'days') + '</span>');
+      metrics.push('<span class="pc-metric"><span class="icon">📅</span> <b>' + p.days_remaining + '</b> days</span>');
     }
-    if (p.headcount_needed != null && p.days_remaining != null) {
-      var pd = p.headcount_needed * p.days_remaining;
-      metrics.push('<span class="pc-metric">= <b>' + pd + '</b> person-days</span>');
+    if (nwTotal > 0 && p.days_remaining != null) {
+      var manHours = nwTotal * p.days_remaining * HOURS_PER_DAY;
+      metrics.push('<span class="pc-metric">≈ <b>' + manHours.toLocaleString() + '</b> man-hrs</span>');
     }
     if (p.target_completion_date) {
       var td = new Date(p.target_completion_date + 'T00:00:00');
-      var todayD = new Date(); todayD.setHours(0,0,0,0);
+      var todayD = new Date(); todayD.setHours(0, 0, 0, 0);
       var daysToTarget = Math.round((td - todayD) / (1000 * 60 * 60 * 24));
       var warnCls = (daysToTarget < 0 || (daysToTarget < 14 && (pct || 0) < 70)) ? ' warn' : '';
       var label = td.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -608,17 +816,13 @@ requireAuth().catch(function(){});
       var variance = '';
       if (planned != null && actual != null) {
         var diff = actual - planned;
-        if (diff > 0) {
-          variance = '<span class="variance over">+' + diff + ' hrs over</span>';
-        } else if (diff < 0) {
-          variance = '<span class="variance under">' + diff + ' hrs under</span>';
-        } else {
-          variance = '<span class="variance on">on budget</span>';
-        }
+        if (diff > 0)      variance = '<span class="variance over">+' + diff + ' hrs over</span>';
+        else if (diff < 0) variance = '<span class="variance under">' + diff + ' hrs under</span>';
+        else               variance = '<span class="variance on">on budget</span>';
       }
       hoursHtml = '<div class="pc-hours">' +
-        '<span><span class="label">Planned:</span> <span class="value">' + (planned != null ? planned + ' hrs' : '—') + '</span></span>' +
-        '<span><span class="label">Actual:</span> <span class="value">' + (actual  != null ? actual  + ' hrs' : '—') + '</span></span>' +
+        '<span><span class="label">Planned:</span> <span class="value">' + (planned != null ? planned.toLocaleString() + ' hrs' : '—') + '</span></span>' +
+        '<span><span class="label">Actual:</span> <span class="value">'  + (actual  != null ? actual.toLocaleString()  + ' hrs' : '—') + '</span></span>' +
         variance +
       '</div>';
     }
@@ -648,6 +852,7 @@ requireAuth().catch(function(){});
         (p.pm_name ? '<span class="pc-pm">PM: <b>' + escHtml(p.pm_name) + '</b></span>' : '') +
       '</div>' +
       progressBar +
+      crewsHtml +
       (metrics.length ? '<div class="pc-metrics">' + metrics.join('') + '</div>' : '') +
       tasksHtml +
       hoursHtml +
@@ -671,15 +876,58 @@ requireAuth().catch(function(){});
     document.getElementById('editSubtitle').textContent =
       (p.short_code ? p.short_code + ' · ' : '') +
       (p.pm_name ? 'PM: ' + p.pm_name : '');
-    document.getElementById('fPercent').value    = p.percent_complete    != null ? p.percent_complete    : '';
-    document.getElementById('fHeadcount').value  = p.headcount_needed    != null ? p.headcount_needed    : '';
-    document.getElementById('fDays').value       = p.days_remaining      != null ? p.days_remaining      : '';
+
+    document.getElementById('fPercent').value    = p.percent_complete != null ? p.percent_complete : '';
     document.getElementById('fTargetDate').value = p.target_completion_date || '';
-    document.getElementById('fTasks').value      = p.remaining_tasks     || '';
-    document.getElementById('fPlannedHrs').value = p.planned_man_hours   != null ? p.planned_man_hours   : '';
-    document.getElementById('fActualHrs').value  = p.actual_man_hours    != null ? p.actual_man_hours    : '';
-    document.getElementById('fNotes').value      = p.workload_notes      || '';
+    document.getElementById('fDays').value       = p.days_remaining != null ? p.days_remaining : '';
+
+    document.getElementById('fSM').value      = p.sm_needed      != null ? p.sm_needed      : '';
+    document.getElementById('fPipe').value    = p.pipe_needed    != null ? p.pipe_needed    : '';
+    document.getElementById('fStartup').value = p.startup_needed != null ? p.startup_needed : '';
+
+    var subsOn = !!p.include_subs;
+    var toggle = document.getElementById('fIncludeSubs');
+    toggle.classList.toggle('on', subsOn);
+    toggle.textContent = subsOn ? 'On' : 'Off';
+    document.getElementById('subsBlock').classList.toggle('on', subsOn);
+    document.getElementById('fSubsSM').value      = p.subs_sm_needed      != null ? p.subs_sm_needed      : '';
+    document.getElementById('fSubsPipe').value    = p.subs_pipe_needed    != null ? p.subs_pipe_needed    : '';
+    document.getElementById('fSubsStartup').value = p.subs_startup_needed != null ? p.subs_startup_needed : '';
+
+    document.getElementById('fTasks').value      = p.remaining_tasks   || '';
+    document.getElementById('fPlannedHrs').value = p.planned_man_hours != null ? p.planned_man_hours : '';
+    document.getElementById('fActualHrs').value  = p.actual_man_hours  != null ? p.actual_man_hours  : '';
+    document.getElementById('fNotes').value      = p.workload_notes    || '';
+
+    updateProjectionHint();
     document.getElementById('editModal').classList.add('open');
+  }
+
+  function updateProjectionHint() {
+    var num = function(id) { var v = document.getElementById(id).value; return v === '' ? 0 : Number(v); };
+    var sm    = num('fSM');
+    var pipe  = num('fPipe');
+    var su    = num('fStartup');
+    var days  = num('fDays');
+    var subsOn = document.getElementById('fIncludeSubs').classList.contains('on');
+    var subsTotal = 0;
+    if (subsOn) subsTotal = num('fSubsSM') + num('fSubsPipe') + num('fSubsStartup');
+
+    var nwTotal = sm + pipe + su;
+    var totalPeople = nwTotal + subsTotal;
+    var crewHint = totalPeople > 0
+      ? '👥 Total: <b>' + nwTotal + '</b> NW' +
+        (subsOn && subsTotal > 0 ? ' + <b>' + subsTotal + '</b> subs = <b>' + totalPeople + '</b> people concurrent' : '') +
+        ' · Available (NW): 🔩 ' + companyCapacity.sm + ' · 🔧 ' + companyCapacity.pipe + ' · ⚡ ' + companyCapacity.startup
+      : 'Enter how many people from each crew are needed on this project (concurrent, per day).';
+    document.getElementById('crewHint').innerHTML = crewHint;
+
+    var projHint = '';
+    if (totalPeople > 0 && days > 0) {
+      var projectedHrs = totalPeople * days * HOURS_PER_DAY;
+      projHint = '📊 Projected remaining: <b>' + projectedHrs.toLocaleString() + '</b> man-hrs (' + totalPeople + ' × ' + days + ' × 8)';
+    }
+    document.getElementById('projectionHint').innerHTML = projHint;
   }
 
   function closeModal() {
@@ -696,17 +944,28 @@ requireAuth().catch(function(){});
       var v = document.getElementById(id).value;
       return v === '' ? null : Number(v);
     };
+    var subsOn = document.getElementById('fIncludeSubs').classList.contains('on');
     var patch = {
       percent_complete:       num('fPercent'),
-      headcount_needed:       num('fHeadcount'),
       days_remaining:         num('fDays'),
       target_completion_date: document.getElementById('fTargetDate').value || null,
-      remaining_tasks:        document.getElementById('fTasks').value.trim() || null,
-      planned_man_hours:      num('fPlannedHrs'),
-      actual_man_hours:       num('fActualHrs'),
-      workload_notes:         document.getElementById('fNotes').value.trim() || null,
-      workload_updated_at:    new Date().toISOString(),
-      workload_updated_by:    currentUserId
+
+      sm_needed:      num('fSM'),
+      pipe_needed:    num('fPipe'),
+      startup_needed: num('fStartup'),
+
+      include_subs:        subsOn,
+      subs_sm_needed:      subsOn ? num('fSubsSM')      : null,
+      subs_pipe_needed:    subsOn ? num('fSubsPipe')    : null,
+      subs_startup_needed: subsOn ? num('fSubsStartup') : null,
+
+      remaining_tasks:   document.getElementById('fTasks').value.trim() || null,
+      planned_man_hours: num('fPlannedHrs'),
+      actual_man_hours:  num('fActualHrs'),
+      workload_notes:    document.getElementById('fNotes').value.trim() || null,
+
+      workload_updated_at: new Date().toISOString(),
+      workload_updated_by: currentUserId
     };
 
     var r = await supabaseClient.from('projects').update(patch).eq('id', editingId);
@@ -742,6 +1001,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=156"></script>
+<script src="sw-register.js?v=157"></script>
 </body>
 </html>
