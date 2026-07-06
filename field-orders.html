@@ -12,9 +12,9 @@
 <title>Field Orders — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=155"></script>
-<script src="auth.js?v=155"></script>
-<script src="schedule-utils.js?v=155"></script>
+<script src="supabase-config.js?v=163"></script>
+<script src="auth.js?v=163"></script>
+<script src="schedule-utils.js?v=163"></script>
 <style>
   body { padding-bottom: 24px; }
   .fo-wrap { max-width: 1100px; margin: 0 auto; }
@@ -353,7 +353,7 @@
 
     <div id="detailContent"></div>
 
-    <!-- Admin-only controls (Jonathan / PMs / Andrei / Vlad) -->
+    <!-- Admin-only controls (Jonathan / PMs / Andrei / Russ) -->
     <div class="detail-section" id="adminControls" style="display:none">
       <h3>Fulfillment</h3>
       <div class="row">
@@ -455,7 +455,7 @@ requireAuth().catch(function(){});
   async function init() {
     // Resolve user role + check if user can see ALL orders.
     // Authoritative source: global_notification_subscribers table.
-    // Only those people (Russ / Andrei / Vlad / Jonathan) see All Orders.
+    // Only those people (Russ / Andrei / Jonathan) see All Orders.
     // Everyone else (techs, PMs) sees only their own orders.
     try {
       var u = await supabaseClient.auth.getUser();
@@ -782,7 +782,7 @@ requireAuth().catch(function(){});
     }
 
     closeNewOrder();
-    showToast('✅ Order submitted — notifications sent to PM, Jonathan, Andrei, Vlad', 'success');
+    showToast('✅ Order submitted — notifications sent to PM, Jonathan, Andrei', 'success');
     refresh();
     btn.disabled = false; btn.textContent = 'Submit Request';
   }
@@ -942,6 +942,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=155"></script>
+<script src="sw-register.js?v=163"></script>
 </body>
 </html>

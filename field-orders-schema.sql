@@ -131,7 +131,7 @@ BEGIN
      LIMIT 1;
   END IF;
 
-  -- Notify PM + all global subscribers (Andrei + Vlad + Jonathan), excluding the requester
+  -- Notify PM + all global subscribers (Andrei + Jonathan + Russ), excluding the requester
   INSERT INTO notifications (
     recipient_id, recipient_email, actor_id, actor_name, type, title, body, link_url
   )
