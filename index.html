@@ -840,6 +840,7 @@
       { type: 'equipment', icon: '\u2699\uFE0F', title: 'Equipment', desc: 'Track units, warranties, service', page: 'equipment.html', accent: '#64748b', iconBg: '#f1f5f9' },
       { type: 'projects', icon: '\uD83D\uDCC1', title: 'Projects', desc: 'Shared docs & drawings', page: 'projects.html', accent: '#f59e0b', iconBg: '#fef3c7' },
       { type: 'workload', icon: '\uD83D\uDCC8', title: 'Workload Planner', desc: 'Capacity, timeline, staffing', page: 'workload.html', accent: '#8b5cf6', iconBg: '#ede9fe' },
+      { type: 'invoicing', icon: '\uD83D\uDCC4', title: 'Invoicing', desc: 'AIA G702/G703 progress billing', page: 'invoicing.html', accent: '#0B3D66', iconBg: '#dbeafe' },
       { type: 'management', icon: '\uD83D\uDCCA', title: 'Management', desc: 'All reports & status', page: 'management.html', accent: '#8b5cf6', iconBg: '#ede9fe' },
       { type: 'history', icon: '\uD83D\uDCC3', title: 'Activity', desc: 'Drafts & completed reports', page: 'history.html', accent: '#10b981', iconBg: '#d1fae5' }
     ];
@@ -974,10 +975,10 @@
   renderReportGrid();
   renderDispatches();
 
-  // Hide management + workload cards for techs
+  // Hide management + workload + invoicing cards for techs
   getAuthProfile().then(function(profile) {
     if (profile && profile.role === 'tech') {
-      ['management.html', 'workload.html'].forEach(function(page) {
+      ['management.html', 'workload.html', 'invoicing.html'].forEach(function(page) {
         var link = document.querySelector('a[href="' + page + '"]');
         if (link) link.style.display = 'none';
       });

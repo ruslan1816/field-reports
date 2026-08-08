@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Invoicing — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=164"></script>
+<script src="auth.js?v=164"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .iv-wrap { max-width: 1200px; margin: 0 auto; }
+
+  /* Top toolbar */
+  .iv-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+    align-items: center; flex-wrap: wrap;
+  }
+  .iv-toolbar .grow { flex: 1; }
+  .iv-toolbar select, .iv-toolbar input {
+    padding: 7px 11px; font-size: 13px; border: 1px solid var(--nw-border);
+    border-radius: 7px; background: #fff;
+  }
+  .iv-toolbar .readonly-badge {
+    font-size: 11px; padding: 4px 8px; border-radius: 6px;
+    background: #f1f5f9; color: #475569; font-weight: 700;
+  }
+  .btn-new {
+    background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+    padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(6,150,215,.25);
+  }
+  .btn-new:hover { filter: brightness(1.05); }
+  .btn-secondary {
+    background: #fff; color: var(--nw-primary); border: 1px solid var(--nw-primary);
+    padding: 7px 14px; border-radius: 7px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .btn-secondary:hover { background: #f0f9ff; }
+
+  /* Breadcrumb */
+  .iv-crumb {
+    padding: 8px 16px; font-size: 12px; color: var(--nw-muted);
+    background: #f8fafc; border-bottom: 1px solid var(--nw-border);
+  }
+  .iv-crumb a { color: var(--nw-primary); text-decoration: none; font-weight: 600; }
+  .iv-crumb a:hover { text-decoration: underline; }
+
+  /* ============ PROJECTS LIST VIEW ============ */
+  .proj-card {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-left: 4px solid var(--nw-primary); border-radius: 10px;
+    padding: 14px 16px; margin: 10px 16px;
+  }
+  .proj-card .pc-title {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+  }
+  .proj-card .short-code {
+    background: var(--nw-primary); color: #fff; font-size: 11px;
+    padding: 2px 7px; border-radius: 5px; letter-spacing: 0.5px; font-weight: 700;
+  }
+  .proj-card .name { font-weight: 700; font-size: 16px; color: var(--nw-text); }
+  .proj-card .pm { font-size: 12px; color: var(--nw-muted); margin-left: 4px; }
+  .proj-card .meta {
+    font-size: 12px; color: var(--nw-muted); margin-top: 4px;
+    display: flex; gap: 14px; flex-wrap: wrap;
+  }
+  .proj-card .meta b { color: var(--nw-text); font-weight: 700; }
+  .apps-strip {
+    display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center;
+  }
+  .app-pill {
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--nw-border); background: #f8fafc;
+    display: flex; align-items: center; gap: 6px;
+    transition: transform .1s;
+  }
+  .app-pill:hover { transform: translateY(-1px); border-color: var(--nw-primary); }
+  .app-pill .status {
+    font-size: 9px; padding: 1px 6px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .app-pill .status.draft     { background: #e2e8f0; color: #475569; }
+  .app-pill .status.submitted { background: #dbeafe; color: #1e40af; }
+  .app-pill .status.certified { background: #ede9fe; color: #5b21b6; }
+  .app-pill .status.paid      { background: #d1fae5; color: #065f46; }
+  .app-pill .status.void      { background: #fee2e2; color: #991b1b; }
+
+  .iv-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .iv-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* ============ APPLICATION DETAIL VIEW ============ */
+  .app-header {
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+    padding: 14px 16px;
+  }
+  .app-header h2 {
+    margin: 0 0 4px; font-size: 20px; color: var(--nw-text);
+  }
+  .app-header .app-sub {
+    font-size: 12px; color: var(--nw-muted); display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .app-header .app-sub b { color: var(--nw-text); }
+  .status-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 10px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .status-badge.draft     { background: #e2e8f0; color: #475569; }
+  .status-badge.submitted { background: #dbeafe; color: #1e40af; }
+  .status-badge.certified { background: #ede9fe; color: #5b21b6; }
+  .status-badge.paid      { background: #d1fae5; color: #065f46; }
+  .status-badge.void      { background: #fee2e2; color: #991b1b; }
+
+  /* G702 Summary panel */
+  .g702-panel {
+    margin: 12px 16px; background: var(--nw-card);
+    border: 1px solid var(--nw-border); border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .g702-panel h3 {
+    margin: 0 0 10px; font-size: 12px; font-weight: 700;
+    color: var(--nw-muted); text-transform: uppercase; letter-spacing: 0.6px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--nw-border);
+  }
+  .g702-grid {
+    display: grid; grid-template-columns: 1fr auto;
+    row-gap: 6px; column-gap: 20px; font-size: 13px;
+  }
+  .g702-grid .lbl { color: var(--nw-text); }
+  .g702-grid .val {
+    font-family: 'Courier New', monospace; font-weight: 700;
+    color: var(--nw-text); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .g702-grid .key-line { padding-top: 6px; border-top: 2px solid var(--nw-primary); }
+  .g702-grid .key-line .lbl,
+  .g702-grid .key-line .val {
+    font-size: 15px; color: #0B3D66; font-weight: 800;
+    background: #FFF2CC; padding: 6px 10px; border-radius: 6px;
+  }
+  .g702-grid .indent { padding-left: 18px; color: var(--nw-muted); }
+
+  /* Line-item editor table */
+  .li-panel {
+    margin: 12px 16px; background: var(--nw-card);
+    border: 1px solid var(--nw-border); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto;
+  }
+  .li-panel h3 {
+    margin: 0 0 10px; font-size: 12px; font-weight: 700;
+    color: var(--nw-muted); text-transform: uppercase; letter-spacing: 0.6px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .li-panel h3 button { margin-left: auto; }
+  .li-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+    min-width: 1050px;
+  }
+  .li-table th, .li-table td {
+    padding: 6px 8px; border: 1px solid var(--nw-border);
+    vertical-align: middle;
+  }
+  .li-table thead th {
+    background: #f1f5f9; font-weight: 700;
+    color: var(--nw-text); text-align: center;
+    position: sticky; top: 0; z-index: 2;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .li-table tbody td { font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums; }
+  .li-table tbody td.desc { font-family: inherit; text-align: left; }
+  .li-table tbody td.num  { text-align: right; }
+  .li-table tbody td.ctr  { text-align: center; }
+  .li-table tbody td input, .li-table tbody td textarea {
+    width: 100%; box-sizing: border-box; padding: 4px 6px;
+    border: 1px solid #cbd5e1; border-radius: 4px; font: inherit;
+    background: #fff;
+  }
+  .li-table tbody td input[readonly], .li-table tbody td.readonly {
+    background: #f8fafc; color: var(--nw-muted); cursor: default;
+  }
+  .li-table tbody tr.parent td {
+    background: #FEF9C3; font-weight: 700;
+  }
+  .li-table tbody tr.co-row td {
+    background: #FEF3E4;
+  }
+  .li-table tbody tr.co-row.parent td { background: #FDE68A; }
+  .li-table tbody tr.total-row td {
+    background: #F2F2F2; font-weight: 800; border-top: 2px solid var(--nw-primary);
+  }
+  .li-table tbody tr.grand-row td {
+    background: #DDEBF7; font-weight: 800; border-top: 3px solid #000; border-bottom: 3px solid #000;
+    font-size: 13px;
+  }
+  .del-btn {
+    background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+    padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;
+    cursor: pointer;
+  }
+  .del-btn:hover { background: #fca5a5; color: #fff; }
+
+  .section-header-row td {
+    background: #E2E8F0 !important; color: var(--nw-text) !important;
+    font-weight: 700 !important; font-size: 11px !important; text-transform: uppercase;
+    letter-spacing: 0.5px; text-align: left !important; padding: 8px 10px !important;
+  }
+
+  /* CO Summary panel */
+  .co-summary {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 6px 16px;
+    font-size: 13px; align-items: center;
+    max-width: 500px;
+  }
+  .co-summary .head {
+    font-weight: 700; color: var(--nw-muted); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.4px; text-align: center;
+    border-bottom: 1px solid var(--nw-border); padding-bottom: 4px;
+  }
+  .co-summary input {
+    width: 100px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px;
+    text-align: right; font-family: 'Courier New', monospace;
+  }
+  .co-summary .row-lbl { text-align: right; padding-right: 8px; }
+  .co-summary .total-row {
+    font-weight: 700; border-top: 2px solid var(--nw-primary); padding-top: 6px;
+  }
+  .co-summary .net-row .row-lbl { font-weight: 800; }
+  .co-summary .net-row .net {
+    grid-column: 2 / span 2; text-align: right; font-weight: 800;
+    font-family: 'Courier New', monospace; font-size: 15px;
+    background: #FFF2CC; padding: 6px 10px; border-radius: 6px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 640px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+  .field-hint { font-size: 11px; color: var(--nw-muted); margin-top: 4px; }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; flex-wrap: wrap;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save   { background: var(--nw-primary); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error   { background: #dc2626; }
+
+  @media (max-width: 700px) {
+    .proj-card { margin: 8px 8px; padding: 12px 14px; }
+    .g702-panel, .li-panel { margin: 8px 8px; padding: 12px 14px; }
+    .modal-card .row { flex-direction: column; gap: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="iv-wrap">
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1 id="pageTitle">Invoicing</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="iv-crumb" id="crumb"></div>
+
+  <div id="mainView"></div>
+</div>
+
+<!-- ═══════════ MODALS ═══════════ -->
+
+<!-- Setup Billing modal (create/edit aia_projects) -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal-card" style="max-width:680px">
+    <h2 id="setupTitle">Set up AIA Billing for project</h2>
+    <div class="field">
+      <label>Project *</label>
+      <select id="sProject"></select>
+      <div class="field-hint">Choose an active project. Each project can have one billing setup.</div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Original Contract Sum *</label>
+        <input type="number" id="sContractSum" step="0.01" min="0" placeholder="e.g. 1200000.00">
+      </div>
+      <div class="field">
+        <label>Retainage rate</label>
+        <input type="number" id="sRetainage" step="0.01" min="0" max="20" value="5" placeholder="5">
+        <div class="field-hint">Percent (e.g. 5 for 5%)</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Contract date</label>
+        <input type="date" id="sContractDate">
+      </div>
+      <div class="field">
+        <label>Contract for</label>
+        <input type="text" id="sContractFor" placeholder="e.g. HVAC Installation">
+      </div>
+    </div>
+    <div class="field">
+      <label>Client / Owner name</label>
+      <input type="text" id="sClientName" placeholder="e.g. Core Concepts Contracting Inc.">
+    </div>
+    <div class="field">
+      <label>Client / Owner address</label>
+      <textarea id="sClientAddr" style="min-height:60px" placeholder="Street, City, State, ZIP"></textarea>
+    </div>
+    <div class="field">
+      <label>Architect / Engineer name (optional)</label>
+      <input type="text" id="sArchName" placeholder="e.g. Consigli Design & Engineering">
+    </div>
+    <div class="field">
+      <label>Architect / Engineer address (optional)</label>
+      <textarea id="sArchAddr" style="min-height:50px"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="setupCancel">Cancel</button>
+      <button class="btn-save" id="setupSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Application modal -->
+<div class="modal-overlay" id="newAppModal">
+  <div class="modal-card">
+    <h2>New Application for Payment</h2>
+    <div class="row">
+      <div class="field">
+        <label>Application No *</label>
+        <input type="number" id="naNo" min="1" step="1">
+      </div>
+      <div class="field">
+        <label>Application date</label>
+        <input type="date" id="naDate">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Period from *</label>
+        <input type="date" id="naFrom">
+      </div>
+      <div class="field">
+        <label>Period to *</label>
+        <input type="date" id="naTo">
+      </div>
+    </div>
+    <div class="field">
+      <label>
+        <input type="checkbox" id="naCarryForward" checked>
+        Copy line items from previous application (carry forward)
+      </label>
+      <div class="field-hint">Uses the most recent application's Schedule of Values; previous amounts pre-fill with prior D+E+F totals.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="naCancel">Cancel</button>
+      <button class="btn-save" id="naCreate">Create Application</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Line Item modal -->
+<div class="modal-overlay" id="lineModal">
+  <div class="modal-card">
+    <h2 id="lineTitle">Add Line Item</h2>
+    <div class="row">
+      <div class="field" style="flex:0 0 80px">
+        <label>Item #</label>
+        <input type="text" id="lItemNo" placeholder="1">
+      </div>
+      <div class="field">
+        <label>Budget code (optional)</label>
+        <input type="text" id="lBudgetCode" placeholder="e.g. 15020.E">
+      </div>
+    </div>
+    <div class="field">
+      <label>Description *</label>
+      <textarea id="lDesc" style="min-height:60px" placeholder="e.g. Furnish and install ductwork"></textarea>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Scheduled value *</label>
+        <input type="number" id="lSched" step="0.01" placeholder="0.00">
+      </div>
+      <div class="field">
+        <label>From previous ($)</label>
+        <input type="number" id="lPrev" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>This period ($)</label>
+        <input type="number" id="lThis" step="0.01" placeholder="0.00">
+      </div>
+      <div class="field">
+        <label>Materials stored ($)</label>
+        <input type="number" id="lStored" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>
+          <input type="checkbox" id="lIsCO">
+          Change order line
+        </label>
+      </div>
+      <div class="field">
+        <label>
+          <input type="checkbox" id="lIsParent">
+          Parent header row (PCCO / PCO)
+        </label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Parent item # (for sub-items)</label>
+      <input type="text" id="lParentItemNo" placeholder="e.g. 14.1 for 14.1.1">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="lCancel">Cancel</button>
+      <button class="btn-save" id="lSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var MGMT_ROLES = ['admin','manager','lead_pm','project_manager','apm'];
+
+  var currentUserId = null;
+  var currentUserName = null;
+  var currentUserRole = null;
+  var canEdit = false;
+
+  // URL state
+  var params = new URLSearchParams(window.location.search);
+  var currentAppId    = params.get('app')     || null;
+  var currentAiaProjId = params.get('project') || null;
+
+  var editingLineId = null;
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) currentUserId = u.data.user.id;
+      var prof = await supabaseClient.from('profiles').select('full_name,role')
+        .eq('id', currentUserId).maybeSingle();
+      if (prof.data) {
+        currentUserName = prof.data.full_name;
+        currentUserRole = prof.data.role;
+        canEdit = MGMT_ROLES.indexOf(currentUserRole) >= 0;
+      }
+    } catch (e) { console.warn(e); }
+
+    bindGlobalEvents();
+
+    if (currentAppId) {
+      await renderApplication(currentAppId);
+    } else {
+      await renderProjects();
+    }
+  }
+
+  function bindGlobalEvents() {
+    // Setup modal
+    document.getElementById('setupCancel').addEventListener('click', function() { closeModal('setupModal'); });
+    document.getElementById('setupSave').addEventListener('click', saveSetup);
+    // New app modal
+    document.getElementById('naCancel').addEventListener('click', function() { closeModal('newAppModal'); });
+    document.getElementById('naCreate').addEventListener('click', createApplication);
+    // Line item modal
+    document.getElementById('lCancel').addEventListener('click', function() { closeModal('lineModal'); });
+    document.getElementById('lSave').addEventListener('click', saveLineItem);
+    // Close on backdrop click
+    ['setupModal','newAppModal','lineModal'].forEach(function(id) {
+      document.getElementById(id).addEventListener('click', function(e) {
+        if (e.target === this) closeModal(id);
+      });
+    });
+  }
+
+  function openModal(id)  { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //   PROJECTS LIST VIEW
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async function renderProjects() {
+    document.getElementById('pageTitle').textContent = 'Invoicing';
+    document.getElementById('crumb').innerHTML =
+      'Projects with AIA billing setup' +
+      (canEdit ? ' · <a href="#" id="crumbSetup">+ Set up new</a>' : '');
+    var link = document.getElementById('crumbSetup');
+    if (link) link.addEventListener('click', function(e) { e.preventDefault(); openSetupModal(); });
+
+    var main = document.getElementById('mainView');
+    main.innerHTML = '<div class="iv-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
+
+    // Load aia_projects + join projects table
+    var r = await supabaseClient
+      .from('aia_projects')
+      .select('*, project:projects(id, short_code, project_name, pm_name, status)')
+      .order('created_at', { ascending: false });
+    if (r.error) {
+      main.innerHTML = '<div class="iv-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
+      return;
+    }
+    var aiaProjs = r.data || [];
+    if (!aiaProjs.length) {
+      main.innerHTML =
+        '<div class="iv-empty"><div class="icon">📄</div>' +
+        '<p>No projects have AIA billing set up yet.<br>' +
+        (canEdit ? 'Click <b>+ Set up new</b> above to configure the first one.' : 'Ask a PM or admin to set one up.') +
+        '</p></div>';
+      return;
+    }
+
+    // Load recent applications per project (last 6 each)
+    var projIds = aiaProjs.map(function(p) { return p.id; });
+    var appsRes = await supabaseClient
+      .from('aia_applications')
+      .select('id, aia_project_id, application_no, period_from, period_to, status, application_date')
+      .in('aia_project_id', projIds)
+      .order('application_no', { ascending: false });
+    var appsByProj = {};
+    (appsRes.data || []).forEach(function(a) {
+      (appsByProj[a.aia_project_id] = appsByProj[a.aia_project_id] || []).push(a);
+    });
+
+    var html = '';
+    aiaProjs.forEach(function(ap) {
+      var pj = ap.project || {};
+      var apps = appsByProj[ap.id] || [];
+      var contract = Number(ap.original_contract_sum || 0);
+      html += '<div class="proj-card">' +
+        '<div class="pc-title">' +
+          (pj.short_code ? '<span class="short-code">' + escHtml(pj.short_code) + '</span>' : '') +
+          '<span class="name">' + escHtml(pj.project_name || '(unnamed project)') + '</span>' +
+          (pj.pm_name ? '<span class="pm">👤 ' + escHtml(pj.pm_name) + '</span>' : '') +
+        '</div>' +
+        '<div class="meta">' +
+          '<span>Contract: <b>' + fmtMoney(contract) + '</b></span>' +
+          '<span>Retainage: <b>' + Number(ap.retainage_rate * 100).toFixed(2) + '%</b></span>' +
+          (ap.contract_date ? '<span>Contract date: <b>' + escHtml(ap.contract_date) + '</b></span>' : '') +
+          '<span>Applications: <b>' + apps.length + '</b></span>' +
+        '</div>' +
+        '<div class="apps-strip">';
+      apps.slice(0, 6).forEach(function(a) {
+        var pf = a.period_to ? shortDate(a.period_to) : '';
+        html += '<a class="app-pill" href="?app=' + a.id + '">' +
+          'App #' + a.application_no + (pf ? ' · ' + pf : '') +
+          ' <span class="status ' + a.status + '">' + a.status + '</span>' +
+        '</a>';
+      });
+      if (apps.length > 6) html += '<span style="font-size:11px;color:var(--nw-muted)">+' + (apps.length - 6) + ' more</span>';
+      if (canEdit) {
+        html += '<button class="btn-new" data-newapp="' + ap.id + '">+ New Application</button>';
+        html += '<button class="btn-secondary" data-edit="' + ap.id + '">Edit setup</button>';
+      }
+      html += '</div></div>';
+    });
+
+    main.innerHTML = html;
+    // Bind buttons
+    main.querySelectorAll('[data-newapp]').forEach(function(btn) {
+      btn.addEventListener('click', function() { openNewAppModal(btn.getAttribute('data-newapp')); });
+    });
+    main.querySelectorAll('[data-edit]').forEach(function(btn) {
+      btn.addEventListener('click', function() { openSetupModal(btn.getAttribute('data-edit')); });
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //   SETUP MODAL — create / edit aia_projects
+  // ═══════════════════════════════════════════════════════════════════════
+
+  var editingSetupId = null;
+
+  async function openSetupModal(aiaProjectId) {
+    editingSetupId = aiaProjectId || null;
+    document.getElementById('setupTitle').textContent = editingSetupId
+      ? 'Edit AIA Billing Setup'
+      : 'Set up AIA Billing for project';
+
+    // Load projects list (only active ones without a billing setup yet, unless editing)
+    var pjRes = await supabaseClient.from('projects')
+      .select('id, project_name, short_code, status, pm_name')
+      .in('status', ['active','onhold'])
+      .order('project_name', { ascending: true });
+    var existingRes = await supabaseClient.from('aia_projects').select('project_id');
+    var existingIds = (existingRes.data || []).map(function(x) { return x.project_id; });
+
+    var sel = document.getElementById('sProject');
+    sel.innerHTML = '';
+    (pjRes.data || []).forEach(function(p) {
+      // Skip projects that already have a billing (unless we're editing that one)
+      if (existingIds.indexOf(p.id) >= 0 && (!editingSetupId)) return;
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = (p.short_code ? p.short_code + ' · ' : '') + p.project_name;
+      sel.appendChild(opt);
+    });
+
+    if (editingSetupId) {
+      var r = await supabaseClient.from('aia_projects').select('*').eq('id', editingSetupId).maybeSingle();
+      var d = r.data || {};
+      sel.value = d.project_id || '';
+      sel.disabled = true;
+      document.getElementById('sContractSum').value  = d.original_contract_sum || '';
+      document.getElementById('sRetainage').value    = Number((d.retainage_rate || 0.05) * 100).toFixed(2);
+      document.getElementById('sContractDate').value = d.contract_date || '';
+      document.getElementById('sContractFor').value  = d.contract_for || '';
+      document.getElementById('sClientName').value   = d.client_name || '';
+      document.getElementById('sClientAddr').value   = d.client_address || '';
+      document.getElementById('sArchName').value     = d.architect_name || '';
+      document.getElementById('sArchAddr').value     = d.architect_address || '';
+    } else {
+      sel.disabled = false;
+      document.getElementById('sContractSum').value  = '';
+      document.getElementById('sRetainage').value    = 5;
+      document.getElementById('sContractDate').value = '';
+      document.getElementById('sContractFor').value  = '';
+      document.getElementById('sClientName').value   = '';
+      document.getElementById('sClientAddr').value   = '';
+      document.getElementById('sArchName').value     = '';
+      document.getElementById('sArchAddr').value     = '';
+    }
+    openModal('setupModal');
+  }
+
+  async function saveSetup() {
+    if (!canEdit) return;
+    var patch = {
+      project_id:            document.getElementById('sProject').value,
+      original_contract_sum: Number(document.getElementById('sContractSum').value || 0),
+      retainage_rate:        Number(document.getElementById('sRetainage').value || 5) / 100,
+      contract_date:         document.getElementById('sContractDate').value || null,
+      contract_for:          document.getElementById('sContractFor').value.trim() || null,
+      client_name:           document.getElementById('sClientName').value.trim() || null,
+      client_address:        document.getElementById('sClientAddr').value.trim() || null,
+      architect_name:        document.getElementById('sArchName').value.trim() || null,
+      architect_address:     document.getElementById('sArchAddr').value.trim() || null
+    };
+    if (!patch.project_id || !patch.original_contract_sum) {
+      showToast('Project and Contract Sum are required', 'error'); return;
+    }
+    var btn = document.getElementById('setupSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    var res;
+    if (editingSetupId) {
+      res = await supabaseClient.from('aia_projects').update(patch).eq('id', editingSetupId);
+    } else {
+      patch.created_by = currentUserId;
+      res = await supabaseClient.from('aia_projects').insert(patch);
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+    if (res.error) { showToast('Save failed: ' + res.error.message, 'error'); return; }
+    showToast('✅ Saved', 'success');
+    closeModal('setupModal');
+    renderProjects();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //   NEW APPLICATION MODAL
+  // ═══════════════════════════════════════════════════════════════════════
+
+  var newAppProjectId = null;
+
+  async function openNewAppModal(aiaProjectId) {
+    newAppProjectId = aiaProjectId;
+    // Pre-fill next app number
+    var last = await supabaseClient.from('aia_applications')
+      .select('application_no').eq('aia_project_id', aiaProjectId)
+      .order('application_no', { ascending: false }).limit(1).maybeSingle();
+    var nextNo = last && last.data ? (last.data.application_no + 1) : 1;
+    document.getElementById('naNo').value = nextNo;
+    // Default dates: period covers previous month
+    var today = new Date();
+    var firstOfPrev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    var lastOfPrev  = new Date(today.getFullYear(), today.getMonth(), 0);
+    document.getElementById('naFrom').value = ymd(firstOfPrev);
+    document.getElementById('naTo').value   = ymd(lastOfPrev);
+    document.getElementById('naDate').value = ymd(today);
+    document.getElementById('naCarryForward').checked = (nextNo > 1);
+    openModal('newAppModal');
+  }
+
+  async function createApplication() {
+    if (!canEdit) return;
+    var appNo = parseInt(document.getElementById('naNo').value, 10);
+    var from  = document.getElementById('naFrom').value;
+    var to    = document.getElementById('naTo').value;
+    var carry = document.getElementById('naCarryForward').checked;
+    var dateVal = document.getElementById('naDate').value;
+    if (!appNo || !from || !to) { showToast('App No, period from and to are required', 'error'); return; }
+
+    var btn = document.getElementById('naCreate');
+    btn.disabled = true; btn.textContent = 'Creating…';
+
+    // Find prior app for carry-forward
+    var priorId = null;
+    var priorLine6 = 0;
+    if (carry) {
+      var prior = await supabaseClient.from('aia_applications')
+        .select('id, application_no')
+        .eq('aia_project_id', newAppProjectId)
+        .lt('application_no', appNo)
+        .order('application_no', { ascending: false }).limit(1).maybeSingle();
+      if (prior && prior.data) {
+        priorId = prior.data.id;
+        // Compute Line 6 for prior app: G(prior) - Retainage(prior)
+        var setupRes = await supabaseClient.from('aia_projects').select('retainage_rate').eq('id', newAppProjectId).maybeSingle();
+        var rate = (setupRes.data && setupRes.data.retainage_rate) || 0.05;
+        var priorLines = await supabaseClient.from('aia_line_items')
+          .select('scheduled_value, prev_amount, this_amount, stored_amount, is_parent')
+          .eq('application_id', priorId);
+        var priorG = 0;
+        (priorLines.data || []).forEach(function(li) {
+          if (li.is_parent) return;
+          priorG += Number(li.prev_amount) + Number(li.this_amount) + Number(li.stored_amount);
+        });
+        priorLine6 = priorG - (priorG * rate);
+      }
+    }
+
+    var insRes = await supabaseClient.from('aia_applications').insert({
+      aia_project_id: newAppProjectId,
+      application_no: appNo,
+      period_from:    from,
+      period_to:      to,
+      application_date: dateVal || null,
+      previous_certificates: priorLine6,
+      status: 'draft',
+      created_by: currentUserId
+    }).select().single();
+
+    if (insRes.error) {
+      btn.disabled = false; btn.textContent = 'Create Application';
+      showToast('Create failed: ' + insRes.error.message, 'error'); return;
+    }
+    var newAppId = insRes.data.id;
+
+    // Carry forward line items
+    if (carry && priorId) {
+      var priorLines = await supabaseClient.from('aia_line_items')
+        .select('*').eq('application_id', priorId).order('sort_order', { ascending: true });
+      var toInsert = (priorLines.data || []).map(function(li) {
+        var newPrev = li.is_parent ? 0 :
+          (Number(li.prev_amount) + Number(li.this_amount) + Number(li.stored_amount));
+        return {
+          application_id:   newAppId,
+          item_no:          li.item_no,
+          budget_code:      li.budget_code,
+          description:      li.description,
+          scheduled_value:  li.scheduled_value,
+          prev_amount:      newPrev,
+          this_amount:      0,
+          stored_amount:    0,
+          is_change_order:  li.is_change_order,
+          is_parent:        li.is_parent,
+          parent_item_no:   li.parent_item_no,
+          sort_order:       li.sort_order
+        };
+      });
+      if (toInsert.length) {
+        await supabaseClient.from('aia_line_items').insert(toInsert);
+      }
+    }
+
+    btn.disabled = false; btn.textContent = 'Create Application';
+    closeModal('newAppModal');
+    showToast('✅ Application #' + appNo + ' created', 'success');
+    window.location.href = 'invoicing.html?app=' + newAppId;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //   APPLICATION DETAIL VIEW
+  // ═══════════════════════════════════════════════════════════════════════
+
+  var currentApp    = null;   // aia_applications row
+  var currentSetup  = null;   // aia_projects row
+  var currentLines  = [];     // aia_line_items rows
+
+  async function renderApplication(appId) {
+    var main = document.getElementById('mainView');
+    main.innerHTML = '<div class="iv-empty"><div class="icon">⏳</div><p>Loading application…</p></div>';
+
+    var appRes = await supabaseClient.from('aia_applications')
+      .select('*, setup:aia_projects(*, project:projects(id, short_code, project_name, pm_name))')
+      .eq('id', appId).maybeSingle();
+    if (appRes.error || !appRes.data) {
+      main.innerHTML = '<div class="iv-empty"><div class="icon">⚠️</div><p>Application not found.</p></div>';
+      return;
+    }
+    currentApp = appRes.data;
+    currentSetup = currentApp.setup;
+
+    var linesRes = await supabaseClient.from('aia_line_items')
+      .select('*').eq('application_id', appId).order('sort_order', { ascending: true });
+    currentLines = linesRes.data || [];
+
+    document.getElementById('pageTitle').textContent =
+      'App #' + currentApp.application_no + ' — ' + (currentSetup.project.project_name || '');
+    document.getElementById('crumb').innerHTML =
+      '<a href="invoicing.html">Invoicing</a> · ' +
+      escHtml(currentSetup.project.project_name || '') + ' · Application #' + currentApp.application_no;
+
+    var totals = computeTotals();
+
+    var html = '';
+    // ── App header ─────────
+    html += '<div class="app-header">' +
+      '<h2>Application for Payment #' + currentApp.application_no + '  ' +
+        '<span class="status-badge ' + currentApp.status + '">' + currentApp.status + '</span></h2>' +
+      '<div class="app-sub">' +
+        '<span><b>Period:</b> ' + escHtml(currentApp.period_from) + ' → ' + escHtml(currentApp.period_to) + '</span>' +
+        '<span><b>Contract:</b> ' + fmtMoney(currentSetup.original_contract_sum) + '</span>' +
+        '<span><b>Retainage:</b> ' + Number(currentSetup.retainage_rate * 100).toFixed(2) + '%</span>' +
+        '<span><b>Client:</b> ' + escHtml(currentSetup.client_name || '—') + '</span>' +
+        (currentSetup.project.pm_name ? '<span><b>PM:</b> ' + escHtml(currentSetup.project.pm_name) + '</span>' : '') +
+      '</div>' +
+      (canEdit ? '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button class="btn-secondary" id="statusBtn">Change status</button>' +
+        '<button class="btn-secondary" id="editHdrBtn">Edit period / previous cert</button>' +
+      '</div>' : '') +
+    '</div>';
+
+    // ── G702 Summary panel ─────
+    html += renderG702Panel(totals);
+
+    // ── Line items panel ─────
+    html += renderLinesPanel();
+
+    // ── CO Summary panel ─────
+    html += renderCoSummaryPanel(totals);
+
+    main.innerHTML = html;
+
+    // Bind row action buttons
+    main.querySelectorAll('[data-lineedit]').forEach(function(btn) {
+      btn.addEventListener('click', function() { openLineModal(btn.getAttribute('data-lineedit')); });
+    });
+    main.querySelectorAll('[data-linedel]').forEach(function(btn) {
+      btn.addEventListener('click', function() { deleteLine(btn.getAttribute('data-linedel')); });
+    });
+    // Add line buttons
+    main.querySelectorAll('[data-addline]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var isCo = btn.getAttribute('data-addline') === 'co';
+        openLineModal(null, isCo);
+      });
+    });
+    // Live inputs on CO Summary
+    ['coPrevAdd','coPrevDed','coThisAdd','coThisDed'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', saveCoSummary);
+    });
+    // Status button
+    var sb = document.getElementById('statusBtn');
+    if (sb) sb.addEventListener('click', changeStatus);
+    var eb = document.getElementById('editHdrBtn');
+    if (eb) eb.addEventListener('click', editHeader);
+  }
+
+  function computeTotals() {
+    // Sum non-parent lines
+    var totalG = 0, totalCompleted = 0, totalStored = 0;
+    var totalCoG = 0, totalCoCompleted = 0, totalCoStored = 0;
+    currentLines.forEach(function(li) {
+      if (li.is_parent) return;
+      var d = Number(li.prev_amount   || 0);
+      var e = Number(li.this_amount   || 0);
+      var f = Number(li.stored_amount || 0);
+      var g = d + e + f;
+      if (li.is_change_order) {
+        totalCoG += g; totalCoCompleted += (d + e); totalCoStored += f;
+      } else {
+        totalG += g;   totalCompleted += (d + e);   totalStored += f;
+      }
+    });
+
+    var rate = Number(currentSetup.retainage_rate || 0.05);
+    var grandG = totalG + totalCoG;
+    var grandCompleted = totalCompleted + totalCoCompleted;
+    var grandStored    = totalStored    + totalCoStored;
+
+    var line1 = Number(currentSetup.original_contract_sum || 0);
+    var coNet = Number(currentApp.co_prev_additions || 0)
+              + Number(currentApp.co_prev_deductions || 0)
+              + Number(currentApp.co_this_additions || 0)
+              + Number(currentApp.co_this_deductions || 0);
+    var line2 = coNet;
+    var line3 = line1 + line2;
+    var line4 = grandG;
+    var line5a = grandCompleted * rate;
+    var line5b = grandStored    * rate;
+    var line5t = line5a + line5b;
+    var line6 = line4 - line5t;
+    var line7 = Number(currentApp.previous_certificates || 0);
+    var line8 = line6 - line7;
+    var line9 = line3 - line6;
+
+    return {
+      contract:   {totalG:totalG, totalCompleted:totalCompleted, totalStored:totalStored},
+      co:         {totalG:totalCoG, totalCompleted:totalCoCompleted, totalStored:totalCoStored},
+      grand:      {G:grandG, completed:grandCompleted, stored:grandStored},
+      lines:      {L1:line1, L2:line2, L3:line3, L4:line4, L5a:line5a, L5b:line5b, L5t:line5t,
+                   L6:line6, L7:line7, L8:line8, L9:line9}
+    };
+  }
+
+  function renderG702Panel(t) {
+    var L = t.lines;
+    return '<div class="g702-panel">' +
+      '<h3>G702 — Application and Certificate for Payment</h3>' +
+      '<div class="g702-grid">' +
+        row('1. Original Contract Sum',                                             L.L1) +
+        row('2. Net Change by Change Orders',                                       L.L2) +
+        row('3. Contract Sum to Date (Line 1 + 2)',                                 L.L3) +
+        row('4. Total Completed & Stored to Date (from G703 Column G)',             L.L4) +
+        row('5. Retainage:',                                                        '',   'lbl') +
+        row('   a. ' + (currentSetup.retainage_rate * 100).toFixed(2) + '% of Completed Work',  L.L5a, 'indent') +
+        row('   b. ' + (currentSetup.retainage_rate * 100).toFixed(2) + '% of Stored Material', L.L5b, 'indent') +
+        row('   Total Retainage (5a + 5b)',                                         L.L5t, 'indent') +
+        row('6. Total Earned Less Retainage (Line 4 − 5)',                          L.L6) +
+        row('7. Less Previous Certificates for Payment',                            L.L7) +
+        row('8. CURRENT PAYMENT DUE',                                               L.L8, 'key-line') +
+        row('9. Balance to Finish, Including Retainage (Line 3 − 6)',               L.L9) +
+      '</div></div>';
+
+    function row(lbl, val, cls) {
+      var extra = cls ? cls : '';
+      var valHtml = (val === '' || val === null || val === undefined) ? '&nbsp;' : fmtMoney(val);
+      if (extra === 'key-line') {
+        return '<div class="lbl key-line">' + lbl + '</div>' +
+               '<div class="val key-line">' + valHtml + '</div>';
+      }
+      if (extra === 'indent') {
+        return '<div class="lbl indent">' + lbl + '</div>' +
+               '<div class="val indent">' + valHtml + '</div>';
+      }
+      return '<div class="lbl">' + lbl + '</div>' +
+             '<div class="val">' + valHtml + '</div>';
+    }
+  }
+
+  function renderLinesPanel() {
+    // Split by contract vs change order
+    var contractLines = currentLines.filter(function(l) { return !l.is_change_order; });
+    var coLines       = currentLines.filter(function(l) { return  l.is_change_order; });
+    var rate = Number(currentSetup.retainage_rate || 0.05);
+
+    var html = '<div class="li-panel">' +
+      '<h3>G703 — Schedule of Values ' +
+        (canEdit ? '<button class="btn-secondary" data-addline="contract">+ Add Contract Line</button> ' +
+                   '<button class="btn-secondary" data-addline="co">+ Add Change Order Line</button>' : '') +
+      '</h3>' +
+      '<table class="li-table">' +
+      '<thead><tr>' +
+        '<th style="width:60px">Item</th>' +
+        '<th style="width:100px">Budget Code</th>' +
+        '<th>Description</th>' +
+        '<th style="width:90px">Sched Val</th>' +
+        '<th style="width:90px">From Prev</th>' +
+        '<th style="width:90px">This Period</th>' +
+        '<th style="width:90px">Stored</th>' +
+        '<th style="width:90px">Total (G)</th>' +
+        '<th style="width:55px">%</th>' +
+        '<th style="width:90px">Balance</th>' +
+        '<th style="width:80px">Retainage</th>' +
+        (canEdit ? '<th style="width:60px"></th>' : '') +
+      '</tr></thead><tbody>';
+
+    // Contract Lines section
+    html += '<tr class="section-header-row"><td colspan="' + (canEdit ? 12 : 11) + '">Contract Lines</td></tr>';
+    contractLines.forEach(function(l) { html += renderLineRow(l, rate, false); });
+    // Contract totals
+    html += renderTotalsRow(contractLines, rate, 'total-row', 'CONTRACT SUBTOTAL', canEdit);
+    // CO section
+    if (coLines.length) {
+      html += '<tr class="section-header-row"><td colspan="' + (canEdit ? 12 : 11) + '">Change Orders</td></tr>';
+      coLines.forEach(function(l) { html += renderLineRow(l, rate, true); });
+      html += renderTotalsRow(coLines, rate, 'total-row', 'CHANGE ORDER SUBTOTAL', canEdit);
+    }
+    // Grand total
+    html += renderTotalsRow(currentLines, rate, 'grand-row', 'GRAND TOTAL', canEdit);
+
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  function renderLineRow(l, rate, isCo) {
+    var d = Number(l.prev_amount || 0);
+    var e = Number(l.this_amount || 0);
+    var f = Number(l.stored_amount || 0);
+    var g = d + e + f;
+    var c = Number(l.scheduled_value || 0);
+    var pct = c ? (g / c) : 0;
+    var balance = c - g;
+    var retainage = g * rate;
+    var rowCls = (isCo ? 'co-row ' : '') + (l.is_parent ? 'parent' : '');
+    var cells = [
+      '<td class="ctr">' + escHtml(l.item_no || '') + '</td>',
+      '<td class="ctr" style="font-size:10px">' + escHtml(l.budget_code || '') + '</td>',
+      '<td class="desc">' + escHtml(l.description || '') + '</td>'
+    ];
+    if (l.is_parent) {
+      cells.push('<td class="num readonly" colspan="8" style="text-align:left;color:var(--nw-muted)">— header row —</td>');
+    } else {
+      cells = cells.concat([
+        '<td class="num">' + fmtMoney(c) + '</td>',
+        '<td class="num">' + fmtMoney(d) + '</td>',
+        '<td class="num">' + fmtMoney(e) + '</td>',
+        '<td class="num">' + fmtMoney(f) + '</td>',
+        '<td class="num">' + fmtMoney(g) + '</td>',
+        '<td class="num">' + (pct * 100).toFixed(2) + '%</td>',
+        '<td class="num">' + fmtMoney(balance) + '</td>',
+        '<td class="num">' + fmtMoney(retainage) + '</td>'
+      ]);
+    }
+    if (canEdit) {
+      cells.push('<td class="ctr">' +
+        '<button class="btn-secondary" data-lineedit="' + l.id + '" style="padding:2px 8px;font-size:10px">Edit</button> ' +
+        '<button class="del-btn" data-linedel="' + l.id + '" title="Delete">✕</button>' +
+      '</td>');
+    }
+    return '<tr class="' + rowCls + '">' + cells.join('') + '</tr>';
+  }
+
+  function renderTotalsRow(lines, rate, cls, label, editCol) {
+    var c=0, d=0, e=0, f=0;
+    lines.forEach(function(l) {
+      if (l.is_parent) return;
+      c += Number(l.scheduled_value || 0);
+      d += Number(l.prev_amount || 0);
+      e += Number(l.this_amount || 0);
+      f += Number(l.stored_amount || 0);
+    });
+    var g = d + e + f;
+    var pct = c ? (g / c) : 0;
+    var balance = c - g;
+    var retainage = g * rate;
+    return '<tr class="' + cls + '">' +
+      '<td colspan="3" class="desc" style="text-align:right;font-weight:800">' + label + ':</td>' +
+      '<td class="num">' + fmtMoney(c) + '</td>' +
+      '<td class="num">' + fmtMoney(d) + '</td>' +
+      '<td class="num">' + fmtMoney(e) + '</td>' +
+      '<td class="num">' + fmtMoney(f) + '</td>' +
+      '<td class="num">' + fmtMoney(g) + '</td>' +
+      '<td class="num">' + (pct * 100).toFixed(2) + '%</td>' +
+      '<td class="num">' + fmtMoney(balance) + '</td>' +
+      '<td class="num">' + fmtMoney(retainage) + '</td>' +
+      (editCol ? '<td></td>' : '') +
+    '</tr>';
+  }
+
+  function renderCoSummaryPanel(t) {
+    var app = currentApp;
+    var lock = canEdit ? '' : 'readonly';
+    var netAdd = Number(app.co_prev_additions || 0) + Number(app.co_this_additions || 0);
+    var netDed = Number(app.co_prev_deductions || 0) + Number(app.co_this_deductions || 0);
+    var net = netAdd + netDed;
+    return '<div class="g702-panel">' +
+      '<h3>Change Order Summary</h3>' +
+      '<div class="co-summary">' +
+        '<div></div><div class="head">Additions</div><div class="head">Deductions</div>' +
+
+        '<div class="row-lbl">Approved in previous months (Owner):</div>' +
+        '<div><input type="number" step="0.01" id="coPrevAdd" value="' + (app.co_prev_additions || 0) + '" ' + lock + '></div>' +
+        '<div><input type="number" step="0.01" id="coPrevDed" value="' + (app.co_prev_deductions || 0) + '" ' + lock + '></div>' +
+
+        '<div class="row-lbl">Approved this month:</div>' +
+        '<div><input type="number" step="0.01" id="coThisAdd" value="' + (app.co_this_additions || 0) + '" ' + lock + '></div>' +
+        '<div><input type="number" step="0.01" id="coThisDed" value="' + (app.co_this_deductions || 0) + '" ' + lock + '></div>' +
+
+        '<div class="row-lbl total-row">TOTALS:</div>' +
+        '<div class="total-row" style="text-align:right;padding-right:8px">' + fmtMoney(netAdd) + '</div>' +
+        '<div class="total-row" style="text-align:right;padding-right:8px">' + fmtMoney(netDed) + '</div>' +
+
+        '<div class="row-lbl net-row">NET CHANGE BY CHANGE ORDER:</div>' +
+        '<div class="net net-row">' + fmtMoney(net) + '</div>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--nw-muted);margin-top:8px">Line 2 on G702 pulls from this net.</div>' +
+    '</div>';
+  }
+
+  async function saveCoSummary() {
+    if (!canEdit) return;
+    var patch = {
+      co_prev_additions:  Number(document.getElementById('coPrevAdd').value  || 0),
+      co_prev_deductions: Number(document.getElementById('coPrevDed').value  || 0),
+      co_this_additions:  Number(document.getElementById('coThisAdd').value  || 0),
+      co_this_deductions: Number(document.getElementById('coThisDed').value  || 0)
+    };
+    var r = await supabaseClient.from('aia_applications').update(patch).eq('id', currentApp.id);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    currentApp = Object.assign(currentApp, patch);
+    renderApplication(currentApp.id);
+  }
+
+  async function changeStatus() {
+    if (!canEdit) return;
+    var next = prompt('New status? (draft / submitted / certified / paid / void)', currentApp.status);
+    if (!next) return;
+    next = next.trim().toLowerCase();
+    var valid = ['draft','submitted','certified','paid','void'];
+    if (valid.indexOf(next) < 0) { showToast('Invalid status', 'error'); return; }
+    var patch = { status: next };
+    if (next === 'submitted') patch.submitted_at = new Date().toISOString();
+    if (next === 'certified') patch.certified_at = new Date().toISOString();
+    if (next === 'paid')      patch.paid_at      = new Date().toISOString();
+    var r = await supabaseClient.from('aia_applications').update(patch).eq('id', currentApp.id);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    showToast('✅ Status: ' + next, 'success');
+    renderApplication(currentApp.id);
+  }
+
+  async function editHeader() {
+    if (!canEdit) return;
+    var from = prompt('Period from (YYYY-MM-DD):', currentApp.period_from);
+    if (from === null) return;
+    var to   = prompt('Period to (YYYY-MM-DD):',   currentApp.period_to);
+    if (to === null) return;
+    var prev = prompt('Previous certificates for payment ($):', currentApp.previous_certificates || 0);
+    if (prev === null) return;
+    var patch = { period_from: from, period_to: to, previous_certificates: Number(prev) };
+    var r = await supabaseClient.from('aia_applications').update(patch).eq('id', currentApp.id);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    showToast('✅ Header updated', 'success');
+    renderApplication(currentApp.id);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //   LINE ITEM MODAL
+  // ═══════════════════════════════════════════════════════════════════════
+
+  var editingLineIsCo = false;
+
+  function openLineModal(lineId, forceCo) {
+    editingLineId = lineId || null;
+    editingLineIsCo = !!forceCo;
+
+    document.getElementById('lineTitle').textContent = editingLineId
+      ? 'Edit Line Item'
+      : (editingLineIsCo ? 'Add Change Order Line' : 'Add Contract Line');
+
+    if (editingLineId) {
+      var li = currentLines.find(function(x) { return x.id === editingLineId; });
+      if (!li) return;
+      document.getElementById('lItemNo').value      = li.item_no || '';
+      document.getElementById('lBudgetCode').value  = li.budget_code || '';
+      document.getElementById('lDesc').value        = li.description || '';
+      document.getElementById('lSched').value       = li.scheduled_value || 0;
+      document.getElementById('lPrev').value        = li.prev_amount || 0;
+      document.getElementById('lThis').value        = li.this_amount || 0;
+      document.getElementById('lStored').value      = li.stored_amount || 0;
+      document.getElementById('lIsCO').checked      = !!li.is_change_order;
+      document.getElementById('lIsParent').checked  = !!li.is_parent;
+      document.getElementById('lParentItemNo').value= li.parent_item_no || '';
+    } else {
+      // Suggest next item number
+      var relevant = currentLines.filter(function(x) { return x.is_change_order === editingLineIsCo && !x.is_parent; });
+      var next = relevant.length + 1;
+      document.getElementById('lItemNo').value      = String(next);
+      document.getElementById('lBudgetCode').value  = '';
+      document.getElementById('lDesc').value        = '';
+      document.getElementById('lSched').value       = 0;
+      document.getElementById('lPrev').value        = 0;
+      document.getElementById('lThis').value        = 0;
+      document.getElementById('lStored').value      = 0;
+      document.getElementById('lIsCO').checked      = editingLineIsCo;
+      document.getElementById('lIsParent').checked  = false;
+      document.getElementById('lParentItemNo').value= '';
+    }
+    openModal('lineModal');
+  }
+
+  async function saveLineItem() {
+    if (!canEdit) return;
+    var isParent = document.getElementById('lIsParent').checked;
+    var patch = {
+      application_id:   currentApp.id,
+      item_no:          document.getElementById('lItemNo').value.trim(),
+      budget_code:      document.getElementById('lBudgetCode').value.trim() || null,
+      description:      document.getElementById('lDesc').value.trim(),
+      scheduled_value:  isParent ? 0 : Number(document.getElementById('lSched').value || 0),
+      prev_amount:      isParent ? 0 : Number(document.getElementById('lPrev').value  || 0),
+      this_amount:      isParent ? 0 : Number(document.getElementById('lThis').value  || 0),
+      stored_amount:    isParent ? 0 : Number(document.getElementById('lStored').value|| 0),
+      is_change_order:  document.getElementById('lIsCO').checked,
+      is_parent:        isParent,
+      parent_item_no:   document.getElementById('lParentItemNo').value.trim() || null
+    };
+    if (!patch.item_no || !patch.description) {
+      showToast('Item # and description are required', 'error'); return;
+    }
+    var btn = document.getElementById('lSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    var r;
+    if (editingLineId) {
+      r = await supabaseClient.from('aia_line_items').update(patch).eq('id', editingLineId);
+    } else {
+      // Compute sort_order: max existing + 1
+      var maxSort = 0;
+      currentLines.forEach(function(l) { if (l.sort_order > maxSort) maxSort = l.sort_order; });
+      patch.sort_order = maxSort + 1;
+      r = await supabaseClient.from('aia_line_items').insert(patch);
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    closeModal('lineModal');
+    showToast('✅ Saved', 'success');
+    renderApplication(currentApp.id);
+  }
+
+  async function deleteLine(id) {
+    if (!canEdit) return;
+    if (!confirm('Delete this line item?')) return;
+    var r = await supabaseClient.from('aia_line_items').delete().eq('id', id);
+    if (r.error) { showToast('Delete failed: ' + r.error.message, 'error'); return; }
+    showToast('Deleted', 'success');
+    renderApplication(currentApp.id);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //   Helpers
+  // ═══════════════════════════════════════════════════════════════════════
+
+  function fmtMoney(n) {
+    var v = Number(n || 0);
+    var sign = v < 0 ? '-' : '';
+    return sign + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function shortDate(iso) {
+    if (!iso) return '';
+    var d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  }
+
+  function ymd(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=164"></script>
+</body>
+</html>
