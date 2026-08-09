@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS estimates (
 
   -- Multi-estimator ownership (matches Kastriot/Alikhan/Ruslan folders)
   estimator_name         TEXT,
+  quote_number           INTEGER       UNIQUE,                             -- auto-assigned from sequence
 
   created_by             UUID          REFERENCES profiles(id) ON DELETE SET NULL,
   created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
@@ -51,6 +52,23 @@ CREATE TABLE IF NOT EXISTS estimates (
 CREATE INDEX IF NOT EXISTS idx_estimates_project ON estimates(project_id);
 CREATE INDEX IF NOT EXISTS idx_estimates_status  ON estimates(status);
 CREATE INDEX IF NOT EXISTS idx_estimates_bid_due ON estimates(bid_due_date) WHERE status IN ('draft','sent');
+
+-- Auto-assign quote_number from a shared sequence starting at 10011
+-- (Kastriot's Drive workspace log ended at 10010 for L'Catteron; next is 10011)
+CREATE SEQUENCE IF NOT EXISTS estimates_quote_no_seq START WITH 10011;
+
+CREATE OR REPLACE FUNCTION fn_assign_quote_number()
+RETURNS TRIGGER LANGUAGE plpgsql AS $qn$
+BEGIN
+  IF NEW.quote_number IS NULL THEN
+    NEW.quote_number := nextval('estimates_quote_no_seq');
+  END IF;
+  RETURN NEW;
+END; $qn$;
+
+DROP TRIGGER IF EXISTS trg_estimates_quote_no ON estimates;
+CREATE TRIGGER trg_estimates_quote_no BEFORE INSERT ON estimates
+  FOR EACH ROW EXECUTE FUNCTION fn_assign_quote_number();
 
 -- ─── estimate_line_items ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS estimate_line_items (

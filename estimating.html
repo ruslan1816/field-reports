@@ -14,8 +14,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="supabase-config.js?v=167"></script>
-<script src="auth.js?v=167"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="supabase-config.js?v=168"></script>
+<script src="auth.js?v=168"></script>
 <style>
   body { padding-bottom: 24px; }
   .es-wrap { max-width: 1400px; margin: 0 auto; }
@@ -300,6 +301,14 @@
   <div class="modal-card">
     <h2 id="lineTitle">Add Line Item</h2>
 
+    <div class="field" style="background:#f0f9ff;padding:8px 12px;border-radius:8px;border:1px solid #bae6fd">
+      <label style="color:#0369a1">⚡ Preset (auto-fill from NWAC Standards)</label>
+      <select id="lPreset">
+        <option value="">— Choose a preset or type manually —</option>
+      </select>
+      <div class="field-hint">Selecting a preset fills category, unit, material $ and labor hrs per Standards. You then type only the quantity.</div>
+    </div>
+
     <div class="row">
       <div class="field">
         <label>Category *</label>
@@ -403,6 +412,36 @@
   </div>
 </div>
 
+<!-- ═══════════ Procore Takeoff Import modal ═══════════ -->
+<div class="modal-overlay" id="takeoffModal">
+  <div class="modal-card" style="max-width:720px">
+    <h2>Import Procore Ductwork / Pipework Takeoff</h2>
+    <p style="font-size:12px;color:var(--nw-muted);margin:0 0 12px">
+      Upload the Procore export (.xlsx / .xlsm / .csv). Parser pulls exactly 4 numbers per NWAC Takeoff Import Standards:
+      Ductwork material $ + labor hours, Pipework material $ + labor hours. Labor $ is applied at $60/hr (per NWAC labor rate).
+    </p>
+
+    <div class="field">
+      <label>Takeoff file</label>
+      <input type="file" id="tkFile" accept=".xlsx,.xlsm,.xls,.csv">
+      <div class="field-hint">The reader looks at the "Estimate" tab (or "Full Estimate"), scans for Ductwork / Pipework group rows, and reads Material Cost + Total Labor Time columns. Skips waste / unit / rate columns.</div>
+    </div>
+
+    <div id="tkPreview" style="display:none;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid var(--nw-border);margin-top:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--nw-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Parsed Result</div>
+      <div id="tkPreviewBody" style="font-size:13px;font-family:'Courier New',monospace"></div>
+      <div class="field" style="margin-top:12px">
+        <label><input type="checkbox" id="tkReplace" checked> Replace existing Ductwork + Pipework lines (unchecked = append)</label>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="tkCancel">Cancel</button>
+      <button class="btn-save" id="tkApply" disabled>Apply to Estimate</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -433,23 +472,106 @@ requireAuth().catch(function(){});
 
   var CREW_LABEL = { sm: '🔩 SM', pipe: '🔧 P', startup: '⚡ SU', other: 'Other', none: '—' };
 
-  // Reference rates from Standards (informational — user still types quantities)
-  var STD_RATES = {
-    ductworkSdPerFloor: 2500,
-    pipingSdPerFloor:   1300,
-    tabPerFloor:        2500,
-    wetTapPerConn:      10000,
-    airOutlets: {
-      diffuser: 1.6, linear: 0.8, vav: 2.67, damper: 2.67, fpb: 8
-    },
-    equipmentTiers: {
-      '1-30 lb':    4,   // 1/4 day * 2 men
-      '40-90 lb':   8,   // 1/2 day * 2 men
-      '100-190 lb': 16,  // 1 day * 2 men
-      '200-500 lb': 32,  // 1 day * 4 men
-      '600+ lb':    48   // 1 day * 6 men
-    }
-  };
+  // Preset library — auto-fills line item modal from NWAC Standards
+  // Format: { label, category, description, unit, qty, mat, hrs, crew, is_wet_tap? }
+  var PRESETS = [
+    // ── Air Outlets Install (from Air Outlets Installation Standards.md)
+    { label: '🌬️ Diffusers / grilles / registers  (1.6 hr each)',
+      category: 'air_outlets', unit: 'ea', mat: 0, hrs: 1.6, crew: 'sm',
+      description: 'Diffusers / grilles / registers' },
+    { label: '🌬️ Linear diffusers  (0.8 hr/lf)',
+      category: 'air_outlets', unit: 'lf', mat: 0, hrs: 0.8, crew: 'sm',
+      description: 'Linear diffusers' },
+    { label: '🌬️ VAV boxes  (2.67 hr each)',
+      category: 'air_outlets', unit: 'ea', mat: 0, hrs: 2.67, crew: 'sm',
+      description: 'VAV boxes' },
+    { label: '🌬️ Fire/smoke or motorized dampers  (2.67 hr each)',
+      category: 'air_outlets', unit: 'ea', mat: 0, hrs: 2.67, crew: 'sm',
+      description: 'Fire/smoke dampers, motorized dampers' },
+    { label: '🌬️ Fan-powered boxes (FPBs)  (8 hr each — half day)',
+      category: 'air_outlets', unit: 'ea', mat: 0, hrs: 8, crew: 'sm',
+      description: 'Fan-powered boxes (FPBs)' },
+
+    // ── Equipment Install (weight tiers from Equipment Installation Standards.md)
+    { label: '🛠️ Equipment install — 1-30 lb  (4 man-hrs, 2 men × ¼ day)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 4, crew: 'sm',
+      description: 'Equipment install (1-30 lb tier, ¼ day × 2 men)' },
+    { label: '🛠️ Equipment install — 40-90 lb  (8 man-hrs, 2 men × ½ day)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 8, crew: 'sm',
+      description: 'Equipment install (40-90 lb tier, ½ day × 2 men)' },
+    { label: '🛠️ Equipment install — 100-190 lb  (16 man-hrs, 2 men × 1 day)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 16, crew: 'sm',
+      description: 'Equipment install (100-190 lb tier, 1 day × 2 men)' },
+    { label: '🛠️ Equipment install — 200-500 lb  (32 man-hrs, 4 men × 1 day)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 32, crew: 'sm',
+      description: 'Equipment install (200-500 lb tier, 1 day × 4 men)' },
+    { label: '🛠️ Equipment install — 600+ lb  (48 man-hrs, 6 men × 1 day)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 48, crew: 'sm',
+      description: 'Equipment install (600+ lb tier, 1 day × 6 men)' },
+    { label: '🛠️ PTAC unit install  (2.67 hr each — 6/day/2 men)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 2.67, crew: 'sm',
+      description: 'PTAC unit install' },
+    { label: '🛠️ Baseboard heater install  (8 hr each — 2/day/2 men)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 8, crew: 'sm',
+      description: 'Baseboard heater install' },
+    { label: '🛠️ Kitchen exhaust fan install  (16 hr each — 1/day/2 men)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 16, crew: 'sm',
+      description: 'Kitchen exhaust fan install' },
+    { label: '🛠️ Light fan install  (4 hr each — 4/day/2 men)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 4, crew: 'sm',
+      description: 'Light fan install (general, non-kitchen)' },
+
+    // ── Services (from Shop Drawings and Testing Standards.md)
+    { label: '📋 Ductwork shop drawings  ($2,500/floor)',
+      category: 'services', unit: 'floor', mat: 2500, hrs: 0, crew: 'none',
+      description: 'Ductwork shop drawings' },
+    { label: '📋 Piping shop drawings  ($1,300/floor)',
+      category: 'services', unit: 'floor', mat: 1300, hrs: 0, crew: 'none',
+      description: 'Piping shop drawings' },
+    { label: '📋 Testing & balancing  ($2,500/floor)',
+      category: 'services', unit: 'floor', mat: 2500, hrs: 0, crew: 'none',
+      description: 'Testing & balancing' },
+
+    // ── Rigging (from Rigging Standards.md)
+    { label: '📋 Indoor rigging — up to 3,000 lb  ($1,000/unit)',
+      category: 'services', unit: 'ea', mat: 1000, hrs: 0, crew: 'none',
+      description: 'Indoor rigging (up to 3,000 lb)' },
+    { label: '📋 Indoor rigging flat day  ($3,000 max 3/day)',
+      category: 'services', unit: 'day', mat: 3000, hrs: 0, crew: 'none',
+      description: 'Indoor rigging flat day (max 3 units)' },
+    { label: '📋 Boom truck full-day rooftop  ($6,000, up to 10th floor)',
+      category: 'services', unit: 'day', mat: 6000, hrs: 0, crew: 'none',
+      description: 'Boom truck rooftop rigging (full day, up to 10th floor)' },
+    { label: '📋 Crane rooftop no permits  ($25,000/day)',
+      category: 'services', unit: 'day', mat: 25000, hrs: 0, crew: 'none',
+      description: 'Crane rooftop rigging (no permits, 10-30 floor, max 12 units/day)' },
+    { label: '📋 Crane rooftop with permits  ($50,000/day)',
+      category: 'services', unit: 'day', mat: 50000, hrs: 0, crew: 'none',
+      description: 'Crane rooftop rigging (with permits)' },
+
+    // ── Standalone Controls (from Standalone Controls Standards.md — only when no BMS)
+    { label: '🔧 Thermostat  ($500 ea)',
+      category: 'equipment', unit: 'ea', mat: 500, hrs: 0, crew: 'none',
+      description: 'Thermostat (standalone controls)' },
+    { label: '🔧 Sensor  ($400 ea)',
+      category: 'equipment', unit: 'ea', mat: 400, hrs: 0, crew: 'none',
+      description: 'Sensor (standalone controls)' },
+    { label: '🔧 Wiring per thermostat  ($50 ea)',
+      category: 'equipment', unit: 'ea', mat: 50, hrs: 0, crew: 'none',
+      description: 'Wiring per thermostat' },
+    { label: '🔧 VAV box controls, standalone  ($1,000 per VAV)',
+      category: 'equipment', unit: 'ea', mat: 1000, hrs: 0, crew: 'none',
+      description: 'VAV box controls (standalone, no BMS)' },
+    { label: '🔧 Thermostat install  (0.8 hr each — 10/day/2 men)',
+      category: 'equipment_install', unit: 'ea', mat: 0, hrs: 0.8, crew: 'startup',
+      description: 'Thermostat/sensor install' },
+
+    // ── Piping — wet-tap standard
+    { label: '💧 Wet-tap connection  ($10,000 flat/connection)',
+      category: 'pipework', unit: 'ea', mat: 10000, hrs: 0, crew: 'none',
+      description: 'Wet-tap connection (up to 4" pipe, one connection point / 2 pipes, e.g. CWS&R tie-in)',
+      is_wet_tap: true }
+  ];
 
   var currentUserId = null, currentUserRole = null, canEdit = false;
   var params = new URLSearchParams(window.location.search);
@@ -486,6 +608,27 @@ requireAuth().catch(function(){});
     ['lQty','lMatUnit','lLabHrs','lCrew'].forEach(function(id) {
       document.getElementById(id).addEventListener('input', updateLineHint);
     });
+    // Populate preset dropdown once
+    var presetSel = document.getElementById('lPreset');
+    PRESETS.forEach(function(p, idx) {
+      var o = document.createElement('option');
+      o.value = String(idx);
+      o.textContent = p.label;
+      presetSel.appendChild(o);
+    });
+    presetSel.addEventListener('change', function() {
+      var idx = parseInt(this.value, 10);
+      if (isNaN(idx)) return;
+      var p = PRESETS[idx];
+      document.getElementById('lCategory').value = p.category;
+      document.getElementById('lDesc').value     = p.description;
+      document.getElementById('lUnit').value     = p.unit || '';
+      document.getElementById('lMatUnit').value  = p.mat  || 0;
+      document.getElementById('lLabHrs').value   = p.hrs  || 0;
+      document.getElementById('lCrew').value     = p.crew || 'sm';
+      document.getElementById('lWetTap').checked = !!p.is_wet_tap;
+      updateLineHint();
+    });
     // Assembly modal
     document.getElementById('asmCancel').addEventListener('click', function() { closeModal('assemblyModal'); });
     document.getElementById('asmSearch').addEventListener('input', renderAssemblyList);
@@ -500,8 +643,12 @@ requireAuth().catch(function(){});
     CATEGORIES.forEach(function(c) {
       var o = document.createElement('option'); o.value = c.key; o.textContent = c.icon + ' ' + c.label; asmCat.appendChild(o);
     });
+    // Takeoff modal
+    document.getElementById('tkCancel').addEventListener('click', function() { closeModal('takeoffModal'); });
+    document.getElementById('tkApply').addEventListener('click', applyTakeoff);
+    document.getElementById('tkFile').addEventListener('change', parseTakeoffFile);
     // Close-on-backdrop
-    ['estimateModal','lineModal','assemblyModal'].forEach(function(id) {
+    ['estimateModal','lineModal','assemblyModal','takeoffModal'].forEach(function(id) {
       document.getElementById(id).addEventListener('click', function(e) {
         if (e.target === this) closeModal(id);
       });
@@ -517,7 +664,9 @@ requireAuth().catch(function(){});
   async function renderList() {
     document.getElementById('pageTitle').textContent = 'Estimating';
     document.getElementById('crumb').innerHTML =
-      'All estimates' + (canEdit ? ' · <a href="#" id="crumbNew">+ New estimate</a>' : '');
+      'All estimates' + (canEdit ? ' · <a href="#" id="crumbNew">+ New estimate</a>' : '') +
+      ' · <label style="margin-left:12px">Estimator: <select id="crumbEstimator" style="padding:3px 8px;font-size:12px;border:1px solid var(--nw-border);border-radius:5px"><option value="">All</option><option value="__me__">Just me</option></select></label>' +
+      ' · <label>Status: <select id="crumbStatus" style="padding:3px 8px;font-size:12px;border:1px solid var(--nw-border);border-radius:5px"><option value="">All</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="awarded">Awarded</option><option value="lost">Lost</option></select></label>';
     var link = document.getElementById('crumbNew');
     if (link) link.addEventListener('click', function(e) { e.preventDefault(); openEstimateModal(); });
 
@@ -526,8 +675,8 @@ requireAuth().catch(function(){});
 
     var r = await supabaseClient
       .from('estimates')
-      .select('id, name, estimate_no, status, client_name, bid_due_date, project_id, created_at, project:projects(short_code, project_name, pm_name)')
-      .order('created_at', { ascending: false });
+      .select('id, name, estimate_no, quote_number, status, client_name, bid_due_date, project_id, estimator_name, created_at, project:projects(short_code, project_name, pm_name)')
+      .order('quote_number', { ascending: false, nullsFirst: false });
     if (r.error) {
       main.innerHTML = '<div class="iv-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
       return;
@@ -557,36 +706,70 @@ requireAuth().catch(function(){});
       return;
     }
 
-    var html = '<table class="est-table"><thead><tr>' +
-      '<th>Name</th><th>Client</th><th>PM / Project</th><th>Bid Due</th>' +
-      '<th class="num">Bid Price</th><th>Status</th>' +
-      '</tr></thead><tbody>';
+    // Populate estimator filter with distinct estimator_name values from ests
+    var estimatorSel = document.getElementById('crumbEstimator');
+    var seenEst = {};
     ests.forEach(function(e) {
-      var pj = e.project || {};
-      var rates = ratesById[e.id] || {};
-      var lines = linesByEst[e.id] || [];
-      var bid = computeBidPrice(lines, rates);
-      html += '<tr data-est="' + e.id + '">' +
-        '<td><b>' + escHtml(e.name || '(untitled)') + '</b>' +
-          (e.estimate_no ? '<div style="font-size:11px;color:var(--nw-muted)">' + escHtml(e.estimate_no) + '</div>' : '') +
-        '</td>' +
-        '<td>' + escHtml(e.client_name || '—') + '</td>' +
-        '<td>' + (pj.short_code ? '<b>' + escHtml(pj.short_code) + '</b> · ' + escHtml(pj.project_name || '') : '—') +
-          (pj.pm_name ? '<div style="font-size:11px;color:var(--nw-muted)">PM: ' + escHtml(pj.pm_name) + '</div>' : '') +
-        '</td>' +
-        '<td>' + (e.bid_due_date ? escHtml(e.bid_due_date) : '—') + '</td>' +
-        '<td class="num">' + fmtMoney(bid) + '</td>' +
-        '<td><span class="status-badge ' + e.status + '">' + e.status + '</span></td>' +
-      '</tr>';
+      if (e.estimator_name && !seenEst[e.estimator_name]) {
+        seenEst[e.estimator_name] = true;
+        var o = document.createElement('option');
+        o.value = e.estimator_name; o.textContent = e.estimator_name;
+        estimatorSel.appendChild(o);
+      }
     });
-    html += '</tbody></table>';
-    main.innerHTML = html;
 
-    main.querySelectorAll('tr[data-est]').forEach(function(row) {
-      row.addEventListener('click', function() {
-        window.location.href = 'estimating.html?est=' + row.getAttribute('data-est');
+    function drawTable() {
+      var estFilter = estimatorSel.value;
+      var statFilter = document.getElementById('crumbStatus').value;
+      var filtered = ests.filter(function(e) {
+        if (statFilter && e.status !== statFilter) return false;
+        if (estFilter === '__me__') return e.estimator_name === currentUserName;
+        if (estFilter && e.estimator_name !== estFilter) return false;
+        return true;
       });
-    });
+
+      var html = '<table class="est-table"><thead><tr>' +
+        '<th style="width:75px">Quote #</th><th>Name</th><th>Estimator</th><th>Client</th>' +
+        '<th>PM / Project</th><th>Bid Due</th>' +
+        '<th class="num">Bid Price</th><th>Status</th>' +
+        '</tr></thead><tbody>';
+      if (!filtered.length) {
+        html += '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--nw-muted)">No estimates match filters.</td></tr>';
+      }
+      filtered.forEach(function(e) {
+        var pj = e.project || {};
+        var rates = ratesById[e.id] || {};
+        var lines = linesByEst[e.id] || [];
+        var bid = computeBidPrice(lines, rates);
+        var quoteDisplay = e.quote_number ? '#' + e.quote_number : (e.estimate_no || '—');
+        var estimator = e.estimator_name || '—';
+        html += '<tr data-est="' + e.id + '">' +
+          '<td class="num" style="font-family:\'Courier New\',monospace;font-weight:700">' + escHtml(quoteDisplay) + '</td>' +
+          '<td><b>' + escHtml(e.name || '(untitled)') + '</b>' +
+            (e.estimate_no && e.quote_number ? '<div style="font-size:11px;color:var(--nw-muted)">' + escHtml(e.estimate_no) + '</div>' : '') +
+          '</td>' +
+          '<td><span style="font-size:12px;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:10px;font-weight:600">👤 ' + escHtml(estimator) + '</span></td>' +
+          '<td>' + escHtml(e.client_name || '—') + '</td>' +
+          '<td>' + (pj.short_code ? '<b>' + escHtml(pj.short_code) + '</b> · ' + escHtml(pj.project_name || '') : '—') +
+            (pj.pm_name ? '<div style="font-size:11px;color:var(--nw-muted)">PM: ' + escHtml(pj.pm_name) + '</div>' : '') +
+          '</td>' +
+          '<td>' + (e.bid_due_date ? escHtml(e.bid_due_date) : '—') + '</td>' +
+          '<td class="num">' + fmtMoney(bid) + '</td>' +
+          '<td><span class="status-badge ' + e.status + '">' + e.status + '</span></td>' +
+        '</tr>';
+      });
+      html += '</tbody></table>';
+      main.innerHTML = html;
+
+      main.querySelectorAll('tr[data-est]').forEach(function(row) {
+        row.addEventListener('click', function() {
+          window.location.href = 'estimating.html?est=' + row.getAttribute('data-est');
+        });
+      });
+    }
+    estimatorSel.addEventListener('change', drawTable);
+    document.getElementById('crumbStatus').addEventListener('change', drawTable);
+    drawTable();
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -634,6 +817,16 @@ requireAuth().catch(function(){});
       document.getElementById('eInclusions').value  = '';
       document.getElementById('eExclusions').value  = '';
     }
+    // Get next quote number and preview it
+    if (!estId) {
+      var seqRes = await supabaseClient.from('estimates').select('quote_number')
+        .order('quote_number', { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+      var nextQ = (seqRes && seqRes.data && seqRes.data.quote_number)
+        ? seqRes.data.quote_number + 1
+        : 10011;
+      document.getElementById('estModalTitle').textContent =
+        'New Estimate — Quote # will be ' + nextQ + ' (auto-assigned)';
+    }
     openModal('estimateModal');
   }
 
@@ -658,7 +851,8 @@ requireAuth().catch(function(){});
     if (editingEstId) {
       res = await supabaseClient.from('estimates').update(patch).eq('id', editingEstId);
     } else {
-      patch.created_by = currentUserId;
+      patch.created_by     = currentUserId;
+      patch.estimator_name = currentUserName || 'Unassigned';
       res = await supabaseClient.from('estimates').insert(patch).select().single();
     }
     btn.disabled = false; btn.textContent = 'Save';
@@ -709,10 +903,14 @@ requireAuth().catch(function(){});
 
   function renderHeader() {
     var pj = currentEst.project || {};
+    var quoteBadge = currentEst.quote_number
+      ? '<span style="background:#0B3D66;color:#fff;padding:3px 12px;border-radius:14px;font-family:\'Courier New\',monospace;font-weight:700;font-size:14px">Quote #' + currentEst.quote_number + '</span>'
+      : '';
     return '<div class="detail-header">' +
-      '<h2>' + escHtml(currentEst.name) +
+      '<h2>' + quoteBadge + ' ' + escHtml(currentEst.name) +
         ' <span class="status-badge ' + currentEst.status + '">' + currentEst.status + '</span></h2>' +
       '<div class="detail-sub">' +
+        (currentEst.estimator_name ? '<span>👤 <b>' + escHtml(currentEst.estimator_name) + '</b></span>' : '') +
         (currentEst.estimate_no ? '<span><b>' + escHtml(currentEst.estimate_no) + '</b></span>' : '') +
         (currentEst.client_name ? '<span>Client: <b>' + escHtml(currentEst.client_name) + '</b></span>' : '') +
         (currentEst.bid_due_date ? '<span>Bid due: <b>' + escHtml(currentEst.bid_due_date) + '</b></span>' : '') +
@@ -722,6 +920,7 @@ requireAuth().catch(function(){});
       (canEdit ? '<div class="detail-actions">' +
         '<button class="btn-secondary" id="editEstBtn">Edit details</button>' +
         '<button class="btn-secondary" id="statusBtn">Change status</button>' +
+        '<button class="btn-secondary" id="takeoffBtn" title="Import Procore ductwork/piping takeoff .xlsx">📊 Import Procore Takeoff</button>' +
         '<button class="btn-secondary" id="proposalBtn" title="Export 1-2 page client proposal PDF">📄 Export proposal PDF</button>' +
         '<button class="btn-secondary" id="copyInvBtn" title="Create AIA billing setup + first draft application">📥 Copy to Invoicing</button>' +
         '<button class="btn-secondary" id="copyWlBtn" title="Push labor hours to Workload Planner">📥 Copy to Workload</button>' +
@@ -733,6 +932,7 @@ requireAuth().catch(function(){});
     var btn;
     btn = document.getElementById('editEstBtn'); if (btn) btn.addEventListener('click', function() { openEstimateModal(currentEst.id); });
     btn = document.getElementById('statusBtn');  if (btn) btn.addEventListener('click', changeStatus);
+    btn = document.getElementById('takeoffBtn'); if (btn) btn.addEventListener('click', openTakeoffModal);
     btn = document.getElementById('proposalBtn');if (btn) btn.addEventListener('click', exportProposalPDF);
     btn = document.getElementById('copyInvBtn'); if (btn) btn.addEventListener('click', copyToInvoicing);
     btn = document.getElementById('copyWlBtn');  if (btn) btn.addEventListener('click', copyToWorkload);
@@ -939,6 +1139,7 @@ requireAuth().catch(function(){});
   function openLineModal(lineId, defaultCategory) {
     editingLineId = lineId || null;
     document.getElementById('lineTitle').textContent = lineId ? 'Edit Line Item' : 'Add Line Item';
+    document.getElementById('lPreset').value = '';   // reset preset selector each time
     if (lineId) {
       var li = currentLines.find(function(x) { return x.id === lineId; });
       if (!li) return;
@@ -1358,221 +1559,421 @@ requireAuth().catch(function(){});
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  //   EXPORT CLIENT PROPOSAL PDF
+  //   EXPORT CLIENT PROPOSAL PDF — Kastriot's NWAC design
+  //   (Reference: /Reference/Estimating Standards/Proposal Template.md)
+  //   Layout: centered logo → 2-col header → hung section headers (teal #226B8A)
+  //   → Scope of Work (hairline per line) → Exclusions (italic, hairline)
+  //   → Terms → boxed total (hung, no "TOTAL" label) → optional alternates.
+  //   No signature block. Max 2 pages.
   // ══════════════════════════════════════════════════════════════════════════
   function exportProposalPDF() {
     if (!window.jspdf || !window.jspdf.jsPDF) {
       showToast('PDF library not loaded — refresh the page', 'error'); return;
     }
     var totals = computeAllTotals(currentLines, currentEst);
-    var jsPDF = window.jspdf.jsPDF;
-    var doc = new jsPDF({ unit: 'pt', format: 'letter' });   // 612 × 792
-    var pageW = 612;
-    var margin = 40;
-    var y = margin;
+    var jsPDF  = window.jspdf.jsPDF;
+    var doc    = new jsPDF({ unit: 'pt', format: 'letter' });   // 612 × 792
+    var pageW  = 612;
 
-    // ─── Header block ────────────────────────────────────────
-    doc.setFillColor(11, 61, 102);
-    doc.rect(0, 0, pageW, 90, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(22);
-    doc.text('NORTHERN WOLVES AC', margin, 42);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('55 9th Street, Unit 55A-2, Brooklyn, NY 11215', margin, 60);
-    doc.text('Ruslan Zhdamarov · 347-440-3030 · ruslan@northernwolvesac.com', margin, 74);
+    // NWAC palette (from Proposal Template)
+    var COLOR_BODY   = [17, 17, 17];       // #111111
+    var COLOR_SEC    = [51, 51, 51];       // #333333
+    var COLOR_META   = [107, 107, 107];    // #6B6B6B
+    var COLOR_HDR    = [34, 107, 138];     // #226B8A — teal-blue section headers
+    var COLOR_DIV    = [212, 212, 212];    // #D4D4D4 — hairline dividers
 
-    // Big PROPOSAL label right side
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
-    doc.text('PROPOSAL', pageW - margin, 42, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    if (currentEst.estimate_no) doc.text('No. ' + currentEst.estimate_no, pageW - margin, 60, { align: 'right' });
-    doc.text('Date: ' + new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }), pageW - margin, 74, { align: 'right' });
+    // Layout constants (per template spec)
+    var HANG_X   = 60;   // section headers + total box hang here
+    var BODY_X   = 78;   // body copy under section headers
+    var RIGHT_X  = pageW - 60;
+    var y = 60;
 
-    y = 120;
-    doc.setTextColor(0, 0, 0);
+    // Letter-space uppercase (tracked) by joining chars with &nbsp; equivalent (real spaces work in PDF)
+    function tracked(txt) { return txt.split('').join(' '); }
 
-    // ─── To / From block ────────────────────────────────────
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('PREPARED FOR:', margin, y);
-    doc.text('PROJECT:', pageW / 2 + 20, y);
-    y += 4;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, y, margin + 220, y);
-    doc.line(pageW / 2 + 20, y, pageW - margin, y);
-    y += 12;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    var clientLines = [currentEst.client_name || '—'];
-    if (currentEst.client_address) {
-      currentEst.client_address.split('\n').forEach(function(line) { clientLines.push(line); });
-    }
-    clientLines.forEach(function(line, i) { doc.text(line, margin, y + i * 12); });
-    var projLines = [currentEst.name];
-    if (currentEst.project_address) {
-      currentEst.project_address.split('\n').forEach(function(line) { projLines.push(line); });
-    }
-    if (currentEst.bid_due_date) projLines.push('Bid due: ' + currentEst.bid_due_date);
-    projLines.forEach(function(line, i) { doc.text(line, pageW / 2 + 20, y + i * 12); });
-    y += Math.max(clientLines.length, projLines.length) * 12 + 20;
-
-    // ─── Scope summary ──────────────────────────────────────
-    if (currentEst.scope_summary) {
+    // Section header (hung left at HANG_X, tracked uppercase, teal, with divider above)
+    function sectionHeader(label, divider) {
+      if (divider) {
+        doc.setDrawColor.apply(doc, COLOR_DIV);
+        doc.setLineWidth(0.5);
+        doc.line(BODY_X, y, RIGHT_X, y);
+        y += 12;
+      }
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text('SCOPE OF WORK', margin, y);
-      y += 4;
-      doc.setDrawColor(11, 61, 102);
-      doc.setLineWidth(1);
-      doc.line(margin, y, pageW - margin, y);
-      doc.setLineWidth(0.5);
-      y += 12;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      var scope = doc.splitTextToSize(currentEst.scope_summary, pageW - 2 * margin);
-      doc.text(scope, margin, y);
-      y += scope.length * 11 + 12;
+      doc.setFontSize(10);
+      doc.setTextColor.apply(doc, COLOR_HDR);
+      doc.text(tracked(label.toUpperCase()), HANG_X, y);
+      y += 14;
+      doc.setTextColor.apply(doc, COLOR_BODY);
     }
 
-    // ─── Line items summary (by category, no cost split) ──
+    // Hairline rule at current y (used between scope lines and exclusion lines)
+    function hairline() {
+      doc.setDrawColor.apply(doc, COLOR_DIV);
+      doc.setLineWidth(0.5);
+      doc.line(BODY_X, y, RIGHT_X, y);
+    }
+
+    // ─── LOGO placeholder (centered, top) ───
+    doc.setFont('helvetica', 'black');
+    doc.setFontSize(20);
+    doc.setTextColor.apply(doc, COLOR_HDR);
+    doc.text('NORTHERN WOLVES AC', pageW / 2, y, { align: 'center' });
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor.apply(doc, COLOR_META);
+    doc.text('mechanical contractor', pageW / 2, y, { align: 'center' });
+    y += 24;
+
+    // ─── Two-column header row (below logo) ───
+    var headerTop = y;
+    // Left: company + estimator
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text('PRICE BREAKDOWN', margin, y);
-    y += 4;
-    doc.setDrawColor(11, 61, 102);
-    doc.setLineWidth(1);
-    doc.line(margin, y, pageW - margin, y);
-    doc.setLineWidth(0.5);
+    doc.setFontSize(9);
+    doc.setTextColor.apply(doc, COLOR_BODY);
+    doc.text('Northern Wolves AC', HANG_X, headerTop);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor.apply(doc, COLOR_SEC);
+    doc.text('55 9th St, 55-A2, Brooklyn, NY 11215, US · (347) 463-9248',
+             HANG_X, headerTop + 11);
+    var estName  = currentEst.estimator_name || currentUserName || 'Ruslan Zhdamarov';
+    var estEmail = 'ruslan@northernwolvesac.com';    // default; per-estimator email would need profile lookup
+    doc.text(estName + ' · Estimator', HANG_X, headerTop + 24);
+    doc.text(estEmail, HANG_X, headerTop + 35);
+
+    // Right: Quote/Date/Revision/Customer, right-aligned
+    var quoteNo = currentEst.quote_number || currentEst.estimate_no || '—';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor.apply(doc, COLOR_META);
+    doc.text('Quote:', RIGHT_X - 100, headerTop);
+    doc.text('Date:', RIGHT_X - 100, headerTop + 11);
+    doc.text('Revision:', RIGHT_X - 100, headerTop + 22);
+    doc.text('Customer:', RIGHT_X - 100, headerTop + 33);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor.apply(doc, COLOR_BODY);
+    var todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    doc.text(String(quoteNo), RIGHT_X, headerTop, { align: 'right' });
+    doc.text(todayStr, RIGHT_X, headerTop + 11, { align: 'right' });
+    doc.text('—', RIGHT_X, headerTop + 22, { align: 'right' });
+    doc.text(currentEst.client_name || 'All Bidders', RIGHT_X, headerTop + 33, { align: 'right' });
+    y = headerTop + 50;
+
+    // ─── Project info (below header) ───
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor.apply(doc, COLOR_BODY);
+    doc.text(currentEst.name, HANG_X, y);
+    y += 12;
+    if (currentEst.project_address) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor.apply(doc, COLOR_SEC);
+      var addrLines = currentEst.project_address.split('\n');
+      addrLines.forEach(function(line) { doc.text(line, HANG_X, y); y += 11; });
+    }
+    if (currentEst.bid_due_date) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.text('Bid due: ' + currentEst.bid_due_date, HANG_X, y);
+      y += 12;
+    }
     y += 8;
 
-    var byCat = {};
-    currentLines.forEach(function(li) {
-      if (li.is_optional) return;
-      (byCat[li.category] = byCat[li.category] || []).push(li);
-    });
-    var body = [];
-    var pdfRate = laborRate(null, currentEst);
-    CATEGORIES.forEach(function(cat) {
-      var items = byCat[cat.key];
-      if (!items || !items.length) return;
-      var baseValue = 0;
-      items.forEach(function(li) {
-        var q = Number(li.quantity || 0);
-        baseValue += q * Number(li.unit_material_cost || 0);
-        baseValue += q * Number(li.unit_labor_hours || 0) * pdfRate;
-      });
-      var proportion = totals.baseSubtotal > 0 ? baseValue / totals.baseSubtotal : 0;
-      var withMarkups = proportion * totals.bidPrice;
-      body.push([cat.icon + '  ' + cat.label, fmtMoney(withMarkups)]);
-    });
-
-    doc.autoTable({
-      startY: y,
-      head: [['CATEGORY', 'AMOUNT']],
-      body: body,
-      styles: { font: 'helvetica', fontSize: 10, cellPadding: 6 },
-      headStyles: { fillColor: [217, 225, 242], textColor: [11, 61, 102], fontStyle: 'bold', halign: 'left' },
-      columnStyles: { 0: { cellWidth: 380 }, 1: { halign: 'right' } },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      margin: { left: margin, right: margin }
-    });
-    y = doc.lastAutoTable.finalY + 8;
-
-    // Bid Price highlight
-    doc.setFillColor(255, 242, 204);
-    doc.rect(margin, y, pageW - 2 * margin, 40, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(11, 61, 102);
-    doc.text('TOTAL BID PRICE:', margin + 12, y + 26);
-    doc.setFontSize(18);
-    doc.text(fmtMoney(totals.bidPrice), pageW - margin - 12, y + 26, { align: 'right' });
-    y += 56;
-    doc.setTextColor(0, 0, 0);
-
-    // Check if we need a new page for inclusions/exclusions
-    if (y > 620) { doc.addPage(); y = margin; }
-
-    // ─── Inclusions ─────────────────────────────────────────
-    if (currentEst.inclusions) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('INCLUSIONS', margin, y);
-      y += 12;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      var inc = doc.splitTextToSize(currentEst.inclusions, pageW - 2 * margin);
-      doc.text(inc, margin, y);
-      y += inc.length * 11 + 12;
-    }
-    if (currentEst.exclusions) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('EXCLUSIONS', margin, y);
-      y += 12;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      var exc = doc.splitTextToSize(currentEst.exclusions, pageW - 2 * margin);
-      doc.text(exc, margin, y);
-      y += exc.length * 11 + 12;
-    }
-
-    // ─── Standard terms ─────────────────────────────────────
-    if (y > 640) { doc.addPage(); y = margin; }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('TERMS & CONDITIONS', margin, y);
-    y += 12;
+    // ─── SCOPE OF WORK (hairline per line, no divider above — first section) ───
+    hairline(); y += 8;
+    sectionHeader('Scope of Work', false);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    var terms = [
-      '• Payment terms: progress billing per AIA G702/G703 on 30-day cycles.',
-      '• Sales tax on materials is included in the bid price above.',
-      '• Standard 1-year workmanship warranty on labor; equipment carries manufacturer warranty.',
-      '• Price valid for 30 days from date above.',
-      '• Change orders in writing before work begins.'
-    ];
-    terms.forEach(function(t, i) { doc.text(t, margin, y + i * 11); });
-    y += terms.length * 11 + 24;
-
-    // ─── Signature block ────────────────────────────────────
-    if (y > 690) { doc.addPage(); y = margin; }
-    doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text('ACCEPTED BY (Client):', margin, y);
-    doc.text('CONTRACTOR (Northern Wolves AC):', pageW / 2 + 10, y);
-    y += 20;
-    doc.setDrawColor(100, 100, 100);
-    doc.line(margin, y, margin + 220, y);
-    doc.line(pageW / 2 + 10, y, pageW - margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text('Signature / Date', margin, y + 10);
-    doc.text('Ruslan Zhdamarov, Owner / Date', pageW / 2 + 10, y + 10);
+    doc.setTextColor.apply(doc, COLOR_BODY);
+    var scopeLines = (currentEst.scope_summary || '')
+      .split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+    scopeLines.forEach(function(line, idx) {
+      var wrapped = doc.splitTextToSize(line, RIGHT_X - BODY_X);
+      wrapped.forEach(function(w) { doc.text(w, BODY_X, y); y += 11; });
+      y += 4;
+      if (idx < scopeLines.length - 1) { hairline(); y += 6; }
+    });
+    if (!scopeLines.length) {
+      doc.setTextColor.apply(doc, COLOR_META);
+      doc.text('(No scope entered — add lines in Edit details → Scope of work summary)', BODY_X, y);
+      y += 14;
+    }
+    y += 8;
 
-    // ─── Footer on every page ──────────────────────────────
+    // ─── EXCLUSIONS / NOTES (italic, divider above, hairline per line) ───
+    sectionHeader('Exclusions / Notes', true);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor.apply(doc, COLOR_BODY);
+    var exclLines = (currentEst.exclusions || 'Gas Piping, Gas Meter\nBACnet Integration, BMS, EMS and other special Control works\nScaffolding, hoisting equipment and permits\nStructural work, roof dunnage\nOvertime, off-hours, weekends\nBonds, insurance riders\nExisting equipment warranty')
+      .split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+    exclLines.forEach(function(line, idx) {
+      var wrapped = doc.splitTextToSize(line, RIGHT_X - BODY_X);
+      wrapped.forEach(function(w) { doc.text(w, BODY_X, y); y += 11; });
+      y += 4;
+      if (idx < exclLines.length - 1) { hairline(); y += 6; }
+    });
+    y += 8;
+
+    // Force page 2 if still on page 1 (per template's PageBreakIfPage1 logic)
+    if (doc.internal.getCurrentPageInfo().pageNumber === 1) {
+      doc.addPage();
+      y = 60;
+    }
+
+    // ─── TERMS (divider above) ───
+    sectionHeader('Terms', true);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor.apply(doc, COLOR_BODY);
+    var terms = 'This proposal is valid for 30 days. A standard one-year (1) warranty on installation labor is included; equipment carries the manufacturer’s warranty. Change orders in writing before work begins. Progress billing per AIA G702/G703 on 30-day cycles. Sales tax on materials and equipment is included in the total price shown below. Price does not include items listed under Exclusions above.';
+    var tw = doc.splitTextToSize(terms, RIGHT_X - BODY_X);
+    tw.forEach(function(line) { doc.text(line, BODY_X, y); y += 11; });
+    y += 14;
+
+    // ─── BOXED TOTAL (hung at HANG_X, ~3.25" wide, no "TOTAL" label) ───
+    var boxW = 234;   // ~3.25"
+    var boxH = 42;
+    doc.setDrawColor.apply(doc, COLOR_HDR);
+    doc.setLineWidth(1.2);
+    doc.rect(HANG_X, y, boxW, boxH);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor.apply(doc, COLOR_HDR);
+    doc.text(fmtMoney(totals.bidPrice), HANG_X + boxW / 2, y + boxH / 2 + 5, { align: 'center' });
+    y += boxH + 14;
+
+    // (Add-alternates would go here — currently not modeled in DB)
+
+    // ─── FOOTER on every page ───
     var pageCount = doc.internal.getNumberOfPages();
     for (var p = 1; p <= pageCount; p++) {
       doc.setPage(p);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Northern Wolves AC · Proposal · ' + (currentEst.estimate_no || currentEst.name),
-               margin, 780);
-      doc.text('Page ' + p + ' of ' + pageCount, pageW - margin, 780, { align: 'right' });
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor.apply(doc, COLOR_META);
+      doc.text('Northern Wolves AC · bid.(' + (currentEst.name || 'project') + ')  ·  Quote #' + quoteNo,
+               HANG_X, 780);
+      doc.text('Page ' + p + ' of ' + pageCount, RIGHT_X, 780, { align: 'right' });
+      doc.setTextColor.apply(doc, COLOR_BODY);
     }
 
-    // Filename: proposal-<estimateNo or name>-<YYYY-MM-DD>.pdf
-    var slug = (currentEst.estimate_no || currentEst.name || 'estimate')
-      .replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-|-$/g, '').substring(0, 60);
-    var fileName = 'proposal-' + slug + '-' + ymd(new Date()) + '.pdf';
+    // Filename per Kastriot's naming convention: bid.(Project Name).pdf
+    var safeName = (currentEst.name || 'estimate').replace(/[\\/:*?"<>|]/g, '').substring(0, 80);
+    var fileName = 'bid.(' + safeName + ').pdf';
     doc.save(fileName);
-    showToast('✅ Proposal PDF downloaded', 'success');
+    showToast('✅ ' + fileName + ' downloaded', 'success');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   PROCORE TAKEOFF IMPORT
+  //   Mirrors takeoff_reader.py logic — parses the Estimate tab, reads
+  //   Ductwork/Pipework Material Cost + Total Labor Time (hours), applies
+  //   $60/hr labor rate. Excludes waste/unit/uom/%/rate columns.
+  // ══════════════════════════════════════════════════════════════════════════
+  var takeoffParsed = null;   // holds { ductworkMat, ductworkHrs, pipeworkMat, pipeworkHrs, source }
+
+  function openTakeoffModal() {
+    if (!canEdit) return;
+    document.getElementById('tkFile').value = '';
+    document.getElementById('tkPreview').style.display = 'none';
+    document.getElementById('tkApply').disabled = true;
+    takeoffParsed = null;
+    openModal('takeoffModal');
+  }
+
+  function parseTakeoffFile(ev) {
+    var file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    if (!window.XLSX) { showToast('Excel library not loaded — refresh page', 'error'); return; }
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        // Prefer 'Estimate' or 'Full Estimate' sheet, else first sheet
+        var sheetName = wb.SheetNames.find(function(n) {
+          return /^(estimate|full estimate)$/i.test(n);
+        }) || wb.SheetNames[0];
+        var ws = wb.Sheets[sheetName];
+        var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+        if (!rows.length) { showToast('Sheet is empty', 'error'); return; }
+
+        // Find header row — has column names like "Material Cost", "Total Labor Time"
+        var headerRow = -1;
+        var matCol = -1, hrsCol = -1, labelCol = -1;
+        var EXCLUDE = /(waste|unit|uom|%|sales|margin|markup|rate)/i;
+        for (var r = 0; r < Math.min(rows.length, 20); r++) {
+          var cells = rows[r].map(function(c) { return c == null ? '' : String(c); });
+          for (var c = 0; c < cells.length; c++) {
+            var hdr = cells[c].trim();
+            if (!hdr) continue;
+            if (EXCLUDE.test(hdr)) continue;
+            if (/material.*cost|material\s*\$/i.test(hdr)) { matCol = c; headerRow = r; }
+            if (/total.*labor.*time|labor.*hours|labor.*hrs/i.test(hdr)) { hrsCol = c; headerRow = r; }
+            if (/^(item|description|assembly|type|category|scope|name)$/i.test(hdr) && labelCol === -1) labelCol = c;
+          }
+          if (matCol >= 0 && hrsCol >= 0) break;
+        }
+
+        if (matCol < 0 || hrsCol < 0) {
+          showToast('Could not find Material Cost + Labor Hours columns in ' + sheetName, 'error');
+          return;
+        }
+        if (labelCol < 0) labelCol = 0;
+
+        // Scan data rows below header — classify each row as ductwork/pipework/other
+        // Prefer group rows (short label matching exactly "ductwork" or "pipework"); if none,
+        // sum detail rows that mention duct or pipe in the label.
+        var duct = { mat: 0, hrs: 0, groupFound: false, detailMat: 0, detailHrs: 0 };
+        var pipe = { mat: 0, hrs: 0, groupFound: false, detailMat: 0, detailHrs: 0 };
+
+        for (var r2 = headerRow + 1; r2 < rows.length; r2++) {
+          var row = rows[r2];
+          if (!row) continue;
+          var label = String(row[labelCol] || '').trim();
+          if (!label) continue;
+          var mat = Number(row[matCol]) || 0;
+          var hrs = Number(row[hrsCol]) || 0;
+          if (mat === 0 && hrs === 0) continue;
+
+          var isGroupDuct = /^ductwork$/i.test(label);
+          var isGroupPipe = /^(pipework|piping)$/i.test(label);
+          var mentionsDuct = /duct/i.test(label);
+          var mentionsPipe = /pipe|pipework|piping/i.test(label);
+
+          if (isGroupDuct) { duct.mat = mat; duct.hrs = hrs; duct.groupFound = true; }
+          else if (isGroupPipe) { pipe.mat = mat; pipe.hrs = hrs; pipe.groupFound = true; }
+          else if (mentionsDuct) { duct.detailMat += mat; duct.detailHrs += hrs; }
+          else if (mentionsPipe) { pipe.detailMat += mat; pipe.detailHrs += hrs; }
+        }
+
+        var ductMat = duct.groupFound ? duct.mat : duct.detailMat;
+        var ductHrs = duct.groupFound ? duct.hrs : duct.detailHrs;
+        var pipeMat = pipe.groupFound ? pipe.mat : pipe.detailMat;
+        var pipeHrs = pipe.groupFound ? pipe.hrs : pipe.detailHrs;
+
+        if (ductMat === 0 && pipeMat === 0 && ductHrs === 0 && pipeHrs === 0) {
+          showToast('No ductwork or pipework rows detected in ' + sheetName, 'error');
+          return;
+        }
+
+        takeoffParsed = {
+          ductworkMat: ductMat, ductworkHrs: ductHrs,
+          pipeworkMat: pipeMat, pipeworkHrs: pipeHrs,
+          sheetName:   sheetName,
+          ductSource:  duct.groupFound ? 'group row' : 'summed detail',
+          pipeSource:  pipe.groupFound ? 'group row' : 'summed detail'
+        };
+
+        // Render preview
+        var rate = laborRate(null, currentEst);
+        var ductLab = ductHrs * rate;
+        var pipeLab = pipeHrs * rate;
+        var body =
+          '<div>Sheet used:  <b>' + escHtml(sheetName) + '</b></div>' +
+          '<div style="margin-top:8px">🔩 <b>Ductwork</b>  (' + takeoffParsed.ductSource + ')</div>' +
+          '<div style="padding-left:18px">Material: <b>' + fmtMoney(ductMat) + '</b> · Labor: <b>' + fmtNum(ductHrs) +
+            ' hrs × ' + fmtMoney(rate) + '/hr = ' + fmtMoney(ductLab) + '</b></div>' +
+          '<div style="margin-top:8px">🔧 <b>Pipework</b>  (' + takeoffParsed.pipeSource + ')</div>' +
+          '<div style="padding-left:18px">Material: <b>' + fmtMoney(pipeMat) + '</b> · Labor: <b>' + fmtNum(pipeHrs) +
+            ' hrs × ' + fmtMoney(rate) + '/hr = ' + fmtMoney(pipeLab) + '</b></div>' +
+          '<div style="margin-top:8px;font-size:11px;color:var(--nw-muted)">' +
+            '⚠️ Sanity-check ratio vs prior jobs · confirm coverage (fittings/hangers/dampers)</div>';
+        document.getElementById('tkPreviewBody').innerHTML = body;
+        document.getElementById('tkPreview').style.display = '';
+        document.getElementById('tkApply').disabled = false;
+      } catch (err) {
+        console.error(err);
+        showToast('Parse failed: ' + err.message, 'error');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function applyTakeoff() {
+    if (!canEdit || !takeoffParsed) return;
+    var replaceExisting = document.getElementById('tkReplace').checked;
+    var btn = document.getElementById('tkApply');
+    btn.disabled = true; btn.textContent = 'Applying…';
+
+    // Optionally delete existing ductwork + pipework lines
+    if (replaceExisting) {
+      await supabaseClient.from('estimate_line_items')
+        .delete().eq('estimate_id', currentEst.id).in('category', ['ductwork','pipework']);
+    }
+
+    // Determine sort_order max
+    var maxSort = 0;
+    currentLines.forEach(function(l) { if (l.sort_order > maxSort) maxSort = l.sort_order; });
+
+    var inserts = [];
+    if (takeoffParsed.ductworkMat > 0 || takeoffParsed.ductworkHrs > 0) {
+      // Material line
+      if (takeoffParsed.ductworkMat > 0) {
+        inserts.push({
+          estimate_id: currentEst.id,
+          category:    'ductwork',
+          description: 'Ductwork fabrication / material (from Procore takeoff, ' + takeoffParsed.sheetName + ')',
+          quantity: 1, unit: 'ls',
+          unit_material_cost: takeoffParsed.ductworkMat,
+          unit_labor_hours: 0, labor_crew_type: 'sm',
+          sort_order: ++maxSort, is_firm: true
+        });
+      }
+      // Labor line
+      if (takeoffParsed.ductworkHrs > 0) {
+        inserts.push({
+          estimate_id: currentEst.id,
+          category:    'ductwork',
+          description: 'Ductwork labor (from Procore takeoff, ' + takeoffParsed.sheetName + ')',
+          quantity: takeoffParsed.ductworkHrs, unit: 'hr',
+          unit_material_cost: 0,
+          unit_labor_hours: 1, labor_crew_type: 'sm',
+          sort_order: ++maxSort, is_firm: true
+        });
+      }
+    }
+    if (takeoffParsed.pipeworkMat > 0 || takeoffParsed.pipeworkHrs > 0) {
+      if (takeoffParsed.pipeworkMat > 0) {
+        inserts.push({
+          estimate_id: currentEst.id,
+          category:    'pipework',
+          description: 'Pipework material / insulation (from Procore takeoff, ' + takeoffParsed.sheetName + ')',
+          quantity: 1, unit: 'ls',
+          unit_material_cost: takeoffParsed.pipeworkMat,
+          unit_labor_hours: 0, labor_crew_type: 'pipe',
+          sort_order: ++maxSort, is_firm: true
+        });
+      }
+      if (takeoffParsed.pipeworkHrs > 0) {
+        inserts.push({
+          estimate_id: currentEst.id,
+          category:    'pipework',
+          description: 'Pipework labor (from Procore takeoff, ' + takeoffParsed.sheetName + ')',
+          quantity: takeoffParsed.pipeworkHrs, unit: 'hr',
+          unit_material_cost: 0,
+          unit_labor_hours: 1, labor_crew_type: 'pipe',
+          sort_order: ++maxSort, is_firm: true
+        });
+      }
+    }
+
+    if (inserts.length) {
+      var r = await supabaseClient.from('estimate_line_items').insert(inserts);
+      if (r.error) {
+        btn.disabled = false; btn.textContent = 'Apply to Estimate';
+        showToast('Insert failed: ' + r.error.message, 'error'); return;
+      }
+    }
+
+    btn.disabled = false; btn.textContent = 'Apply to Estimate';
+    closeModal('takeoffModal');
+    showToast('✅ Takeoff applied — ' + inserts.length + ' lines added', 'success');
+    renderEstimate(currentEst.id);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1611,6 +2012,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=167"></script>
+<script src="sw-register.js?v=168"></script>
 </body>
 </html>
