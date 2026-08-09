@@ -9,8 +9,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="supabase-config.js?v=171"></script>
-<script src="auth.js?v=171"></script>
+<script src="supabase-config.js?v=174"></script>
+<script src="auth.js?v=174"></script>
 <style>
   html, body { height: 100%; margin: 0; overflow: hidden; }
   body { display: flex; flex-direction: column; background: #1e293b; color: #fff; }
@@ -107,12 +107,16 @@
     position: relative;
     background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.5);
   }
-  #pdfCanvas, #overlayCanvas {
+  #pdfCanvas, #compareCanvas, #overlayCanvas {
     display: block;
   }
-  #overlayCanvas {
-    position: absolute; top: 0; left: 0; cursor: crosshair;
+  #compareCanvas, #overlayCanvas {
+    position: absolute; top: 0; left: 0;
   }
+  #compareCanvas { pointer-events: none; mix-blend-mode: multiply; opacity: 0.4; }
+  #overlayCanvas { cursor: crosshair; }
+  #overlayCanvas.panning { cursor: grab; }
+  #overlayCanvas.panning-active { cursor: grabbing; }
   .tk-empty-viewport {
     color: #94a3b8; text-align: center; padding: 80px 20px;
   }
@@ -221,6 +225,18 @@
   <input type="file" id="uploadInput" accept="application/pdf" style="display:none">
   <button class="btn-primary" id="uploadBtn">📤 Upload PDF</button>
 
+  <label style="font-size:11px;color:#94a3b8;margin-left:12px">
+    Compare with:
+    <select id="compareSelect" style="margin-left:4px">
+      <option value="">— none —</option>
+    </select>
+  </label>
+  <label id="compareOpacityWrap" style="font-size:11px;color:#94a3b8;display:none">
+    Opacity:
+    <input type="range" id="compareOpacity" min="10" max="90" value="40" style="width:80px;vertical-align:middle">
+    <span id="compareOpacityLabel" style="min-width:32px;display:inline-block">40%</span>
+  </label>
+
   <div class="grow"></div>
 
   <button class="btn-secondary" id="zoomOutBtn" title="Zoom out">🔍−</button>
@@ -274,6 +290,7 @@
     </div>
     <div class="canvas-wrap" id="canvasWrap" style="display:none">
       <canvas id="pdfCanvas"></canvas>
+      <canvas id="compareCanvas"></canvas>
       <canvas id="overlayCanvas"></canvas>
     </div>
   </div>
@@ -410,6 +427,10 @@ requireAuth().catch(function(){});
   var renderScale = 1;      // PDF.js render scale (viewport-to-css)
   var zoomFactor = 1;       // user-controlled zoom multiplier applied over fit-to-width base
   var layerVisibility = {}; // { layerKey: boolean }  — all visible by default
+  var compareDrawingId = null;   // id of the drawing overlaid on top of the current one
+  var compareDoc = null;
+  var compareCanvas = null, compareCtx = null;
+  var panState = null;      // { startX, startY, scrollLeft, scrollTop } while dragging with Alt / middle-button
 
   // In-progress drawing state
   var draftPoints = [];     // array of [x, y] in PDF coords for the tool currently in use
@@ -509,6 +530,18 @@ requireAuth().catch(function(){});
       });
     });
     document.getElementById('scalePreset').addEventListener('change', applyPresetScale);
+    // Compare overlay picker
+    document.getElementById('compareSelect').addEventListener('change', function() {
+      compareDrawingId = this.value || null;
+      document.getElementById('compareOpacityWrap').style.display = compareDrawingId ? '' : 'none';
+      loadCompareDrawing();
+    });
+    document.getElementById('compareOpacity').addEventListener('input', function() {
+      var v = parseInt(this.value, 10);
+      document.getElementById('compareOpacityLabel').textContent = v + '%';
+      var cc = document.getElementById('compareCanvas');
+      if (cc) cc.style.opacity = (v / 100).toFixed(2);
+    });
     document.getElementById('undoBtn').addEventListener('click', undoLast);
     document.getElementById('rollupBtn').addEventListener('click', openRollup);
     // Zoom controls
@@ -579,13 +612,54 @@ requireAuth().catch(function(){});
       .select('*').eq('estimate_id', estimateId).order('created_at', { ascending: true });
     drawings = r.data || [];
     var sel = document.getElementById('drawingSelect');
+    var cmp = document.getElementById('compareSelect');
     sel.innerHTML = drawings.length
       ? drawings.map(function(d) { return '<option value="' + d.id + '">' + escHtml(d.filename) + ' (' + d.page_count + ' pg)</option>'; }).join('')
       : '<option value="">— No drawings yet —</option>';
+    cmp.innerHTML = '<option value="">— none —</option>' +
+      drawings.map(function(d) { return '<option value="' + d.id + '">' + escHtml(d.filename) + '</option>'; }).join('');
     if (drawings.length) {
       sel.value = drawings[0].id;
       loadDrawing(drawings[0].id);
     }
+  }
+
+  async function loadCompareDrawing() {
+    var cCanvas = document.getElementById('compareCanvas');
+    if (!compareDrawingId) {
+      compareDoc = null;
+      if (cCanvas) { cCanvas.width = 0; cCanvas.height = 0; }
+      return;
+    }
+    if (compareDrawingId === (currentDrawing && currentDrawing.id)) {
+      showToast('Compare drawing must be different from the current one', 'error');
+      document.getElementById('compareSelect').value = '';
+      compareDrawingId = null;
+      return;
+    }
+    var dwg = drawings.find(function(d) { return d.id === compareDrawingId; });
+    if (!dwg) return;
+    var signed = await supabaseClient.storage.from('estimate-drawings').createSignedUrl(dwg.storage_path, 3600);
+    if (signed.error) { showToast('Could not open compare PDF: ' + signed.error.message, 'error'); return; }
+    compareDoc = await pdfjsLib.getDocument(signed.data.signedUrl).promise;
+    await renderComparePage();
+  }
+
+  async function renderComparePage() {
+    if (!compareDoc || !pdfPage) return;
+    var cCanvas = document.getElementById('compareCanvas');
+    var pageNo = Math.min(currentPage, compareDoc.numPages);
+    var cPage = await compareDoc.getPage(pageNo);
+    // Render at same width as the base page so both align on-screen
+    var v1 = cPage.getViewport({ scale: 1 });
+    var basePxWide = pdfCanvas.width;
+    var scale = basePxWide / v1.width;
+    var viewport = cPage.getViewport({ scale: scale });
+    cCanvas.width  = pdfCanvas.width;
+    cCanvas.height = pdfCanvas.height;
+    compareCtx = cCanvas.getContext('2d');
+    compareCtx.clearRect(0, 0, cCanvas.width, cCanvas.height);
+    await cPage.render({ canvasContext: compareCtx, viewport: viewport }).promise;
   }
 
   async function uploadPdf(ev) {
@@ -670,6 +744,11 @@ requireAuth().catch(function(){});
     overlayCtx = overlayCanvas.getContext('2d');
 
     await pdfPage.render({ canvasContext: pdfCtx, viewport: viewport2 }).promise;
+    // Match compare canvas size to base + re-render compare page if enabled
+    var cCanvas = document.getElementById('compareCanvas');
+    cCanvas.width = pdfCanvas.width;
+    cCanvas.height = pdfCanvas.height;
+    if (compareDoc) await renderComparePage();
     bindOverlayEvents();
     redrawOverlay();
     document.getElementById('zoomLabel').textContent = Math.round(zoomFactor * 100) + '%';
@@ -684,6 +763,32 @@ requireAuth().catch(function(){});
     overlayCanvas.onclick = onOverlayClick;
     overlayCanvas.ondblclick = onOverlayDblClick;
     overlayCanvas.onmousemove = onOverlayMove;
+    overlayCanvas.onmousedown = onOverlayMouseDown;
+    overlayCanvas.onmouseup   = onOverlayMouseUp;
+    overlayCanvas.onmouseleave = onOverlayMouseUp;
+    overlayCanvas.oncontextmenu = function(e) { if (e.altKey || e.button === 1) e.preventDefault(); };
+  }
+
+  function onOverlayMouseDown(e) {
+    // Alt+left OR middle mouse = pan
+    if (e.altKey || e.button === 1) {
+      e.preventDefault();
+      var vp = document.getElementById('viewport');
+      panState = {
+        startX:     e.clientX,
+        startY:     e.clientY,
+        scrollLeft: vp.scrollLeft,
+        scrollTop:  vp.scrollTop
+      };
+      overlayCanvas.classList.add('panning-active');
+    }
+  }
+
+  function onOverlayMouseUp() {
+    if (panState) {
+      panState = null;
+      overlayCanvas.classList.remove('panning-active');
+    }
   }
 
   function pdfCoordFromEvent(e) {
@@ -695,6 +800,7 @@ requireAuth().catch(function(){});
   }
 
   function onOverlayClick(e) {
+    if (e.altKey || panState) return;   // pan drag — ignore click
     if (!currentTool || !canEdit) return;
     var p = pdfCoordFromEvent(e);
     if (currentTool === 'count') {
@@ -722,6 +828,16 @@ requireAuth().catch(function(){});
 
   var hoverPoint = null;
   function onOverlayMove(e) {
+    // Show grab cursor when Alt is held
+    if (e.altKey && !panState) overlayCanvas.classList.add('panning');
+    else if (!panState)        overlayCanvas.classList.remove('panning');
+
+    if (panState) {
+      var vp = document.getElementById('viewport');
+      vp.scrollLeft = panState.scrollLeft - (e.clientX - panState.startX);
+      vp.scrollTop  = panState.scrollTop  - (e.clientY - panState.startY);
+      return;
+    }
     if (!currentTool || draftPoints.length === 0) return;
     hoverPoint = pdfCoordFromEvent(e);
     redrawOverlay();
@@ -1319,6 +1435,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=171"></script>
+<script src="sw-register.js?v=174"></script>
 </body>
 </html>
