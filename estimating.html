@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Estimating — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=165"></script>
+<script src="auth.js?v=165"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .es-wrap { max-width: 1400px; margin: 0 auto; }
+  .grow { flex: 1; }
+
+  /* Toolbar */
+  .es-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+    align-items: center; flex-wrap: wrap;
+  }
+  .es-toolbar select, .es-toolbar input {
+    padding: 7px 11px; font-size: 13px; border: 1px solid var(--nw-border);
+    border-radius: 7px; background: #fff;
+  }
+  .btn-new {
+    background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+    padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(6,150,215,.25);
+  }
+  .btn-new:hover { filter: brightness(1.05); }
+  .btn-secondary {
+    background: #fff; color: var(--nw-primary); border: 1px solid var(--nw-primary);
+    padding: 7px 14px; border-radius: 7px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .btn-secondary:hover { background: #f0f9ff; }
+  .btn-danger {
+    background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    cursor: pointer;
+  }
+  .readonly-badge {
+    font-size: 11px; padding: 4px 8px; border-radius: 6px;
+    background: #f1f5f9; color: #475569; font-weight: 700;
+  }
+
+  .iv-crumb {
+    padding: 8px 16px; font-size: 12px; color: var(--nw-muted);
+    background: #f8fafc; border-bottom: 1px solid var(--nw-border);
+  }
+  .iv-crumb a { color: var(--nw-primary); text-decoration: none; font-weight: 600; }
+  .iv-crumb a:hover { text-decoration: underline; }
+
+  /* ============ LIST VIEW ============ */
+  .est-table {
+    width: 100%; border-collapse: collapse; margin: 12px 16px;
+    width: calc(100% - 32px); background: var(--nw-card);
+    border: 1px solid var(--nw-border); border-radius: 10px; overflow: hidden;
+  }
+  .est-table th, .est-table td { padding: 10px 12px; border-bottom: 1px solid var(--nw-border); font-size: 13px; }
+  .est-table thead th { background: #f1f5f9; text-align: left; font-weight: 700; font-size: 11px;
+                        text-transform: uppercase; letter-spacing: 0.5px; color: var(--nw-muted); }
+  .est-table tbody tr { cursor: pointer; }
+  .est-table tbody tr:hover { background: #f0f9ff; }
+  .est-table .num { text-align: right; font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums; }
+  .status-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 10px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .status-badge.draft   { background: #e2e8f0; color: #475569; }
+  .status-badge.sent    { background: #dbeafe; color: #1e40af; }
+  .status-badge.awarded { background: #d1fae5; color: #065f46; }
+  .status-badge.lost    { background: #fee2e2; color: #991b1b; }
+  .status-badge.void    { background: #f1f5f9; color: #94a3b8; }
+
+  .iv-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .iv-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* ============ DETAIL VIEW ============ */
+  .detail-header {
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+    padding: 14px 16px;
+  }
+  .detail-header h2 { margin: 0 0 4px; font-size: 20px; color: var(--nw-text); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .detail-sub {
+    font-size: 12px; color: var(--nw-muted); display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .detail-sub b { color: var(--nw-text); }
+  .detail-actions {
+    margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;
+  }
+
+  /* Summary panel (right) */
+  .layout-2col {
+    display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px 16px;
+  }
+  @media (max-width: 1100px) { .layout-2col { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--nw-card); border: 1px solid var(--nw-border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .panel h3 {
+    margin: 0 0 8px; font-size: 11px; font-weight: 700;
+    color: var(--nw-muted); text-transform: uppercase; letter-spacing: 0.6px;
+    border-bottom: 1px solid var(--nw-border); padding-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel h3 .grow { flex: 1; }
+  .panel h3 button { padding: 4px 10px; font-size: 11px; }
+
+  /* Line items table */
+  .li-scroll { overflow-x: auto; }
+  .li-table {
+    width: 100%; border-collapse: collapse; font-size: 12px; min-width: 900px;
+  }
+  .li-table th, .li-table td {
+    padding: 5px 7px; border-bottom: 1px solid #e2e8f0;
+  }
+  .li-table thead th {
+    background: #f1f5f9; text-align: left; font-weight: 700;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+    color: var(--nw-muted); position: sticky; top: 0;
+  }
+  .li-table td.num { text-align: right; font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums; }
+  .li-table td.ctr { text-align: center; }
+  .li-table tr.category-hdr td {
+    background: #E2E8F0; font-weight: 700; text-transform: uppercase;
+    font-size: 11px; letter-spacing: 0.4px; padding: 8px 10px;
+  }
+  .li-table tr.cat-subtotal td {
+    background: #f8fafc; font-weight: 700; border-top: 1px solid #cbd5e1;
+    font-size: 11px; color: var(--nw-muted);
+  }
+  .li-table tr.optional-line td { opacity: 0.6; font-style: italic; }
+
+  /* Markups panel */
+  .mk-grid {
+    display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 13px;
+    align-items: center;
+  }
+  .mk-grid input { width: 90px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: right; font-family: 'Courier New', monospace; }
+  .mk-grid .val { font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+
+  /* Summary numbers */
+  .sum-grid {
+    display: grid; grid-template-columns: 1fr auto; row-gap: 6px; column-gap: 20px; font-size: 13px;
+  }
+  .sum-grid .lbl { color: var(--nw-text); }
+  .sum-grid .val { font-family: 'Courier New', monospace; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; color: var(--nw-text); }
+  .sum-grid .indent { padding-left: 14px; color: var(--nw-muted); font-size: 12px; }
+  .sum-grid .divider { grid-column: 1 / -1; border-top: 1px solid var(--nw-border); margin: 4px 0; }
+  .sum-grid .bid-row { grid-column: 1 / -1; margin-top: 6px; padding: 10px 14px; background: #FFF2CC; border-radius: 8px; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+  .sum-grid .bid-row .lbl { font-weight: 800; font-size: 14px; color: #0B3D66; }
+  .sum-grid .bid-row .val { font-size: 18px; color: #0B3D66; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 700px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+  .field-hint { font-size: 11px; color: var(--nw-muted); margin-top: 4px; }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; flex-wrap: wrap;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save   { background: var(--nw-primary); color: #fff; }
+  .live-hint { font-size: 11px; color: var(--nw-muted); margin-top: 6px; background: #f0f9ff; padding: 6px 10px; border-radius: 4px; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 90%;
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error   { background: #dc2626; }
+
+  @media (max-width: 700px) {
+    .est-table { margin: 8px 8px; width: calc(100% - 16px); }
+    .est-table th, .est-table td { padding: 8px; }
+    .layout-2col { padding: 8px 8px; }
+    .panel { padding: 10px 12px; }
+    .modal-card .row { flex-direction: column; gap: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="es-wrap">
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1 id="pageTitle">Estimating</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="iv-crumb" id="crumb"></div>
+
+  <div id="mainView"></div>
+</div>
+
+<!-- ═══════════ New / Edit Estimate modal ═══════════ -->
+<div class="modal-overlay" id="estimateModal">
+  <div class="modal-card">
+    <h2 id="estModalTitle">New Estimate</h2>
+
+    <div class="field">
+      <label>Estimate name *</label>
+      <input type="text" id="eName" placeholder="e.g. BCM Brooklyn HVAC — Design-Build">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Estimate # (optional)</label>
+        <input type="text" id="eNumber" placeholder="e.g. EST-2026-014">
+      </div>
+      <div class="field">
+        <label>Bid due date</label>
+        <input type="date" id="eBidDue">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Existing project (optional)</label>
+      <select id="eProject"><option value="">— No project linked yet —</option></select>
+      <div class="field-hint">Link only if project already exists. New estimates typically pre-date the project.</div>
+    </div>
+
+    <div class="field">
+      <label>Client name</label>
+      <input type="text" id="eClientName" placeholder="e.g. Core Concepts Contracting Inc.">
+    </div>
+    <div class="field">
+      <label>Client address</label>
+      <textarea id="eClientAddr" style="min-height:50px"></textarea>
+    </div>
+    <div class="field">
+      <label>Project address</label>
+      <textarea id="eProjectAddr" style="min-height:50px"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="estCancel">Cancel</button>
+      <button class="btn-save" id="estSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Line Item modal ═══════════ -->
+<div class="modal-overlay" id="lineModal">
+  <div class="modal-card">
+    <h2 id="lineTitle">Add Line Item</h2>
+
+    <div class="row">
+      <div class="field">
+        <label>Category *</label>
+        <select id="lCategory"></select>
+      </div>
+      <div class="field">
+        <label>Unit</label>
+        <input type="text" id="lUnit" placeholder="ea / lf / sf / hr / ls">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Description *</label>
+      <textarea id="lDesc" style="min-height:50px" placeholder="e.g. 42x16 spiral ductwork with fittings"></textarea>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Quantity *</label>
+        <input type="number" id="lQty" step="0.0001" placeholder="0">
+      </div>
+      <div class="field">
+        <label>Unit material $</label>
+        <input type="number" id="lMatUnit" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Unit labor hrs</label>
+        <input type="number" id="lLabHrs" step="0.001" placeholder="0">
+        <div class="field-hint">Hours per unit (e.g. 0.3 hr/lf duct)</div>
+      </div>
+      <div class="field">
+        <label>Labor crew *</label>
+        <select id="lCrew">
+          <option value="sm">🔩 Sheet Metal</option>
+          <option value="pipe">🔧 Piping</option>
+          <option value="startup">⚡ Start-up / Controls</option>
+          <option value="other">Other</option>
+          <option value="none">None (no labor)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="live-hint" id="liveHint"></div>
+
+    <div class="field" style="margin-top:12px">
+      <label>Vendor / Supplier (optional)</label>
+      <input type="text" id="lVendor" placeholder="e.g. Ferguson, Daikin Applied">
+    </div>
+    <div class="field">
+      <label>Vendor quote reference (optional)</label>
+      <input type="text" id="lQuoteRef" placeholder="Quote # or note">
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="lNotes" style="min-height:40px"></textarea>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label><input type="checkbox" id="lOptional"> Optional / Alternate line</label>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="lCancel">Cancel</button>
+      <button class="btn-save" id="lSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Assembly picker modal ═══════════ -->
+<div class="modal-overlay" id="assemblyModal">
+  <div class="modal-card">
+    <h2>Insert from Assembly Library</h2>
+    <div class="field">
+      <label>Search / filter</label>
+      <input type="text" id="asmSearch" placeholder="Type to filter…">
+    </div>
+    <div class="field">
+      <label>Category filter</label>
+      <select id="asmCategory">
+        <option value="">All categories</option>
+      </select>
+    </div>
+    <div id="asmList" style="max-height:340px;overflow-y:auto;border:1px solid var(--nw-border);border-radius:8px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="asmCancel">Close</button>
+      <button class="btn-secondary" id="asmManage" style="margin-right:auto">Manage library →</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var MGMT_ROLES = ['admin','manager','lead_pm','project_manager','apm'];
+  var CATEGORIES = [
+    { key: 'mobilization', label: 'Mobilization',                  icon: '🚚' },
+    { key: 'equipment',    label: 'Equipment',                     icon: '🏭' },
+    { key: 'sm',           label: 'Sheet Metal / Ductwork',        icon: '🔩' },
+    { key: 'piping',       label: 'Piping / Refrigerant',          icon: '🔧' },
+    { key: 'controls',     label: 'Controls / BMS',                icon: '⚡' },
+    { key: 'insulation',   label: 'Insulation',                    icon: '🧻' },
+    { key: 'tab',          label: 'Testing & Balancing',           icon: '📊' },
+    { key: 'startup',      label: 'Startup & Commissioning',       icon: '🎯' },
+    { key: 'closeout',     label: 'Close-out / Documentation',     icon: '✅' },
+    { key: 'permits',      label: 'Permits / Inspections',         icon: '📋' },
+    { key: 'rentals',      label: 'Rentals / Access / Hoisting',   icon: '🏗️' },
+    { key: 'other',        label: 'Other',                         icon: '📦' }
+  ];
+  function catMeta(key) { return CATEGORIES.find(function(c) { return c.key === key; }) || CATEGORIES[CATEGORIES.length - 1]; }
+
+  var CREW_LABEL = { sm: '🔩 SM', pipe: '🔧 P', startup: '⚡ SU', other: 'Other', none: '—' };
+
+  var currentUserId = null, currentUserRole = null, canEdit = false;
+  var params = new URLSearchParams(window.location.search);
+  var currentEstId = params.get('est') || null;
+
+  var currentEst = null, currentLines = [], editingLineId = null;
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) currentUserId = u.data.user.id;
+      var prof = await supabaseClient.from('profiles').select('role').eq('id', currentUserId).maybeSingle();
+      if (prof.data) {
+        currentUserRole = prof.data.role;
+        canEdit = MGMT_ROLES.indexOf(currentUserRole) >= 0;
+      }
+    } catch (e) { console.warn(e); }
+
+    bindGlobalEvents();
+
+    if (currentEstId) await renderEstimate(currentEstId);
+    else              await renderList();
+  }
+
+  function bindGlobalEvents() {
+    // Estimate modal
+    document.getElementById('estCancel').addEventListener('click', function() { closeModal('estimateModal'); });
+    document.getElementById('estSave').addEventListener('click', saveEstimate);
+    // Line modal
+    document.getElementById('lCancel').addEventListener('click', function() { closeModal('lineModal'); });
+    document.getElementById('lSave').addEventListener('click', saveLine);
+    ['lQty','lMatUnit','lLabHrs','lCrew'].forEach(function(id) {
+      document.getElementById(id).addEventListener('input', updateLineHint);
+    });
+    // Assembly modal
+    document.getElementById('asmCancel').addEventListener('click', function() { closeModal('assemblyModal'); });
+    document.getElementById('asmSearch').addEventListener('input', renderAssemblyList);
+    document.getElementById('asmCategory').addEventListener('change', renderAssemblyList);
+    document.getElementById('asmManage').addEventListener('click', function() { alert('Coming soon: assembly library management page.'); });
+    // Category dropdown populate
+    var catSel = document.getElementById('lCategory');
+    CATEGORIES.forEach(function(c) {
+      var o = document.createElement('option'); o.value = c.key; o.textContent = c.icon + ' ' + c.label; catSel.appendChild(o);
+    });
+    var asmCat = document.getElementById('asmCategory');
+    CATEGORIES.forEach(function(c) {
+      var o = document.createElement('option'); o.value = c.key; o.textContent = c.icon + ' ' + c.label; asmCat.appendChild(o);
+    });
+    // Close-on-backdrop
+    ['estimateModal','lineModal','assemblyModal'].forEach(function(id) {
+      document.getElementById(id).addEventListener('click', function(e) {
+        if (e.target === this) closeModal(id);
+      });
+    });
+  }
+
+  function openModal(id)  { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   LIST VIEW
+  // ══════════════════════════════════════════════════════════════════════════
+  async function renderList() {
+    document.getElementById('pageTitle').textContent = 'Estimating';
+    document.getElementById('crumb').innerHTML =
+      'All estimates' + (canEdit ? ' · <a href="#" id="crumbNew">+ New estimate</a>' : '');
+    var link = document.getElementById('crumbNew');
+    if (link) link.addEventListener('click', function(e) { e.preventDefault(); openEstimateModal(); });
+
+    var main = document.getElementById('mainView');
+    main.innerHTML = '<div class="iv-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
+
+    var r = await supabaseClient
+      .from('estimates')
+      .select('id, name, estimate_no, status, client_name, bid_due_date, project_id, created_at, project:projects(short_code, project_name, pm_name)')
+      .order('created_at', { ascending: false });
+    if (r.error) {
+      main.innerHTML = '<div class="iv-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
+      return;
+    }
+    var ests = r.data || [];
+
+    // Fetch line totals for each estimate (client-side sum)
+    var linesRes = await supabaseClient.from('estimate_line_items')
+      .select('estimate_id, quantity, unit_material_cost, unit_labor_hours, labor_crew_type, is_optional');
+    // Also grab rates per estimate
+    var ratesRes = await supabaseClient.from('estimates').select('id, labor_rate_sm, labor_rate_pipe, labor_rate_startup, labor_rate_other, tax_rate, overhead_pct, profit_pct, contingency_pct, bond_pct');
+    var ratesById = {};
+    (ratesRes.data || []).forEach(function(r) { ratesById[r.id] = r; });
+    var linesByEst = {};
+    (linesRes.data || []).forEach(function(li) {
+      if (li.is_optional) return;
+      var arr = linesByEst[li.estimate_id] = linesByEst[li.estimate_id] || [];
+      arr.push(li);
+    });
+
+    if (!ests.length) {
+      main.innerHTML =
+        '<div class="iv-empty"><div class="icon">📐</div>' +
+        '<p>No estimates yet.<br>' +
+        (canEdit ? 'Click <b>+ New estimate</b> above to create your first bid.' : 'Ask a PM or admin to create one.') +
+        '</p></div>';
+      return;
+    }
+
+    var html = '<table class="est-table"><thead><tr>' +
+      '<th>Name</th><th>Client</th><th>PM / Project</th><th>Bid Due</th>' +
+      '<th class="num">Bid Price</th><th>Status</th>' +
+      '</tr></thead><tbody>';
+    ests.forEach(function(e) {
+      var pj = e.project || {};
+      var rates = ratesById[e.id] || {};
+      var lines = linesByEst[e.id] || [];
+      var bid = computeBidPrice(lines, rates);
+      html += '<tr data-est="' + e.id + '">' +
+        '<td><b>' + escHtml(e.name || '(untitled)') + '</b>' +
+          (e.estimate_no ? '<div style="font-size:11px;color:var(--nw-muted)">' + escHtml(e.estimate_no) + '</div>' : '') +
+        '</td>' +
+        '<td>' + escHtml(e.client_name || '—') + '</td>' +
+        '<td>' + (pj.short_code ? '<b>' + escHtml(pj.short_code) + '</b> · ' + escHtml(pj.project_name || '') : '—') +
+          (pj.pm_name ? '<div style="font-size:11px;color:var(--nw-muted)">PM: ' + escHtml(pj.pm_name) + '</div>' : '') +
+        '</td>' +
+        '<td>' + (e.bid_due_date ? escHtml(e.bid_due_date) : '—') + '</td>' +
+        '<td class="num">' + fmtMoney(bid) + '</td>' +
+        '<td><span class="status-badge ' + e.status + '">' + e.status + '</span></td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+    main.innerHTML = html;
+
+    main.querySelectorAll('tr[data-est]').forEach(function(row) {
+      row.addEventListener('click', function() {
+        window.location.href = 'estimating.html?est=' + row.getAttribute('data-est');
+      });
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   NEW / EDIT ESTIMATE MODAL
+  // ══════════════════════════════════════════════════════════════════════════
+  var editingEstId = null;
+
+  async function openEstimateModal(estId) {
+    editingEstId = estId || null;
+    document.getElementById('estModalTitle').textContent = estId ? 'Edit Estimate Details' : 'New Estimate';
+
+    // Populate project dropdown
+    var sel = document.getElementById('eProject');
+    sel.innerHTML = '<option value="">— No project linked yet —</option>';
+    var pjRes = await supabaseClient.from('projects').select('id, short_code, project_name, status')
+      .in('status', ['active','onhold']).order('project_name');
+    (pjRes.data || []).forEach(function(p) {
+      var o = document.createElement('option');
+      o.value = p.id; o.textContent = (p.short_code ? p.short_code + ' · ' : '') + p.project_name;
+      sel.appendChild(o);
+    });
+
+    if (estId) {
+      var r = await supabaseClient.from('estimates').select('*').eq('id', estId).maybeSingle();
+      var d = r.data || {};
+      document.getElementById('eName').value        = d.name || '';
+      document.getElementById('eNumber').value      = d.estimate_no || '';
+      document.getElementById('eBidDue').value      = d.bid_due_date || '';
+      document.getElementById('eProject').value     = d.project_id || '';
+      document.getElementById('eClientName').value  = d.client_name || '';
+      document.getElementById('eClientAddr').value  = d.client_address || '';
+      document.getElementById('eProjectAddr').value = d.project_address || '';
+    } else {
+      document.getElementById('eName').value        = '';
+      document.getElementById('eNumber').value      = '';
+      document.getElementById('eBidDue').value      = '';
+      document.getElementById('eProject').value     = '';
+      document.getElementById('eClientName').value  = '';
+      document.getElementById('eClientAddr').value  = '';
+      document.getElementById('eProjectAddr').value = '';
+    }
+    openModal('estimateModal');
+  }
+
+  async function saveEstimate() {
+    if (!canEdit) return;
+    var patch = {
+      name:            document.getElementById('eName').value.trim(),
+      estimate_no:     document.getElementById('eNumber').value.trim() || null,
+      bid_due_date:    document.getElementById('eBidDue').value || null,
+      project_id:      document.getElementById('eProject').value || null,
+      client_name:     document.getElementById('eClientName').value.trim() || null,
+      client_address:  document.getElementById('eClientAddr').value.trim() || null,
+      project_address: document.getElementById('eProjectAddr').value.trim() || null
+    };
+    if (!patch.name) { showToast('Estimate name is required', 'error'); return; }
+    var btn = document.getElementById('estSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    var res;
+    if (editingEstId) {
+      res = await supabaseClient.from('estimates').update(patch).eq('id', editingEstId);
+    } else {
+      patch.created_by = currentUserId;
+      res = await supabaseClient.from('estimates').insert(patch).select().single();
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+    if (res.error) { showToast('Save failed: ' + res.error.message, 'error'); return; }
+    closeModal('estimateModal');
+    showToast('✅ Saved', 'success');
+    if (editingEstId) {
+      renderEstimate(editingEstId);
+    } else {
+      window.location.href = 'estimating.html?est=' + res.data.id;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   ESTIMATE DETAIL VIEW
+  // ══════════════════════════════════════════════════════════════════════════
+  async function renderEstimate(estId) {
+    var main = document.getElementById('mainView');
+    main.innerHTML = '<div class="iv-empty"><div class="icon">⏳</div><p>Loading estimate…</p></div>';
+
+    var estRes = await supabaseClient.from('estimates')
+      .select('*, project:projects(id, short_code, project_name, pm_name)')
+      .eq('id', estId).maybeSingle();
+    if (estRes.error || !estRes.data) {
+      main.innerHTML = '<div class="iv-empty"><div class="icon">⚠️</div><p>Estimate not found.</p></div>';
+      return;
+    }
+    currentEst = estRes.data;
+
+    var linesRes = await supabaseClient.from('estimate_line_items')
+      .select('*').eq('estimate_id', estId).order('sort_order', { ascending: true });
+    currentLines = linesRes.data || [];
+
+    document.getElementById('pageTitle').textContent = currentEst.name;
+    document.getElementById('crumb').innerHTML =
+      '<a href="estimating.html">Estimating</a> · ' + escHtml(currentEst.name);
+
+    var totals = computeAllTotals(currentLines, currentEst);
+
+    var html = renderHeader() + '<div class="layout-2col">' +
+      '<div>' + renderLinesPanel() + '</div>' +
+      '<div>' + renderMarkupsPanel(totals) + renderSummaryPanel(totals) + '</div>' +
+    '</div>';
+    main.innerHTML = html;
+
+    bindDetailEvents();
+  }
+
+  function renderHeader() {
+    var pj = currentEst.project || {};
+    return '<div class="detail-header">' +
+      '<h2>' + escHtml(currentEst.name) +
+        ' <span class="status-badge ' + currentEst.status + '">' + currentEst.status + '</span></h2>' +
+      '<div class="detail-sub">' +
+        (currentEst.estimate_no ? '<span><b>' + escHtml(currentEst.estimate_no) + '</b></span>' : '') +
+        (currentEst.client_name ? '<span>Client: <b>' + escHtml(currentEst.client_name) + '</b></span>' : '') +
+        (currentEst.bid_due_date ? '<span>Bid due: <b>' + escHtml(currentEst.bid_due_date) + '</b></span>' : '') +
+        (pj.short_code ? '<span>Project: <b>' + escHtml(pj.short_code) + '</b> · ' + escHtml(pj.project_name || '') + '</span>' : '') +
+        (pj.pm_name ? '<span>PM: <b>' + escHtml(pj.pm_name) + '</b></span>' : '') +
+      '</div>' +
+      (canEdit ? '<div class="detail-actions">' +
+        '<button class="btn-secondary" id="editEstBtn">Edit details</button>' +
+        '<button class="btn-secondary" id="statusBtn">Change status</button>' +
+        '<button class="btn-secondary" id="proposalBtn" title="Coming soon">📄 Export proposal (soon)</button>' +
+        '<button class="btn-secondary" id="copyInvBtn" title="Coming soon">📥 Copy to Invoicing (soon)</button>' +
+        '<button class="btn-secondary" id="copyWlBtn" title="Coming soon">📥 Copy to Workload (soon)</button>' +
+      '</div>' : '') +
+    '</div>';
+  }
+
+  function bindDetailEvents() {
+    var btn;
+    btn = document.getElementById('editEstBtn'); if (btn) btn.addEventListener('click', function() { openEstimateModal(currentEst.id); });
+    btn = document.getElementById('statusBtn');  if (btn) btn.addEventListener('click', changeStatus);
+    btn = document.getElementById('proposalBtn');if (btn) btn.addEventListener('click', function() { showToast('Proposal PDF export coming in next release', 'error'); });
+    btn = document.getElementById('copyInvBtn'); if (btn) btn.addEventListener('click', function() { showToast('Copy to Invoicing coming in next release', 'error'); });
+    btn = document.getElementById('copyWlBtn');  if (btn) btn.addEventListener('click', function() { showToast('Copy to Workload coming in next release', 'error'); });
+
+    // Add line / assembly / markup listeners
+    document.querySelectorAll('[data-addline]').forEach(function(b) {
+      b.addEventListener('click', function() { openLineModal(null, b.getAttribute('data-addline') || 'other'); });
+    });
+    document.querySelectorAll('[data-addasm]').forEach(function(b) {
+      b.addEventListener('click', function() { openAssemblyModal(b.getAttribute('data-addasm') || null); });
+    });
+    document.querySelectorAll('[data-lineedit]').forEach(function(b) {
+      b.addEventListener('click', function(e) { e.stopPropagation(); openLineModal(b.getAttribute('data-lineedit')); });
+    });
+    document.querySelectorAll('[data-linedel]').forEach(function(b) {
+      b.addEventListener('click', function(e) { e.stopPropagation(); deleteLine(b.getAttribute('data-linedel')); });
+    });
+    ['mLaborSM','mLaborPipe','mLaborSU','mLaborOther','mTax','mOverhead','mProfit','mContingency','mBond'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', saveMarkups);
+    });
+  }
+
+  async function changeStatus() {
+    if (!canEdit) return;
+    var next = prompt('Status? (draft / sent / awarded / lost / void)', currentEst.status);
+    if (!next) return;
+    next = next.trim().toLowerCase();
+    if (['draft','sent','awarded','lost','void'].indexOf(next) < 0) { showToast('Invalid status', 'error'); return; }
+    var patch = { status: next };
+    if (next === 'sent')    patch.sent_at    = new Date().toISOString();
+    if (next === 'awarded') patch.awarded_at = new Date().toISOString();
+    var r = await supabaseClient.from('estimates').update(patch).eq('id', currentEst.id);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    showToast('✅ Status: ' + next, 'success');
+    renderEstimate(currentEst.id);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   LINES PANEL
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderLinesPanel() {
+    var html = '<div class="panel"><h3>Line Items ' +
+      '<span class="grow"></span>' +
+      (canEdit ? '<button class="btn-secondary" data-addline="">+ Add Line</button> ' +
+                 '<button class="btn-secondary" data-addasm="">📚 From Library</button>' : '') +
+      '</h3>' +
+      '<div class="li-scroll"><table class="li-table">' +
+      '<thead><tr>' +
+        '<th style="width:120px">Category</th>' +
+        '<th>Description</th>' +
+        '<th style="width:65px" class="num">Qty</th>' +
+        '<th style="width:45px" class="ctr">Unit</th>' +
+        '<th style="width:80px" class="num">Mat $ / u</th>' +
+        '<th style="width:80px" class="num">Material $</th>' +
+        '<th style="width:60px" class="num">Lab hrs</th>' +
+        '<th style="width:65px" class="ctr">Crew</th>' +
+        '<th style="width:80px" class="num">Labor $</th>' +
+        '<th style="width:80px" class="num">Total</th>' +
+        (canEdit ? '<th style="width:60px"></th>' : '') +
+      '</tr></thead><tbody>';
+
+    // Group by category
+    var byCat = {};
+    currentLines.forEach(function(li) {
+      (byCat[li.category] = byCat[li.category] || []).push(li);
+    });
+    if (!currentLines.length) {
+      html += '<tr><td colspan="' + (canEdit ? 11 : 10) + '" style="text-align:center;padding:24px;color:var(--nw-muted)">' +
+        'No line items yet.' + (canEdit ? ' Click <b>+ Add Line</b>.' : '') + '</td></tr>';
+    } else {
+      // Iterate in category order
+      CATEGORIES.forEach(function(catDef) {
+        var items = byCat[catDef.key];
+        if (!items || !items.length) return;
+        html += '<tr class="category-hdr"><td colspan="' + (canEdit ? 11 : 10) + '">' +
+          catDef.icon + ' ' + escHtml(catDef.label) + '</td></tr>';
+        var catMat = 0, catLab = 0;
+        items.forEach(function(li) {
+          var qty = Number(li.quantity || 0);
+          var matU = Number(li.unit_material_cost || 0);
+          var labH = Number(li.unit_labor_hours || 0);
+          var mat  = qty * matU;
+          var totalHrs = qty * labH;
+          var rate = laborRate(li.labor_crew_type, currentEst);
+          var lab  = totalHrs * rate;
+          if (!li.is_optional) { catMat += mat; catLab += lab; }
+          html += '<tr class="' + (li.is_optional ? 'optional-line' : '') + '" data-linerow="' + li.id + '">' +
+            '<td style="font-size:11px;color:var(--nw-muted)">' + catDef.icon + '</td>' +
+            '<td>' + escHtml(li.description) +
+              (li.vendor_name ? '<div style="font-size:10px;color:var(--nw-muted)">' + escHtml(li.vendor_name) +
+                (li.vendor_quote_ref ? ' · ' + escHtml(li.vendor_quote_ref) : '') + '</div>' : '') +
+              (li.is_optional ? '<span style="font-size:10px;background:#e2e8f0;padding:1px 6px;border-radius:4px;margin-left:6px">ALT</span>' : '') +
+            '</td>' +
+            '<td class="num">' + fmtNum(qty) + '</td>' +
+            '<td class="ctr">' + escHtml(li.unit || '') + '</td>' +
+            '<td class="num">' + fmtMoney(matU) + '</td>' +
+            '<td class="num">' + fmtMoney(mat) + '</td>' +
+            '<td class="num">' + fmtNum(totalHrs) + '</td>' +
+            '<td class="ctr" style="font-size:11px">' + (CREW_LABEL[li.labor_crew_type] || '—') + '</td>' +
+            '<td class="num">' + fmtMoney(lab) + '</td>' +
+            '<td class="num"><b>' + fmtMoney(mat + lab) + '</b></td>' +
+            (canEdit ? '<td class="ctr">' +
+              '<button class="btn-secondary" data-lineedit="' + li.id + '" style="padding:2px 6px;font-size:10px">Edit</button> ' +
+              '<button class="btn-danger" data-linedel="' + li.id + '" style="padding:2px 6px;font-size:10px">✕</button>' +
+            '</td>' : '') +
+          '</tr>';
+        });
+        html += '<tr class="cat-subtotal"><td colspan="5" style="text-align:right">Subtotal ' + escHtml(catDef.label) + ':</td>' +
+          '<td class="num">' + fmtMoney(catMat) + '</td>' +
+          '<td colspan="2"></td>' +
+          '<td class="num">' + fmtMoney(catLab) + '</td>' +
+          '<td class="num"><b>' + fmtMoney(catMat + catLab) + '</b></td>' +
+          (canEdit ? '<td></td>' : '') +
+        '</tr>';
+      });
+    }
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   MARKUPS + SUMMARY PANELS
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderMarkupsPanel(totals) {
+    var lock = canEdit ? '' : 'readonly';
+    return '<div class="panel"><h3>Rates & Markups</h3>' +
+      '<div class="mk-grid">' +
+        '<div>🔩 SM crew ($/hr)</div><div><input type="number" step="0.01" id="mLaborSM"    value="' + currentEst.labor_rate_sm     + '" ' + lock + '></div>' +
+        '<div>🔧 Piping ($/hr)</div><div><input type="number" step="0.01" id="mLaborPipe"  value="' + currentEst.labor_rate_pipe   + '" ' + lock + '></div>' +
+        '<div>⚡ Startup ($/hr)</div><div><input type="number" step="0.01" id="mLaborSU"    value="' + currentEst.labor_rate_startup + '" ' + lock + '></div>' +
+        '<div>Other ($/hr)</div><div><input type="number" step="0.01" id="mLaborOther" value="' + currentEst.labor_rate_other  + '" ' + lock + '></div>' +
+        '<div style="grid-column:1/-1;border-top:1px solid var(--nw-border);margin:4px 0"></div>' +
+        '<div>Sales tax on material (%)</div><div><input type="number" step="0.001" id="mTax"         value="' + (currentEst.tax_rate        * 100).toFixed(3) + '" ' + lock + '></div>' +
+        '<div>Overhead (%)</div>              <div><input type="number" step="0.001" id="mOverhead"    value="' + (currentEst.overhead_pct    * 100).toFixed(3) + '" ' + lock + '></div>' +
+        '<div>Profit (%)</div>                <div><input type="number" step="0.001" id="mProfit"      value="' + (currentEst.profit_pct      * 100).toFixed(3) + '" ' + lock + '></div>' +
+        '<div>Contingency (%)</div>           <div><input type="number" step="0.001" id="mContingency" value="' + (currentEst.contingency_pct * 100).toFixed(3) + '" ' + lock + '></div>' +
+        '<div>Bond (%)</div>                  <div><input type="number" step="0.001" id="mBond"        value="' + (currentEst.bond_pct        * 100).toFixed(3) + '" ' + lock + '></div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderSummaryPanel(t) {
+    return '<div class="panel" style="margin-top:12px"><h3>Bid Summary</h3>' +
+      '<div class="sum-grid">' +
+        '<div class="lbl">Materials</div>            <div class="val">' + fmtMoney(t.material) + '</div>' +
+        '<div class="lbl">Labor</div>                <div class="val">' + fmtMoney(t.labor) + '</div>' +
+        '<div class="lbl indent">Labor hours (total)</div><div class="val indent">' + fmtNum(t.laborHours) + ' hrs</div>' +
+        '<div class="lbl indent">— SM crew</div>     <div class="val indent">' + fmtNum(t.laborBreakdown.sm) + ' hrs</div>' +
+        '<div class="lbl indent">— Piping</div>      <div class="val indent">' + fmtNum(t.laborBreakdown.pipe) + ' hrs</div>' +
+        '<div class="lbl indent">— Start-up</div>    <div class="val indent">' + fmtNum(t.laborBreakdown.startup) + ' hrs</div>' +
+        '<div class="lbl indent">— Other</div>       <div class="val indent">' + fmtNum(t.laborBreakdown.other) + ' hrs</div>' +
+        '<div class="divider"></div>' +
+        '<div class="lbl">Base cost (Mat + Labor)</div><div class="val">' + fmtMoney(t.baseCost) + '</div>' +
+        '<div class="lbl">Sales tax on material</div> <div class="val">' + fmtMoney(t.tax) + '</div>' +
+        '<div class="lbl">Overhead</div>              <div class="val">' + fmtMoney(t.overhead) + '</div>' +
+        '<div class="lbl">Profit</div>                <div class="val">' + fmtMoney(t.profit) + '</div>' +
+        '<div class="lbl">Contingency</div>           <div class="val">' + fmtMoney(t.contingency) + '</div>' +
+        (t.bond > 0 ? '<div class="lbl">Bond</div><div class="val">' + fmtMoney(t.bond) + '</div>' : '') +
+        '<div class="bid-row"><div class="lbl">BID PRICE</div><div class="val">' + fmtMoney(t.bidPrice) + '</div></div>' +
+        '<div style="grid-column:1/-1;font-size:11px;color:var(--nw-muted);margin-top:8px">' +
+          'Margin = ' + fmtMoney(t.profit + t.contingency) + ' (' + Number((t.profit + t.contingency) / (t.bidPrice || 1) * 100).toFixed(1) + '%)' +
+        '</div>' +
+      '</div></div>';
+  }
+
+  async function saveMarkups() {
+    if (!canEdit) return;
+    var num = function(id) { var v = document.getElementById(id).value; return Number(v || 0); };
+    var patch = {
+      labor_rate_sm:     num('mLaborSM'),
+      labor_rate_pipe:   num('mLaborPipe'),
+      labor_rate_startup:num('mLaborSU'),
+      labor_rate_other:  num('mLaborOther'),
+      tax_rate:          num('mTax')         / 100,
+      overhead_pct:      num('mOverhead')    / 100,
+      profit_pct:        num('mProfit')      / 100,
+      contingency_pct:   num('mContingency') / 100,
+      bond_pct:          num('mBond')        / 100
+    };
+    var r = await supabaseClient.from('estimates').update(patch).eq('id', currentEst.id);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    currentEst = Object.assign(currentEst, patch);
+    renderEstimate(currentEst.id);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   LINE ITEM MODAL
+  // ══════════════════════════════════════════════════════════════════════════
+  function openLineModal(lineId, defaultCategory) {
+    editingLineId = lineId || null;
+    document.getElementById('lineTitle').textContent = lineId ? 'Edit Line Item' : 'Add Line Item';
+    if (lineId) {
+      var li = currentLines.find(function(x) { return x.id === lineId; });
+      if (!li) return;
+      document.getElementById('lCategory').value  = li.category;
+      document.getElementById('lUnit').value      = li.unit || '';
+      document.getElementById('lDesc').value      = li.description || '';
+      document.getElementById('lQty').value       = li.quantity || 0;
+      document.getElementById('lMatUnit').value   = li.unit_material_cost || 0;
+      document.getElementById('lLabHrs').value    = li.unit_labor_hours || 0;
+      document.getElementById('lCrew').value      = li.labor_crew_type || 'sm';
+      document.getElementById('lVendor').value    = li.vendor_name || '';
+      document.getElementById('lQuoteRef').value  = li.vendor_quote_ref || '';
+      document.getElementById('lNotes').value     = li.notes || '';
+      document.getElementById('lOptional').checked = !!li.is_optional;
+    } else {
+      document.getElementById('lCategory').value  = defaultCategory || 'equipment';
+      document.getElementById('lUnit').value      = '';
+      document.getElementById('lDesc').value      = '';
+      document.getElementById('lQty').value       = 1;
+      document.getElementById('lMatUnit').value   = 0;
+      document.getElementById('lLabHrs').value    = 0;
+      document.getElementById('lCrew').value      = 'sm';
+      document.getElementById('lVendor').value    = '';
+      document.getElementById('lQuoteRef').value  = '';
+      document.getElementById('lNotes').value     = '';
+      document.getElementById('lOptional').checked = false;
+    }
+    updateLineHint();
+    openModal('lineModal');
+  }
+
+  function updateLineHint() {
+    var q = Number(document.getElementById('lQty').value || 0);
+    var mu = Number(document.getElementById('lMatUnit').value || 0);
+    var lh = Number(document.getElementById('lLabHrs').value || 0);
+    var crew = document.getElementById('lCrew').value;
+    var rate = laborRate(crew, currentEst || { labor_rate_sm:85, labor_rate_pipe:85, labor_rate_startup:95, labor_rate_other:75 });
+    var mat = q * mu;
+    var totalHrs = q * lh;
+    var lab = totalHrs * rate;
+    document.getElementById('liveHint').innerHTML =
+      'Material: <b>' + fmtMoney(mat) + '</b> · Labor: <b>' + fmtNum(totalHrs) + ' hrs × ' + fmtMoney(rate) + '/hr = ' + fmtMoney(lab) + '</b> · Line total: <b>' + fmtMoney(mat + lab) + '</b>';
+  }
+
+  async function saveLine() {
+    if (!canEdit) return;
+    var patch = {
+      estimate_id:       currentEst.id,
+      category:          document.getElementById('lCategory').value,
+      description:       document.getElementById('lDesc').value.trim(),
+      unit:              document.getElementById('lUnit').value.trim() || null,
+      quantity:          Number(document.getElementById('lQty').value || 0),
+      unit_material_cost:Number(document.getElementById('lMatUnit').value || 0),
+      unit_labor_hours:  Number(document.getElementById('lLabHrs').value || 0),
+      labor_crew_type:   document.getElementById('lCrew').value,
+      vendor_name:       document.getElementById('lVendor').value.trim() || null,
+      vendor_quote_ref:  document.getElementById('lQuoteRef').value.trim() || null,
+      notes:             document.getElementById('lNotes').value.trim() || null,
+      is_optional:       document.getElementById('lOptional').checked
+    };
+    if (!patch.description) { showToast('Description is required', 'error'); return; }
+    var btn = document.getElementById('lSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    var r;
+    if (editingLineId) {
+      r = await supabaseClient.from('estimate_line_items').update(patch).eq('id', editingLineId);
+    } else {
+      // Compute sort_order — max + 1
+      var maxSort = 0;
+      currentLines.forEach(function(l) { if (l.sort_order > maxSort) maxSort = l.sort_order; });
+      patch.sort_order = maxSort + 1;
+      r = await supabaseClient.from('estimate_line_items').insert(patch);
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    closeModal('lineModal');
+    showToast('✅ Saved', 'success');
+    renderEstimate(currentEst.id);
+  }
+
+  async function deleteLine(id) {
+    if (!canEdit) return;
+    if (!confirm('Delete this line item?')) return;
+    var r = await supabaseClient.from('estimate_line_items').delete().eq('id', id);
+    if (r.error) { showToast('Delete failed: ' + r.error.message, 'error'); return; }
+    showToast('Deleted', 'success');
+    renderEstimate(currentEst.id);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   ASSEMBLY PICKER MODAL
+  // ══════════════════════════════════════════════════════════════════════════
+  var allAssemblies = [];
+
+  async function openAssemblyModal(defaultCat) {
+    var r = await supabaseClient.from('estimate_assemblies').select('*').eq('is_active', true).order('category, name');
+    allAssemblies = r.data || [];
+    if (defaultCat) document.getElementById('asmCategory').value = defaultCat;
+    else document.getElementById('asmCategory').value = '';
+    document.getElementById('asmSearch').value = '';
+    renderAssemblyList();
+    openModal('assemblyModal');
+  }
+
+  function renderAssemblyList() {
+    var q = document.getElementById('asmSearch').value.toLowerCase().trim();
+    var cat = document.getElementById('asmCategory').value;
+    var listEl = document.getElementById('asmList');
+    var items = allAssemblies.filter(function(a) {
+      if (cat && a.category !== cat) return false;
+      if (q && (a.name.toLowerCase().indexOf(q) < 0) && ((a.description || '').toLowerCase().indexOf(q) < 0)) return false;
+      return true;
+    });
+    if (!items.length) {
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--nw-muted)">' +
+        'No assemblies found. Library is empty — build up by saving line items as reusable in a future release.' +
+      '</div>';
+      return;
+    }
+    listEl.innerHTML = items.map(function(a) {
+      var cm = catMeta(a.category);
+      return '<div style="padding:10px 12px;border-bottom:1px solid var(--nw-border);cursor:pointer" data-asmpick="' + a.id + '">' +
+        '<div style="display:flex;gap:8px;align-items:baseline"><b>' + cm.icon + ' ' + escHtml(a.name) + '</b>' +
+        '<span style="font-size:11px;color:var(--nw-muted)">' + escHtml(cm.label) + '</span></div>' +
+        (a.description ? '<div style="font-size:12px;color:var(--nw-muted);margin-top:2px">' + escHtml(a.description) + '</div>' : '') +
+        '<div style="font-size:11px;color:var(--nw-muted);margin-top:4px">' +
+          'Mat: ' + fmtMoney(a.unit_material_cost) + '/' + (a.unit || 'u') +
+          ' · Labor: ' + a.unit_labor_hours + ' hrs/' + (a.unit || 'u') + ' (' + (CREW_LABEL[a.labor_crew_type] || '—') + ')' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    listEl.querySelectorAll('[data-asmpick]').forEach(function(el) {
+      el.addEventListener('click', function() { insertAssembly(el.getAttribute('data-asmpick')); });
+    });
+  }
+
+  async function insertAssembly(id) {
+    if (!canEdit) return;
+    var a = allAssemblies.find(function(x) { return x.id === id; });
+    if (!a) return;
+    // Insert as new line
+    var maxSort = 0;
+    currentLines.forEach(function(l) { if (l.sort_order > maxSort) maxSort = l.sort_order; });
+    var patch = {
+      estimate_id:       currentEst.id,
+      category:          a.category,
+      description:       a.name + (a.description ? ' — ' + a.description : ''),
+      unit:              a.unit,
+      quantity:          a.quantity_default,
+      unit_material_cost:a.unit_material_cost,
+      unit_labor_hours:  a.unit_labor_hours,
+      labor_crew_type:   a.labor_crew_type,
+      vendor_name:       a.vendor_name,
+      notes:             a.notes,
+      sort_order:        maxSort + 1
+    };
+    var r = await supabaseClient.from('estimate_line_items').insert(patch);
+    if (r.error) { showToast('Failed: ' + r.error.message, 'error'); return; }
+    closeModal('assemblyModal');
+    showToast('✅ Line added from library', 'success');
+    renderEstimate(currentEst.id);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   Cost math
+  // ══════════════════════════════════════════════════════════════════════════
+  function laborRate(crew, est) {
+    switch (crew) {
+      case 'sm':      return Number(est.labor_rate_sm      || 0);
+      case 'pipe':    return Number(est.labor_rate_pipe    || 0);
+      case 'startup': return Number(est.labor_rate_startup || 0);
+      case 'other':   return Number(est.labor_rate_other   || 0);
+      default:        return 0;
+    }
+  }
+
+  function computeAllTotals(lines, est) {
+    var material = 0, labor = 0, laborHours = 0;
+    var breakdown = { sm: 0, pipe: 0, startup: 0, other: 0 };
+    lines.forEach(function(li) {
+      if (li.is_optional) return;
+      var q = Number(li.quantity || 0);
+      var mat = q * Number(li.unit_material_cost || 0);
+      var hrs = q * Number(li.unit_labor_hours || 0);
+      var lab = hrs * laborRate(li.labor_crew_type, est);
+      material   += mat;
+      labor      += lab;
+      laborHours += hrs;
+      if (breakdown[li.labor_crew_type] != null) breakdown[li.labor_crew_type] += hrs;
+    });
+    var baseCost    = material + labor;
+    var tax         = material * Number(est.tax_rate || 0);
+    var subtotal    = baseCost + tax;
+    var overhead    = subtotal * Number(est.overhead_pct    || 0);
+    var afterOH     = subtotal + overhead;
+    var profit      = afterOH  * Number(est.profit_pct      || 0);
+    var afterProfit = afterOH  + profit;
+    var contingency = afterProfit * Number(est.contingency_pct || 0);
+    var afterCont   = afterProfit + contingency;
+    var bond        = afterCont * Number(est.bond_pct || 0);
+    var bidPrice    = afterCont + bond;
+    return {
+      material: material, labor: labor, laborHours: laborHours, laborBreakdown: breakdown,
+      baseCost: baseCost, tax: tax, overhead: overhead, profit: profit,
+      contingency: contingency, bond: bond, bidPrice: bidPrice
+    };
+  }
+
+  // For list view only — compact bid computation
+  function computeBidPrice(lines, est) {
+    if (!est.tax_rate && est.tax_rate !== 0) return 0;
+    return computeAllTotals(lines, est).bidPrice;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   Helpers
+  // ══════════════════════════════════════════════════════════════════════════
+  function fmtMoney(n) {
+    var v = Number(n || 0);
+    var sign = v < 0 ? '-' : '';
+    return sign + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtNum(n) {
+    var v = Number(n || 0);
+    return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+  }
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=165"></script>
+</body>
+</html>
