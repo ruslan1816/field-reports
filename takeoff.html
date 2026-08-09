@@ -8,8 +8,9 @@
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="supabase-config.js?v=170"></script>
-<script src="auth.js?v=170"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="supabase-config.js?v=171"></script>
+<script src="auth.js?v=171"></script>
 <style>
   html, body { height: 100%; margin: 0; overflow: hidden; }
   body { display: flex; flex-direction: column; background: #1e293b; color: #fff; }
@@ -222,6 +223,12 @@
 
   <div class="grow"></div>
 
+  <button class="btn-secondary" id="zoomOutBtn" title="Zoom out">🔍−</button>
+  <span id="zoomLabel" style="color:#94a3b8;font-size:11px;min-width:44px;text-align:center">100%</span>
+  <button class="btn-secondary" id="zoomInBtn"  title="Zoom in">🔍+</button>
+  <button class="btn-secondary" id="zoomFitBtn" title="Fit to width">↔</button>
+
+  <button class="btn-secondary" id="exportBtn" title="Export marked-up PDF">🖼️ Export PDF</button>
   <button class="btn-secondary" id="undoBtn" title="Undo last measurement">↶ Undo</button>
   <button class="btn-success"   id="rollupBtn">📥 Roll up to Estimate</button>
 </div>
@@ -297,6 +304,27 @@
     <div class="modal-actions">
       <button class="btn-secondary" id="rollupCancel">Cancel</button>
       <button class="btn-primary"   id="rollupApply">Insert into estimate</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Edit measurement modal ═══════════ -->
+<div class="modal-overlay" id="editMeasModal">
+  <div class="modal-card" style="max-width:460px">
+    <h2>Edit measurement</h2>
+    <div id="editMeasSummary" style="background:#f1f5f9;padding:10px;border-radius:6px;font-size:12px;margin-bottom:12px;color:#334155"></div>
+    <div class="field">
+      <label>Label (optional)</label>
+      <input type="text" id="editMeasLabel" placeholder="e.g. Supply duct 12x8">
+    </div>
+    <div class="field">
+      <label>Layer / category</label>
+      <select id="editMeasLayer"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-danger" id="editMeasDelete" style="margin-right:auto">🗑 Delete</button>
+      <button class="btn-secondary" id="editMeasCancel">Cancel</button>
+      <button class="btn-primary"   id="editMeasSave">Save</button>
     </div>
   </div>
 </div>
@@ -380,6 +408,8 @@ requireAuth().catch(function(){});
   var measurements = [];    // in-memory copy for current drawing+page
   var scalePxPerFoot = null;
   var renderScale = 1;      // PDF.js render scale (viewport-to-css)
+  var zoomFactor = 1;       // user-controlled zoom multiplier applied over fit-to-width base
+  var layerVisibility = {}; // { layerKey: boolean }  — all visible by default
 
   // In-progress drawing state
   var draftPoints = [];     // array of [x, y] in PDF coords for the tool currently in use
@@ -435,14 +465,27 @@ requireAuth().catch(function(){});
   function renderLayerLegend() {
     var host = document.getElementById('layerLegend');
     host.innerHTML = LAYERS.map(function(l) {
+      var visible = layerVisibility[l.key] !== false;   // default true
       return '<div class="layer-row' + (l.key === currentLayer ? ' active' : '') + '" data-lay="' + l.key + '">' +
-        '<span class="layer-swatch" style="background:' + l.color + '"></span>' + l.label +
+        '<span class="layer-swatch" style="background:' + l.color + (visible ? '' : ';opacity:0.3') + '"></span>' +
+        '<span style="flex:1' + (visible ? '' : ';opacity:0.4;text-decoration:line-through') + '">' + l.label + '</span>' +
+        '<span data-toggle="' + l.key + '" style="cursor:pointer;padding:0 4px;font-size:14px" title="Show/hide layer">' + (visible ? '👁' : '⊘') + '</span>' +
       '</div>';
     }).join('');
     host.querySelectorAll('[data-lay]').forEach(function(el) {
-      el.addEventListener('click', function() {
+      el.addEventListener('click', function(e) {
+        if (e.target.hasAttribute('data-toggle')) return;   // eye click handled separately
         currentLayer = el.getAttribute('data-lay');
         renderLayerLegend();
+      });
+    });
+    host.querySelectorAll('[data-toggle]').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var k = el.getAttribute('data-toggle');
+        layerVisibility[k] = layerVisibility[k] === false ? true : false;
+        renderLayerLegend();
+        redrawOverlay();
       });
     });
   }
@@ -468,6 +511,21 @@ requireAuth().catch(function(){});
     document.getElementById('scalePreset').addEventListener('change', applyPresetScale);
     document.getElementById('undoBtn').addEventListener('click', undoLast);
     document.getElementById('rollupBtn').addEventListener('click', openRollup);
+    // Zoom controls
+    document.getElementById('zoomInBtn').addEventListener('click', function() { setZoom(zoomFactor * 1.25); });
+    document.getElementById('zoomOutBtn').addEventListener('click', function() { setZoom(zoomFactor / 1.25); });
+    document.getElementById('zoomFitBtn').addEventListener('click', function() { setZoom(1); });
+    // Export PDF
+    document.getElementById('exportBtn').addEventListener('click', exportMarkedPdf);
+    // Edit measurement modal
+    document.getElementById('editMeasCancel').addEventListener('click', function() { closeModal('editMeasModal'); });
+    document.getElementById('editMeasSave').addEventListener('click', saveMeasEdit);
+    document.getElementById('editMeasDelete').addEventListener('click', deleteMeasFromModal);
+    // Populate edit modal's layer dropdown
+    var eSel = document.getElementById('editMeasLayer');
+    LAYERS.forEach(function(l) {
+      var o = document.createElement('option'); o.value = l.key; o.textContent = l.label; eSel.appendChild(o);
+    });
 
     // Modal buttons
     document.getElementById('rollupCancel').addEventListener('click', function() { closeModal('rollupModal'); });
@@ -596,11 +654,12 @@ requireAuth().catch(function(){});
     document.getElementById('canvasWrap').style.display = '';
     pdfPage = await pdfDoc.getPage(currentPage);
 
-    // Fit to viewport width
+    // Fit to viewport width, then apply user zoom
     var viewport = document.getElementById('viewport');
     var maxW = viewport.clientWidth - 40;
     var v1 = pdfPage.getViewport({ scale: 1 });
-    renderScale = Math.min(2.5, maxW / v1.width);
+    var fitScale = Math.min(2.5, maxW / v1.width);
+    renderScale = fitScale * zoomFactor;
     var viewport2 = pdfPage.getViewport({ scale: renderScale });
 
     pdfCanvas = document.getElementById('pdfCanvas');
@@ -613,6 +672,12 @@ requireAuth().catch(function(){});
     await pdfPage.render({ canvasContext: pdfCtx, viewport: viewport2 }).promise;
     bindOverlayEvents();
     redrawOverlay();
+    document.getElementById('zoomLabel').textContent = Math.round(zoomFactor * 100) + '%';
+  }
+
+  async function setZoom(newFactor) {
+    zoomFactor = Math.max(0.25, Math.min(4, newFactor));
+    if (pdfDoc) await renderPage();
   }
 
   function bindOverlayEvents() {
@@ -874,7 +939,7 @@ requireAuth().catch(function(){});
         var valText = m.tool_type === 'scale'
           ? (m.label || fmtVal(v, m.computed_unit))
           : fmtVal(v, m.computed_unit);
-        return '<div class="meas-item ' + m.tool_type + '">' +
+        return '<div class="meas-item ' + m.tool_type + '" data-edit="' + m.id + '" style="cursor:pointer" title="Click to edit">' +
           '<div class="top">' +
             '<span>' + toolIcon(m.tool_type) + ' ' + m.tool_type + '</span>' +
             '<span class="val">' + escHtml(valText) + '</span>' +
@@ -887,7 +952,13 @@ requireAuth().catch(function(){});
         '</div>';
       }).join('');
       host.querySelectorAll('[data-del]').forEach(function(b) {
-        b.addEventListener('click', function() { deleteMeasurement(b.getAttribute('data-del')); });
+        b.addEventListener('click', function(e) {
+          e.stopPropagation();
+          deleteMeasurement(b.getAttribute('data-del'));
+        });
+      });
+      host.querySelectorAll('[data-edit]').forEach(function(el) {
+        el.addEventListener('click', function() { openEditMeasModal(el.getAttribute('data-edit')); });
       });
     }
     renderMeasTotals();
@@ -935,8 +1006,11 @@ requireAuth().catch(function(){});
     if (!overlayCtx) return;
     overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-    // Persisted measurements
-    measurements.forEach(function(m) { drawMeasurement(m); });
+    // Persisted measurements — skip hidden layers (scale always shown)
+    measurements.forEach(function(m) {
+      if (m.tool_type !== 'scale' && layerVisibility[m.layer_category] === false) return;
+      drawMeasurement(m);
+    });
 
     // Draft in progress
     if (draftPoints.length) {
@@ -1038,6 +1112,115 @@ requireAuth().catch(function(){});
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  //   EDIT MEASUREMENT — label + layer
+  // ══════════════════════════════════════════════════════════════════════════
+  var editingMeasId = null;
+
+  function openEditMeasModal(id) {
+    if (!canEdit) { showToast('Read-only', 'error'); return; }
+    var m = measurements.find(function(x) { return x.id === id; });
+    if (!m) return;
+    editingMeasId = id;
+    document.getElementById('editMeasSummary').innerHTML =
+      '<b>' + toolIcon(m.tool_type) + ' ' + m.tool_type + '</b> · ' +
+      (m.tool_type === 'scale'
+        ? escHtml(m.label || fmtVal(m.computed_value, m.computed_unit))
+        : fmtVal(m.computed_value, m.computed_unit));
+    document.getElementById('editMeasLabel').value  = m.label || '';
+    document.getElementById('editMeasLayer').value  = m.layer_category || 'ductwork';
+    // Scale measurements don't have a layer
+    document.getElementById('editMeasLayer').disabled = (m.tool_type === 'scale');
+    openModal('editMeasModal');
+  }
+
+  async function saveMeasEdit() {
+    if (!editingMeasId) return;
+    var patch = {
+      label:          document.getElementById('editMeasLabel').value.trim() || null,
+      layer_category: document.getElementById('editMeasLayer').value
+    };
+    // Update local color to match new layer
+    var lay = LAYERS.find(function(l) { return l.key === patch.layer_category; });
+    if (lay) patch.color = lay.color;
+    var r = await supabaseClient.from('estimate_measurements').update(patch).eq('id', editingMeasId);
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    // Update in-memory record
+    measurements = measurements.map(function(m) {
+      return m.id === editingMeasId ? Object.assign({}, m, patch) : m;
+    });
+    closeModal('editMeasModal');
+    editingMeasId = null;
+    redrawOverlay();
+    renderMeasList();
+  }
+
+  async function deleteMeasFromModal() {
+    if (!editingMeasId) return;
+    if (!confirm('Delete this measurement?')) return;
+    var r = await supabaseClient.from('estimate_measurements').delete().eq('id', editingMeasId);
+    if (r.error) { showToast('Delete failed: ' + r.error.message, 'error'); return; }
+    measurements = measurements.filter(function(m) { return m.id !== editingMeasId; });
+    var scaleM = measurements.filter(function(m) { return m.tool_type === 'scale'; }).pop();
+    scalePxPerFoot   = scaleM ? Number(scaleM.scale_pixels_per_foot) : null;
+    currentScaleLabel = scaleM ? (scaleM.label || 'Custom') : null;
+    updateScaleBadge();
+    closeModal('editMeasModal');
+    editingMeasId = null;
+    redrawOverlay();
+    renderMeasList();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   EXPORT — marked-up PDF (current page + overlay flattened)
+  // ══════════════════════════════════════════════════════════════════════════
+  function exportMarkedPdf() {
+    if (!pdfDoc) { showToast('Load a drawing first', 'error'); return; }
+    if (!window.jspdf || !window.jspdf.jsPDF) { showToast('PDF library not loaded', 'error'); return; }
+    // Composite pdf canvas + overlay canvas onto a temporary canvas
+    var w = pdfCanvas.width, h = pdfCanvas.height;
+    var merge = document.createElement('canvas');
+    merge.width = w; merge.height = h;
+    var ctx = merge.getContext('2d');
+    ctx.drawImage(pdfCanvas, 0, 0);
+    ctx.drawImage(overlayCanvas, 0, 0);
+    var img = merge.toDataURL('image/jpeg', 0.92);
+
+    var jsPDF = window.jspdf.jsPDF;
+    // Match orientation to canvas aspect ratio, letter size
+    var isLandscape = w > h;
+    var doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: isLandscape ? 'landscape' : 'portrait' });
+    var pageW = isLandscape ? 792 : 612;
+    var pageH = isLandscape ? 612 : 792;
+    // Fit image with 24pt margin
+    var m = 24;
+    var maxW = pageW - 2 * m, maxH = pageH - 2 * m - 40;
+    var ratio = Math.min(maxW / w, maxH / h);
+    var iw = w * ratio, ih = h * ratio;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(11, 61, 102);
+    doc.text('Northern Wolves AC — On-Screen Takeoff', m, m + 4);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(
+      (currentEstimate ? '#' + (currentEstimate.quote_number || '') + '  ' + currentEstimate.name + '  ·  ' : '') +
+      (currentDrawing ? currentDrawing.filename + '  ·  page ' + currentPage + ' of ' + currentDrawing.page_count : '') +
+      (currentScaleLabel ? '  ·  Scale: ' + currentScaleLabel : ''),
+      m, m + 18
+    );
+    doc.addImage(img, 'JPEG', (pageW - iw) / 2, m + 30, iw, ih);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Generated ' + new Date().toLocaleString('en-US'), m, pageH - 12);
+
+    var safeName = (currentDrawing.filename || 'drawing').replace(/\.pdf$/i, '').replace(/[^A-Za-z0-9._-]/g, '_');
+    doc.save('takeoff.' + safeName + '.p' + currentPage + '.pdf');
+    showToast('✅ PDF exported', 'success');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   //   ROLL-UP → Estimate line items
   // ══════════════════════════════════════════════════════════════════════════
   async function openRollup() {
@@ -1136,6 +1319,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=170"></script>
+<script src="sw-register.js?v=171"></script>
 </body>
 </html>
