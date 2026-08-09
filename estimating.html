@@ -15,8 +15,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="supabase-config.js?v=168"></script>
-<script src="auth.js?v=168"></script>
+<script src="supabase-config.js?v=169"></script>
+<script src="auth.js?v=169"></script>
 <style>
   body { padding-bottom: 24px; }
   .es-wrap { max-width: 1400px; margin: 0 auto; }
@@ -920,6 +920,7 @@ requireAuth().catch(function(){});
       (canEdit ? '<div class="detail-actions">' +
         '<button class="btn-secondary" id="editEstBtn">Edit details</button>' +
         '<button class="btn-secondary" id="statusBtn">Change status</button>' +
+        '<a class="btn-secondary" href="takeoff.html?est=' + currentEst.id + '" style="text-decoration:none;display:inline-block" title="Upload drawings + measure lengths / areas / counts on-screen">🎯 On-Screen Takeoff</a>' +
         '<button class="btn-secondary" id="takeoffBtn" title="Import Procore ductwork/piping takeoff .xlsx">📊 Import Procore Takeoff</button>' +
         '<button class="btn-secondary" id="proposalBtn" title="Export 1-2 page client proposal PDF">📄 Export proposal PDF</button>' +
         '<button class="btn-secondary" id="copyInvBtn" title="Create AIA billing setup + first draft application">📥 Copy to Invoicing</button>' +
@@ -2012,6 +2013,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=168"></script>
+<script src="sw-register.js?v=169"></script>
 </body>
 </html>

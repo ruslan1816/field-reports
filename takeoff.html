@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0696D7">
+<title>On-Screen Takeoff — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="supabase-config.js?v=169"></script>
+<script src="auth.js?v=169"></script>
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: #1e293b; color: #fff; }
+
+  .tk-header {
+    background: #0f172a; padding: 8px 14px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    border-bottom: 1px solid #334155;
+  }
+  .tk-header a.back {
+    color: #94a3b8; text-decoration: none; font-size: 20px; padding: 4px 8px;
+  }
+  .tk-header a.back:hover { color: #fff; }
+  .tk-header h1 { margin: 0; font-size: 15px; color: #fff; font-weight: 700; }
+  .tk-header select, .tk-header input {
+    background: #1e293b; color: #fff; border: 1px solid #475569;
+    padding: 5px 10px; border-radius: 6px; font-size: 12px;
+  }
+  .tk-header button {
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    cursor: pointer; border: none;
+  }
+  .btn-primary { background: #0696D7; color: #fff; }
+  .btn-secondary { background: #334155; color: #fff; border: 1px solid #475569 !important; }
+  .btn-success { background: #10b981; color: #fff; }
+  .btn-danger  { background: #dc2626; color: #fff; }
+  .grow { flex: 1; }
+
+  .tk-main {
+    display: grid; grid-template-columns: 170px 1fr 300px;
+    flex: 1; overflow: hidden;
+  }
+  @media (max-width: 900px) {
+    .tk-main { grid-template-columns: 130px 1fr; }
+    .tk-sidebar-right { display: none; }
+  }
+
+  /* Tool sidebar (left) */
+  .tk-tools {
+    background: #1e293b; padding: 12px 8px; overflow-y: auto;
+    border-right: 1px solid #334155;
+  }
+  .tk-tools h3 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: #94a3b8; margin: 0 0 8px; padding: 0 6px;
+  }
+  .tool-btn {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; padding: 10px 12px; margin-bottom: 4px;
+    background: #334155; color: #fff; border: 1px solid transparent;
+    border-radius: 8px; font-size: 12px; font-weight: 600;
+    cursor: pointer; text-align: left;
+  }
+  .tool-btn:hover { background: #475569; }
+  .tool-btn.active {
+    background: #0696D7; border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56,189,248,0.35);
+  }
+  .tool-btn .icon { font-size: 18px; }
+  .tool-hint {
+    font-size: 10px; color: #94a3b8; padding: 4px 8px 12px;
+    line-height: 1.3;
+  }
+
+  /* Scale display */
+  .scale-badge {
+    margin-top: 12px; padding: 8px; background: #334155; border-radius: 6px;
+    font-size: 11px; color: #cbd5e1;
+  }
+  .scale-badge b { color: #fff; }
+  .scale-badge.unset { background: #7c2d12; color: #fed7aa; }
+
+  /* Layer legend */
+  .layer-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 6px; font-size: 11px; color: #cbd5e1;
+    cursor: pointer;
+  }
+  .layer-row:hover { background: #334155; border-radius: 4px; }
+  .layer-swatch {
+    width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+  }
+  .layer-row.active {
+    background: #0f766e; color: #fff; border-radius: 4px;
+  }
+
+  /* Canvas viewport (center) */
+  .tk-viewport {
+    background: #0f172a; position: relative; overflow: auto;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px;
+  }
+  .canvas-wrap {
+    position: relative;
+    background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
+  #pdfCanvas, #overlayCanvas {
+    display: block;
+  }
+  #overlayCanvas {
+    position: absolute; top: 0; left: 0; cursor: crosshair;
+  }
+  .tk-empty-viewport {
+    color: #94a3b8; text-align: center; padding: 80px 20px;
+  }
+  .tk-empty-viewport .icon { font-size: 64px; opacity: 0.4; margin-bottom: 12px; }
+
+  /* Measurements list (right) */
+  .tk-sidebar-right {
+    background: #1e293b; padding: 12px; overflow-y: auto;
+    border-left: 1px solid #334155;
+  }
+  .tk-sidebar-right h3 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: #94a3b8; margin: 0 0 8px;
+  }
+  .meas-item {
+    background: #334155; padding: 8px 10px; margin-bottom: 6px;
+    border-radius: 6px; font-size: 12px; border-left: 3px solid #64748b;
+  }
+  .meas-item.length { border-left-color: #f59e0b; }
+  .meas-item.area   { border-left-color: #10b981; }
+  .meas-item.count  { border-left-color: #8b5cf6; }
+  .meas-item.scale  { border-left-color: #dc2626; }
+  .meas-item .top {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
+  }
+  .meas-item .val {
+    font-family: 'Courier New', monospace; font-weight: 700; color: #38bdf8;
+  }
+  .meas-item .lbl {
+    font-size: 11px; color: #cbd5e1; margin-bottom: 2px;
+  }
+  .meas-item .lay {
+    font-size: 10px; color: #94a3b8;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .meas-item .lay button {
+    padding: 2px 6px; font-size: 9px; background: #7f1d1d; color: #fecaca;
+    border: none; border-radius: 3px; cursor: pointer;
+  }
+
+  /* Prompt / help footer */
+  .tk-hint {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(15,23,42,0.95); color: #fff;
+    padding: 8px 16px; border-radius: 8px; font-size: 12px;
+    border: 1px solid #38bdf8; z-index: 100;
+    pointer-events: none; max-width: 600px;
+  }
+
+  /* Modal — reused pattern */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; color: #1e293b;
+    border-radius: 14px; width: 100%; max-width: 640px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 10px 12px; font-size: 14px;
+    border: 1px solid #cbd5e1; border-radius: 7px; box-sizing: border-box;
+    font-family: inherit;
+  }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end;
+  }
+
+  .toast {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    opacity: 0; transition: opacity .2s; border: 1px solid #38bdf8;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { border-color: #10b981; }
+  .toast.error   { border-color: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="tk-header">
+  <a href="#" class="back" id="backBtn">← Back</a>
+  <h1 id="hdrTitle">On-Screen Takeoff</h1>
+
+  <select id="drawingSelect">
+    <option value="">— No drawings yet —</option>
+  </select>
+
+  <label style="font-size:12px;color:#94a3b8">
+    Page:
+    <select id="pageSelect" style="margin-left:4px">
+      <option value="1">1</option>
+    </select>
+  </label>
+
+  <input type="file" id="uploadInput" accept="application/pdf" style="display:none">
+  <button class="btn-primary" id="uploadBtn">📤 Upload PDF</button>
+
+  <div class="grow"></div>
+
+  <button class="btn-secondary" id="undoBtn" title="Undo last measurement">↶ Undo</button>
+  <button class="btn-success"   id="rollupBtn">📥 Roll up to Estimate</button>
+</div>
+
+<div class="tk-main">
+  <!-- ─── TOOL SIDEBAR ─── -->
+  <div class="tk-tools">
+    <h3>Tools</h3>
+    <button class="tool-btn" data-tool="scale">
+      <span class="icon">📏</span> Set Scale
+    </button>
+    <div class="tool-hint">Click 2 points on a known distance (e.g. a dimensioned wall) then type the actual feet.</div>
+
+    <button class="tool-btn" data-tool="length">
+      <span class="icon">📐</span> Length
+    </button>
+    <div class="tool-hint">Click points along a run. <b>Double-click</b> or press <b>Enter</b> to finish.</div>
+
+    <button class="tool-btn" data-tool="area">
+      <span class="icon">🟦</span> Area
+    </button>
+    <div class="tool-hint">Click vertices of a polygon. Double-click to close & compute sq ft.</div>
+
+    <button class="tool-btn" data-tool="count">
+      <span class="icon">🔢</span> Count
+    </button>
+    <div class="tool-hint">Click each item to add a counter mark.</div>
+
+    <div class="scale-badge unset" id="scaleBadge">Scale: <b>not set</b></div>
+
+    <h3 style="margin-top:16px">Layer (category)</h3>
+    <div id="layerLegend"></div>
+  </div>
+
+  <!-- ─── PDF VIEWPORT ─── -->
+  <div class="tk-viewport" id="viewport">
+    <div class="tk-empty-viewport" id="emptyState">
+      <div class="icon">📄</div>
+      <p>No drawing loaded.<br>Upload a PDF to start marking a takeoff.</p>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap" style="display:none">
+      <canvas id="pdfCanvas"></canvas>
+      <canvas id="overlayCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- ─── MEASUREMENTS LIST ─── -->
+  <div class="tk-sidebar-right">
+    <h3>Measurements on this page</h3>
+    <div id="measList"></div>
+    <div id="measTotals" style="margin-top:16px;padding:10px;background:#0f172a;border-radius:6px;font-size:12px;line-height:1.6"></div>
+  </div>
+</div>
+
+<div class="tk-hint" id="tkHint" style="display:none"></div>
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════ Rollup modal ═══════════ -->
+<div class="modal-overlay" id="rollupModal">
+  <div class="modal-card">
+    <h2>Roll up measurements into estimate line items</h2>
+    <p style="font-size:12px;color:#64748b;margin:0 0 12px">
+      Each layer's measurements will be summed and inserted as a single line item in the estimate.
+      You can still adjust each line afterward.
+    </p>
+    <div id="rollupPreview" style="max-height:340px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;padding:8px"></div>
+    <div class="field" style="margin-top:12px">
+      <label><input type="checkbox" id="rollupReplace" checked> Replace existing lines from prior takeoff roll-ups</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="rollupCancel">Cancel</button>
+      <button class="btn-primary"   id="rollupApply">Insert into estimate</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Scale prompt modal ═══════════ -->
+<div class="modal-overlay" id="scaleModal">
+  <div class="modal-card" style="max-width:420px">
+    <h2>Set drawing scale</h2>
+    <p style="font-size:13px;color:#64748b;margin:0 0 12px">
+      You drew a line — what does it represent in feet? (e.g. a wall shown as 10'-0")
+    </p>
+    <div class="field">
+      <label>Real-world distance (feet)</label>
+      <input type="number" id="scaleFeet" step="0.01" placeholder="10.0" autofocus>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="scaleCancel">Cancel</button>
+      <button class="btn-primary"   id="scaleSet">Set scale</button>
+    </div>
+  </div>
+</div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var MGMT_ROLES = ['admin','manager','lead_pm','project_manager','apm'];
+  var LAYERS = [
+    { key: 'ductwork',          label: 'Ductwork',          color: '#f59e0b' },
+    { key: 'pipework',          label: 'Pipework',          color: '#0696D7' },
+    { key: 'air_outlets',       label: 'Air Outlets',       color: '#10b981' },
+    { key: 'equipment',         label: 'Equipment',         color: '#8b5cf6' },
+    { key: 'equipment_install', label: 'Equipment Install', color: '#ec4899' },
+    { key: 'services',          label: 'Services',          color: '#64748b' },
+    { key: 'disconnects',       label: 'Disconnects',       color: '#dc2626' }
+  ];
+
+  var params = new URLSearchParams(window.location.search);
+  var estimateId = params.get('est');
+  if (!estimateId) { alert('Missing ?est=<id> in URL'); }
+
+  var currentUserId = null, canEdit = false;
+  var currentEstimate = null;
+  var drawings = [], currentDrawing = null;
+  var currentPage = 1;
+  var pdfDoc = null, pdfPage = null;
+  var pdfCanvas, overlayCanvas, pdfCtx, overlayCtx;
+  var currentTool = null;   // 'scale' | 'length' | 'area' | 'count'
+  var currentLayer = 'ductwork';
+  var measurements = [];    // in-memory copy for current drawing+page
+  var scalePxPerFoot = null;
+  var renderScale = 1;      // PDF.js render scale (viewport-to-css)
+
+  // In-progress drawing state
+  var draftPoints = [];     // array of [x, y] in PDF coords for the tool currently in use
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) currentUserId = u.data.user.id;
+      var prof = await supabaseClient.from('profiles').select('role').eq('id', currentUserId).maybeSingle();
+      if (prof.data) canEdit = MGMT_ROLES.indexOf(prof.data.role) >= 0;
+    } catch(e){ console.warn(e); }
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    document.getElementById('backBtn').setAttribute('href', 'estimating.html?est=' + estimateId);
+
+    // Load estimate name
+    var est = await supabaseClient.from('estimates').select('id, name, quote_number').eq('id', estimateId).maybeSingle();
+    if (est.data) {
+      currentEstimate = est.data;
+      document.getElementById('hdrTitle').textContent =
+        (est.data.quote_number ? '#' + est.data.quote_number + ' · ' : '') + est.data.name;
+    }
+
+    renderLayerLegend();
+    bindEvents();
+    await loadDrawings();
+  }
+
+  function renderLayerLegend() {
+    var host = document.getElementById('layerLegend');
+    host.innerHTML = LAYERS.map(function(l) {
+      return '<div class="layer-row' + (l.key === currentLayer ? ' active' : '') + '" data-lay="' + l.key + '">' +
+        '<span class="layer-swatch" style="background:' + l.color + '"></span>' + l.label +
+      '</div>';
+    }).join('');
+    host.querySelectorAll('[data-lay]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        currentLayer = el.getAttribute('data-lay');
+        renderLayerLegend();
+      });
+    });
+  }
+
+  function bindEvents() {
+    document.getElementById('uploadBtn').addEventListener('click', function() {
+      document.getElementById('uploadInput').click();
+    });
+    document.getElementById('uploadInput').addEventListener('change', uploadPdf);
+    document.getElementById('drawingSelect').addEventListener('change', function() {
+      var id = this.value;
+      if (id) loadDrawing(id);
+    });
+    document.getElementById('pageSelect').addEventListener('change', function() {
+      currentPage = parseInt(this.value, 10) || 1;
+      if (pdfDoc) renderPage();
+    });
+    document.querySelectorAll('.tool-btn').forEach(function(b) {
+      b.addEventListener('click', function() {
+        selectTool(b.getAttribute('data-tool'));
+      });
+    });
+    document.getElementById('undoBtn').addEventListener('click', undoLast);
+    document.getElementById('rollupBtn').addEventListener('click', openRollup);
+
+    // Modal buttons
+    document.getElementById('rollupCancel').addEventListener('click', function() { closeModal('rollupModal'); });
+    document.getElementById('rollupApply').addEventListener('click', applyRollup);
+    document.getElementById('scaleCancel').addEventListener('click', function() {
+      closeModal('scaleModal'); draftPoints = []; redrawOverlay();
+    });
+    document.getElementById('scaleSet').addEventListener('click', applyScale);
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if (document.querySelector('.modal-overlay.open')) return;   // ignore in modals
+      if (e.key === 'Enter' && (currentTool === 'length' || currentTool === 'area') && draftPoints.length >= 2) {
+        finishDraft();
+      } else if (e.key === 'Escape') {
+        draftPoints = []; redrawOverlay();
+      } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault(); undoLast();
+      }
+    });
+  }
+
+  function selectTool(t) {
+    currentTool = t;
+    draftPoints = [];
+    document.querySelectorAll('.tool-btn').forEach(function(b) {
+      b.classList.toggle('active', b.getAttribute('data-tool') === t);
+    });
+    showHint(
+      t === 'scale'  ? '📏 Click 2 points on a known distance, then type the real feet.' :
+      t === 'length' ? '📐 Click points along the run. Double-click or press Enter to finish.' :
+      t === 'area'   ? '🟦 Click polygon vertices. Double-click to close and compute sq ft.' :
+      t === 'count'  ? '🔢 Each click adds a counter marker. Click Undo to remove the last one.' :
+      ''
+    );
+    redrawOverlay();
+  }
+
+  function showHint(msg) {
+    var h = document.getElementById('tkHint');
+    if (!msg) { h.style.display = 'none'; return; }
+    h.textContent = msg;
+    h.style.display = '';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   DRAWINGS — upload / list / load
+  // ══════════════════════════════════════════════════════════════════════════
+  async function loadDrawings() {
+    var r = await supabaseClient.from('estimate_drawings')
+      .select('*').eq('estimate_id', estimateId).order('created_at', { ascending: true });
+    drawings = r.data || [];
+    var sel = document.getElementById('drawingSelect');
+    sel.innerHTML = drawings.length
+      ? drawings.map(function(d) { return '<option value="' + d.id + '">' + escHtml(d.filename) + ' (' + d.page_count + ' pg)</option>'; }).join('')
+      : '<option value="">— No drawings yet —</option>';
+    if (drawings.length) {
+      sel.value = drawings[0].id;
+      loadDrawing(drawings[0].id);
+    }
+  }
+
+  async function uploadPdf(ev) {
+    var file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    if (!canEdit) { showToast('Read-only', 'error'); return; }
+
+    showToast('Uploading ' + file.name + '…');
+
+    // Upload to Storage
+    var path = estimateId + '/' + Date.now() + '_' + file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+    var up = await supabaseClient.storage.from('estimate-drawings').upload(path, file, {
+      cacheControl: '3600', upsert: false, contentType: 'application/pdf'
+    });
+    if (up.error) { showToast('Upload failed: ' + up.error.message, 'error'); return; }
+
+    // Load PDF locally to get page count
+    var buf = await file.arrayBuffer();
+    var tmpDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+    var pageCount = tmpDoc.numPages;
+
+    // Insert row
+    var ins = await supabaseClient.from('estimate_drawings').insert({
+      estimate_id:  estimateId,
+      filename:     file.name,
+      storage_path: path,
+      page_count:   pageCount,
+      drawing_type: 'base',
+      uploaded_by:  currentUserId
+    }).select().single();
+    if (ins.error) { showToast('Insert failed: ' + ins.error.message, 'error'); return; }
+
+    ev.target.value = '';
+    showToast('✅ Uploaded ' + file.name + ' (' + pageCount + ' pages)', 'success');
+    await loadDrawings();
+    document.getElementById('drawingSelect').value = ins.data.id;
+    loadDrawing(ins.data.id);
+  }
+
+  async function loadDrawing(drawingId) {
+    var dwg = drawings.find(function(d) { return d.id === drawingId; });
+    if (!dwg) return;
+    currentDrawing = dwg;
+    currentPage = 1;
+
+    // Page selector
+    var pageSel = document.getElementById('pageSelect');
+    pageSel.innerHTML = '';
+    for (var p = 1; p <= dwg.page_count; p++) {
+      var o = document.createElement('option'); o.value = p; o.textContent = p;
+      pageSel.appendChild(o);
+    }
+
+    // Fetch signed URL for PDF
+    var signed = await supabaseClient.storage.from('estimate-drawings').createSignedUrl(dwg.storage_path, 3600);
+    if (signed.error) { showToast('Could not open PDF: ' + signed.error.message, 'error'); return; }
+
+    pdfDoc = await pdfjsLib.getDocument(signed.data.signedUrl).promise;
+    await renderPage();
+    await loadMeasurements();
+  }
+
+  async function renderPage() {
+    if (!pdfDoc) return;
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('canvasWrap').style.display = '';
+    pdfPage = await pdfDoc.getPage(currentPage);
+
+    // Fit to viewport width
+    var viewport = document.getElementById('viewport');
+    var maxW = viewport.clientWidth - 40;
+    var v1 = pdfPage.getViewport({ scale: 1 });
+    renderScale = Math.min(2.5, maxW / v1.width);
+    var viewport2 = pdfPage.getViewport({ scale: renderScale });
+
+    pdfCanvas = document.getElementById('pdfCanvas');
+    overlayCanvas = document.getElementById('overlayCanvas');
+    pdfCanvas.width = overlayCanvas.width = Math.floor(viewport2.width);
+    pdfCanvas.height = overlayCanvas.height = Math.floor(viewport2.height);
+    pdfCtx = pdfCanvas.getContext('2d');
+    overlayCtx = overlayCanvas.getContext('2d');
+
+    await pdfPage.render({ canvasContext: pdfCtx, viewport: viewport2 }).promise;
+    bindOverlayEvents();
+    redrawOverlay();
+  }
+
+  function bindOverlayEvents() {
+    overlayCanvas.onclick = onOverlayClick;
+    overlayCanvas.ondblclick = onOverlayDblClick;
+    overlayCanvas.onmousemove = onOverlayMove;
+  }
+
+  function pdfCoordFromEvent(e) {
+    var rect = overlayCanvas.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (overlayCanvas.width / rect.width);
+    var y = (e.clientY - rect.top)  * (overlayCanvas.height / rect.height);
+    // Store in PDF (unscaled) coords so we can render at any zoom later
+    return [x / renderScale, y / renderScale];
+  }
+
+  function onOverlayClick(e) {
+    if (!currentTool || !canEdit) return;
+    var p = pdfCoordFromEvent(e);
+    if (currentTool === 'count') {
+      saveMeasurement({ tool_type: 'count', points: [p], computed_value: 1, computed_unit: 'ea' });
+    } else {
+      draftPoints.push(p);
+      // For scale + length + area, allow accumulating; finish via dblclick / Enter
+      if (currentTool === 'scale' && draftPoints.length === 2) {
+        // Prompt for real-world feet
+        redrawOverlay();
+        document.getElementById('scaleFeet').value = '';
+        openModal('scaleModal');
+        return;
+      }
+      redrawOverlay();
+    }
+  }
+
+  function onOverlayDblClick(e) {
+    if (!currentTool || !canEdit) return;
+    if ((currentTool === 'length' || currentTool === 'area') && draftPoints.length >= 2) {
+      finishDraft();
+    }
+  }
+
+  var hoverPoint = null;
+  function onOverlayMove(e) {
+    if (!currentTool || draftPoints.length === 0) return;
+    hoverPoint = pdfCoordFromEvent(e);
+    redrawOverlay();
+  }
+
+  function finishDraft() {
+    if (currentTool === 'length') {
+      var totalPx = 0;
+      for (var i = 1; i < draftPoints.length; i++) {
+        var a = draftPoints[i-1], b = draftPoints[i];
+        totalPx += Math.hypot(b[0]-a[0], b[1]-a[1]);
+      }
+      var ft = scalePxPerFoot ? totalPx / scalePxPerFoot : 0;
+      saveMeasurement({ tool_type: 'length', points: draftPoints.slice(), computed_value: ft, computed_unit: 'ft' });
+    } else if (currentTool === 'area') {
+      // Shoelace
+      var areaPx = 0;
+      var pts = draftPoints;
+      for (var j = 0, n = pts.length; j < n; j++) {
+        var pA = pts[j], pB = pts[(j+1) % n];
+        areaPx += (pA[0] * pB[1]) - (pB[0] * pA[1]);
+      }
+      areaPx = Math.abs(areaPx) / 2;
+      var sqft = scalePxPerFoot ? areaPx / (scalePxPerFoot * scalePxPerFoot) : 0;
+      saveMeasurement({ tool_type: 'area', points: draftPoints.slice(), computed_value: sqft, computed_unit: 'sqft' });
+    }
+    draftPoints = [];
+    hoverPoint = null;
+    redrawOverlay();
+  }
+
+  async function applyScale() {
+    var feet = Number(document.getElementById('scaleFeet').value || 0);
+    if (feet <= 0) { showToast('Enter positive feet', 'error'); return; }
+    var pxDist = Math.hypot(draftPoints[1][0]-draftPoints[0][0], draftPoints[1][1]-draftPoints[0][1]);
+    scalePxPerFoot = pxDist / feet;
+    // Recompute existing lengths/areas on this page with the new scale
+    await recomputeAllOnPage();
+    // Persist the scale as a "scale" measurement so it survives refresh
+    await saveMeasurement({ tool_type: 'scale', points: draftPoints.slice(), computed_value: feet, computed_unit: 'ft' });
+    draftPoints = [];
+    closeModal('scaleModal');
+    updateScaleBadge();
+    redrawOverlay();
+  }
+
+  function updateScaleBadge() {
+    var badge = document.getElementById('scaleBadge');
+    if (scalePxPerFoot) {
+      badge.classList.remove('unset');
+      badge.innerHTML = 'Scale: <b>' + scalePxPerFoot.toFixed(2) + ' px/ft</b>';
+    } else {
+      badge.classList.add('unset');
+      badge.innerHTML = 'Scale: <b>not set</b> — draw a scale line first';
+    }
+  }
+
+  async function recomputeAllOnPage() {
+    // Recompute length + area measurements based on new scale
+    var updates = [];
+    measurements.forEach(function(m) {
+      if (m.tool_type === 'length') {
+        var totalPx = 0;
+        for (var i = 1; i < m.points.length; i++) {
+          var a = m.points[i-1], b = m.points[i];
+          totalPx += Math.hypot(b[0]-a[0], b[1]-a[1]);
+        }
+        m.computed_value = totalPx / scalePxPerFoot;
+        m.scale_pixels_per_foot = scalePxPerFoot;
+        updates.push(m);
+      } else if (m.tool_type === 'area') {
+        var areaPx = 0;
+        var pts = m.points;
+        for (var j = 0, n = pts.length; j < n; j++) {
+          var pA = pts[j], pB = pts[(j+1) % n];
+          areaPx += (pA[0] * pB[1]) - (pB[0] * pA[1]);
+        }
+        areaPx = Math.abs(areaPx) / 2;
+        m.computed_value = areaPx / (scalePxPerFoot * scalePxPerFoot);
+        m.scale_pixels_per_foot = scalePxPerFoot;
+        updates.push(m);
+      }
+    });
+    for (var i = 0; i < updates.length; i++) {
+      await supabaseClient.from('estimate_measurements').update({
+        computed_value: updates[i].computed_value,
+        scale_pixels_per_foot: updates[i].scale_pixels_per_foot
+      }).eq('id', updates[i].id);
+    }
+    renderMeasList();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   MEASUREMENTS — CRUD + render
+  // ══════════════════════════════════════════════════════════════════════════
+  async function loadMeasurements() {
+    var r = await supabaseClient.from('estimate_measurements')
+      .select('*').eq('drawing_id', currentDrawing.id).eq('page_number', currentPage)
+      .order('created_at');
+    measurements = r.data || [];
+    // Find latest scale on this page
+    var scaleM = measurements.filter(function(m) { return m.tool_type === 'scale'; }).pop();
+    scalePxPerFoot = scaleM ? Number(scaleM.scale_pixels_per_foot) : null;
+    updateScaleBadge();
+    redrawOverlay();
+    renderMeasList();
+  }
+
+  async function saveMeasurement(m) {
+    var layerMeta = LAYERS.find(function(l) { return l.key === currentLayer; }) || LAYERS[0];
+    m.drawing_id = currentDrawing.id;
+    m.page_number = currentPage;
+    m.layer_category = m.tool_type === 'scale' ? null : currentLayer;
+    m.color = m.tool_type === 'scale' ? '#dc2626' : layerMeta.color;
+    m.scale_pixels_per_foot = m.tool_type === 'scale'
+      ? (m.points[1] && m.points[0]
+         ? Math.hypot(m.points[1][0]-m.points[0][0], m.points[1][1]-m.points[0][1]) / m.computed_value
+         : null)
+      : scalePxPerFoot;
+    var r = await supabaseClient.from('estimate_measurements').insert(m).select().single();
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    measurements.push(r.data);
+    if (m.tool_type === 'scale') {
+      scalePxPerFoot = r.data.scale_pixels_per_foot;
+    }
+    renderMeasList();
+  }
+
+  async function deleteMeasurement(id) {
+    if (!confirm('Delete this measurement?')) return;
+    var r = await supabaseClient.from('estimate_measurements').delete().eq('id', id);
+    if (r.error) { showToast('Delete failed: ' + r.error.message, 'error'); return; }
+    measurements = measurements.filter(function(m) { return m.id !== id; });
+    var scaleM = measurements.filter(function(m) { return m.tool_type === 'scale'; }).pop();
+    scalePxPerFoot = scaleM ? Number(scaleM.scale_pixels_per_foot) : null;
+    updateScaleBadge();
+    redrawOverlay();
+    renderMeasList();
+  }
+
+  async function undoLast() {
+    if (draftPoints.length) {
+      draftPoints.pop();
+      redrawOverlay();
+      return;
+    }
+    if (!measurements.length) return;
+    var last = measurements[measurements.length - 1];
+    await deleteMeasurement(last.id);
+  }
+
+  function renderMeasList() {
+    var host = document.getElementById('measList');
+    if (!measurements.length) {
+      host.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px">No measurements yet on this page.</div>';
+    } else {
+      host.innerHTML = measurements.map(function(m) {
+        var lay = LAYERS.find(function(l) { return l.key === m.layer_category; });
+        var v = Number(m.computed_value || 0);
+        return '<div class="meas-item ' + m.tool_type + '">' +
+          '<div class="top">' +
+            '<span>' + toolIcon(m.tool_type) + ' ' + m.tool_type + '</span>' +
+            '<span class="val">' + fmtVal(v, m.computed_unit) + '</span>' +
+          '</div>' +
+          (m.label ? '<div class="lbl">' + escHtml(m.label) + '</div>' : '') +
+          '<div class="lay">' +
+            (lay ? '<span style="display:flex;align-items:center;gap:4px"><span class="layer-swatch" style="background:' + lay.color + '"></span>' + lay.label + '</span>' : '<span>—</span>') +
+            (canEdit ? '<button data-del="' + m.id + '">✕</button>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+      host.querySelectorAll('[data-del]').forEach(function(b) {
+        b.addEventListener('click', function() { deleteMeasurement(b.getAttribute('data-del')); });
+      });
+    }
+    renderMeasTotals();
+  }
+
+  function renderMeasTotals() {
+    // Aggregate per layer × unit
+    var agg = {};
+    measurements.forEach(function(m) {
+      if (m.tool_type === 'scale') return;
+      var lay = m.layer_category || 'other';
+      var key = lay + '|' + m.computed_unit;
+      if (!agg[key]) agg[key] = { layer: lay, unit: m.computed_unit, total: 0, count: 0 };
+      agg[key].total += Number(m.computed_value || 0);
+      agg[key].count += 1;
+    });
+    var html = '<b style="color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:0.5px">Totals</b><br>';
+    if (!Object.keys(agg).length) {
+      html += '<span style="color:#64748b">nothing yet</span>';
+    } else {
+      Object.values(agg).forEach(function(a) {
+        var lay = LAYERS.find(function(l) { return l.key === a.layer; });
+        html += '<div>' + (lay ? lay.label : a.layer) + ': <b style="color:#38bdf8">' +
+          fmtVal(a.total, a.unit) + '</b> <span style="color:#64748b">(' + a.count + ' marks)</span></div>';
+      });
+    }
+    document.getElementById('measTotals').innerHTML = html;
+  }
+
+  function toolIcon(t) {
+    return { scale: '📏', length: '📐', area: '🟦', count: '🔢' }[t] || '•';
+  }
+
+  function fmtVal(v, unit) {
+    v = Number(v || 0);
+    if (unit === 'ea') return v.toFixed(0) + ' ea';
+    if (unit === 'sqft') return v.toFixed(1) + ' sq ft';
+    return v.toFixed(2) + ' ft';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   Overlay rendering
+  // ══════════════════════════════════════════════════════════════════════════
+  function redrawOverlay() {
+    if (!overlayCtx) return;
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    // Persisted measurements
+    measurements.forEach(function(m) { drawMeasurement(m); });
+
+    // Draft in progress
+    if (draftPoints.length) {
+      var lay = LAYERS.find(function(l) { return l.key === currentLayer; }) || LAYERS[0];
+      var color = currentTool === 'scale' ? '#dc2626' : lay.color;
+      overlayCtx.strokeStyle = color;
+      overlayCtx.fillStyle   = color;
+      overlayCtx.lineWidth = 2;
+      overlayCtx.setLineDash([6, 4]);
+      overlayCtx.beginPath();
+      var pts = draftPoints.map(function(p) { return [p[0] * renderScale, p[1] * renderScale]; });
+      overlayCtx.moveTo(pts[0][0], pts[0][1]);
+      for (var i = 1; i < pts.length; i++) overlayCtx.lineTo(pts[i][0], pts[i][1]);
+      if (hoverPoint) {
+        var h = [hoverPoint[0] * renderScale, hoverPoint[1] * renderScale];
+        overlayCtx.lineTo(h[0], h[1]);
+      }
+      overlayCtx.stroke();
+      overlayCtx.setLineDash([]);
+      pts.forEach(function(p) { drawDot(p, color); });
+    }
+  }
+
+  function drawMeasurement(m) {
+    var color = m.color || '#f59e0b';
+    var pts = m.points.map(function(p) { return [p[0] * renderScale, p[1] * renderScale]; });
+    overlayCtx.strokeStyle = color;
+    overlayCtx.fillStyle   = color;
+    overlayCtx.lineWidth = m.tool_type === 'scale' ? 3 : 2;
+
+    if (m.tool_type === 'count') {
+      drawCountMark(pts[0], color);
+    } else if (m.tool_type === 'scale' || m.tool_type === 'length') {
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(pts[0][0], pts[0][1]);
+      for (var i = 1; i < pts.length; i++) overlayCtx.lineTo(pts[i][0], pts[i][1]);
+      overlayCtx.stroke();
+      pts.forEach(function(p) { drawDot(p, color); });
+      // Label at midpoint
+      var mid = midOf(pts);
+      drawLabel(mid, fmtVal(m.computed_value, m.computed_unit), color);
+    } else if (m.tool_type === 'area') {
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(pts[0][0], pts[0][1]);
+      for (var j = 1; j < pts.length; j++) overlayCtx.lineTo(pts[j][0], pts[j][1]);
+      overlayCtx.closePath();
+      overlayCtx.globalAlpha = 0.25; overlayCtx.fill(); overlayCtx.globalAlpha = 1;
+      overlayCtx.stroke();
+      var c = centroid(pts);
+      drawLabel(c, fmtVal(m.computed_value, m.computed_unit), color);
+    }
+  }
+
+  function drawDot(p, color) {
+    overlayCtx.fillStyle = color;
+    overlayCtx.beginPath();
+    overlayCtx.arc(p[0], p[1], 4, 0, Math.PI * 2);
+    overlayCtx.fill();
+    overlayCtx.strokeStyle = '#fff'; overlayCtx.lineWidth = 1;
+    overlayCtx.stroke();
+  }
+
+  function drawCountMark(p, color) {
+    overlayCtx.fillStyle = color;
+    overlayCtx.beginPath();
+    overlayCtx.arc(p[0], p[1], 8, 0, Math.PI * 2);
+    overlayCtx.fill();
+    overlayCtx.strokeStyle = '#fff'; overlayCtx.lineWidth = 2; overlayCtx.stroke();
+    overlayCtx.fillStyle = '#fff';
+    overlayCtx.font = 'bold 10px Arial';
+    overlayCtx.textAlign = 'center'; overlayCtx.textBaseline = 'middle';
+    overlayCtx.fillText('•', p[0], p[1]);
+  }
+
+  function drawLabel(p, text, color) {
+    overlayCtx.font = 'bold 11px Arial';
+    var w = overlayCtx.measureText(text).width + 8;
+    overlayCtx.fillStyle = color; overlayCtx.globalAlpha = 0.9;
+    overlayCtx.fillRect(p[0] - w/2, p[1] - 8, w, 16);
+    overlayCtx.globalAlpha = 1;
+    overlayCtx.fillStyle = '#fff';
+    overlayCtx.textAlign = 'center'; overlayCtx.textBaseline = 'middle';
+    overlayCtx.fillText(text, p[0], p[1]);
+  }
+
+  function midOf(pts) {
+    if (pts.length < 2) return pts[0];
+    var i = Math.floor(pts.length / 2);
+    return [(pts[i-1][0] + pts[i][0])/2, (pts[i-1][1] + pts[i][1])/2];
+  }
+  function centroid(pts) {
+    var x = 0, y = 0;
+    pts.forEach(function(p) { x += p[0]; y += p[1]; });
+    return [x / pts.length, y / pts.length];
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   ROLL-UP → Estimate line items
+  // ══════════════════════════════════════════════════════════════════════════
+  async function openRollup() {
+    // Aggregate across ALL drawings + ALL pages, not just current
+    var allDrawingIds = drawings.map(function(d) { return d.id; });
+    if (!allDrawingIds.length) { showToast('No drawings yet', 'error'); return; }
+    var r = await supabaseClient.from('estimate_measurements')
+      .select('*').in('drawing_id', allDrawingIds);
+    var all = r.data || [];
+    var agg = {};
+    all.forEach(function(m) {
+      if (m.tool_type === 'scale') return;
+      var key = (m.layer_category || 'other') + '|' + m.computed_unit;
+      if (!agg[key]) agg[key] = { layer: m.layer_category, unit: m.computed_unit, total: 0, count: 0 };
+      agg[key].total += Number(m.computed_value || 0);
+      agg[key].count += 1;
+    });
+    var rows = Object.values(agg);
+    if (!rows.length) {
+      document.getElementById('rollupPreview').innerHTML =
+        '<div style="padding:20px;text-align:center;color:#64748b">No measurements to roll up yet.</div>';
+    } else {
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+        '<thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #e2e8f0">Category</th><th style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0">Quantity</th><th style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0">Marks</th></tr></thead><tbody>';
+      rows.forEach(function(a) {
+        var lay = LAYERS.find(function(l) { return l.key === a.layer; });
+        html += '<tr><td style="padding:6px">' +
+          (lay ? '<span class="layer-swatch" style="background:' + lay.color + ';display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;margin-right:4px"></span>' + lay.label : (a.layer || '—')) +
+          '</td><td style="padding:6px;text-align:right;font-family:monospace">' + fmtVal(a.total, a.unit) + '</td>' +
+          '<td style="padding:6px;text-align:right;color:#64748b">' + a.count + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('rollupPreview').innerHTML = html;
+    }
+    openModal('rollupModal');
+    document.getElementById('rollupApply').setAttribute('data-rows', JSON.stringify(rows));
+  }
+
+  async function applyRollup() {
+    var rows = JSON.parse(document.getElementById('rollupApply').getAttribute('data-rows') || '[]');
+    if (!rows.length) { closeModal('rollupModal'); return; }
+    var replace = document.getElementById('rollupReplace').checked;
+
+    if (replace) {
+      // Delete lines previously created by roll-up (tagged in notes)
+      await supabaseClient.from('estimate_line_items').delete()
+        .eq('estimate_id', estimateId).like('notes', '%[from PDF takeoff]');
+    }
+
+    // Determine sort_order start
+    var existing = await supabaseClient.from('estimate_line_items').select('sort_order')
+      .eq('estimate_id', estimateId).order('sort_order', { ascending: false }).limit(1).maybeSingle();
+    var sortOrder = (existing && existing.data ? existing.data.sort_order : 0) + 1;
+
+    var inserts = rows.map(function(a) {
+      var cat = a.layer || 'services';
+      var crew = (cat === 'pipework') ? 'pipe' :
+                 (cat === 'equipment') ? 'none' :
+                 (cat === 'services') ? 'none' : 'sm';
+      // Represent as unit=qty × mat=$0 × hrs=0 stub, so PM fills rate later — OR:
+      // Prefer: qty = total, unit = computed_unit, and label describes measurement source.
+      return {
+        estimate_id: estimateId,
+        category:    cat,
+        description: 'From PDF takeoff — ' + (LAYERS.find(function(l){return l.key===a.layer;})||{label:a.layer||'other'}).label,
+        quantity:    Math.round(a.total * 100) / 100,
+        unit:        a.unit,
+        unit_material_cost: 0,
+        unit_labor_hours:   0,
+        labor_crew_type:    crew,
+        sort_order:  sortOrder++,
+        notes:       'Auto-generated from ' + a.count + ' PDF measurements — [from PDF takeoff]'
+      };
+    });
+
+    var ins = await supabaseClient.from('estimate_line_items').insert(inserts);
+    if (ins.error) { showToast('Roll-up failed: ' + ins.error.message, 'error'); return; }
+    closeModal('rollupModal');
+    showToast('✅ ' + inserts.length + ' line items created — open the estimate to price them.', 'success');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   Helpers
+  // ══════════════════════════════════════════════════════════════════════════
+  function openModal(id)  { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=169"></script>
+</body>
+</html>
