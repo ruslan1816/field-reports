@@ -245,6 +245,7 @@
   <button class="btn-secondary" id="zoomFitBtn" title="Fit to width">↔</button>
 
   <button class="btn-secondary" id="exportBtn" title="Export marked-up PDF">🖼️ Export PDF</button>
+  <button class="btn-secondary" id="analyzeBtn" title="AI reads this drawing page and extracts equipment / scope / RFIs">🤖 Analyze page</button>
   <button class="btn-secondary" id="undoBtn" title="Undo last measurement">↶ Undo</button>
   <button class="btn-success"   id="rollupBtn">📥 Roll up to Estimate</button>
 </div>
@@ -343,6 +344,31 @@
       <button class="btn-secondary" id="editMeasCancel">Cancel</button>
       <button class="btn-primary"   id="editMeasSave">Save</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════ AI Analyze modal ═══════════ -->
+<div class="modal-overlay" id="analyzeModal">
+  <div class="modal-card" style="max-width:720px;max-height:88vh;overflow-y:auto">
+    <h2>🤖 Analyze this page</h2>
+    <p style="font-size:12px;color:#64748b;margin:0 0 12px">
+      Claude reads the current drawing page and pulls out structured data.
+      Choose what you want. One page → one call. Rough cost: $0.05–$0.15 per run.
+    </p>
+    <div class="field">
+      <label>What to extract</label>
+      <select id="analyzePromptType">
+        <option value="equipment">Equipment schedule + air outlet counts</option>
+        <option value="scope">Scope items from General/Keyed Notes (gap-hunter)</option>
+        <option value="rfi">Draft RFIs for real ambiguities</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="analyzeCancel">Cancel</button>
+      <button class="btn-primary"   id="analyzeRun">Run analysis</button>
+    </div>
+    <div id="analyzeStatus" style="margin-top:14px;font-size:12px;color:#64748b;display:none"></div>
+    <div id="analyzeResults" style="margin-top:14px;display:none"></div>
   </div>
 </div>
 
@@ -550,6 +576,10 @@ requireAuth().catch(function(){});
     document.getElementById('zoomFitBtn').addEventListener('click', function() { setZoom(1); });
     // Export PDF
     document.getElementById('exportBtn').addEventListener('click', exportMarkedPdf);
+    // AI Analyze
+    document.getElementById('analyzeBtn').addEventListener('click', openAnalyze);
+    document.getElementById('analyzeCancel').addEventListener('click', function() { closeModal('analyzeModal'); });
+    document.getElementById('analyzeRun').addEventListener('click', runAnalyze);
     // Edit measurement modal
     document.getElementById('editMeasCancel').addEventListener('click', function() { closeModal('editMeasModal'); });
     document.getElementById('editMeasSave').addEventListener('click', saveMeasEdit);
@@ -1419,6 +1449,149 @@ requireAuth().catch(function(){});
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  //   AI Analyze
+  // ══════════════════════════════════════════════════════════════════════════
+  function openAnalyze() {
+    if (!pdfCanvas || !pdfDoc) {
+      showToast('Load a drawing first', 'error'); return;
+    }
+    document.getElementById('analyzeStatus').style.display = 'none';
+    document.getElementById('analyzeResults').style.display = 'none';
+    document.getElementById('analyzeResults').innerHTML = '';
+    openModal('analyzeModal');
+  }
+
+  async function runAnalyze() {
+    var promptType = document.getElementById('analyzePromptType').value;
+    var status = document.getElementById('analyzeStatus');
+    var results = document.getElementById('analyzeResults');
+    var runBtn = document.getElementById('analyzeRun');
+    runBtn.disabled = true;
+    status.style.display = ''; status.style.color = '#64748b';
+    status.textContent = '⏳ Rendering page for Claude…';
+    results.style.display = 'none'; results.innerHTML = '';
+
+    try {
+      // Convert current pdfCanvas → JPEG base64 (drop the data: prefix)
+      var b64 = pdfCanvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+      status.textContent = '🤖 Claude is reading the drawing (10–40 seconds)…';
+
+      var drawingNo = currentDrawing && (currentDrawing.drawing_no || currentDrawing.file_name) || '';
+      var projName  = currentEstimate ? (currentEstimate.name || '') : '';
+
+      var res = await supabaseClient.functions.invoke('analyze-drawing', {
+        body: {
+          image_base64: b64,
+          prompt_type:  promptType,
+          drawing_no:   drawingNo,
+          project_name: projName
+        }
+      });
+
+      if (res.error) {
+        // supabase-js returns error.context.status for HTTP errors
+        var msg = res.error.message || 'invoke failed';
+        if (msg.indexOf('Failed to fetch') >= 0 || msg.indexOf('404') >= 0) {
+          msg = 'Edge Function not deployed. See supabase/functions/analyze-drawing/README.md — deploy in Supabase Dashboard.';
+        }
+        status.style.color = '#dc2626';
+        status.textContent = '❌ ' + msg;
+        return;
+      }
+      var data = res.data || {};
+      if (!data.ok) {
+        status.style.color = '#dc2626';
+        status.textContent = '❌ ' + (data.error || 'analysis failed');
+        return;
+      }
+      status.textContent = '✅ Done (' + (data.model || 'claude') + ').';
+      renderAnalyzeResults(promptType, data.extracted, data.raw_text);
+      results.style.display = '';
+    } catch (e) {
+      status.style.color = '#dc2626';
+      status.textContent = '❌ ' + (e && e.message || e);
+    } finally {
+      runBtn.disabled = false;
+    }
+  }
+
+  function renderAnalyzeResults(kind, ex, rawText) {
+    var host = document.getElementById('analyzeResults');
+    if (!ex) {
+      host.innerHTML =
+        '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:10px;font-size:12px;color:#78350f">' +
+        '⚠ Claude returned text but no valid JSON. Raw response:</div>' +
+        '<pre style="background:#f8fafc;padding:10px;border-radius:6px;font-size:11px;max-height:300px;overflow:auto;white-space:pre-wrap">' +
+        escHtml(rawText || '') + '</pre>';
+      return;
+    }
+    var html = '';
+    if (kind === 'equipment') {
+      if (Array.isArray(ex.equipment_schedule) && ex.equipment_schedule.length) {
+        html += '<h3 style="margin:6px 0 6px;font-size:13px;color:#1e293b">Equipment schedule</h3>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+          '<thead><tr style="background:#f1f5f9"><th style="text-align:left;padding:6px">Tag</th><th style="text-align:left;padding:6px">#</th><th style="text-align:left;padding:6px">Mfr / Model</th><th style="text-align:left;padding:6px">Capacity / Weight</th></tr></thead><tbody>';
+        ex.equipment_schedule.forEach(function(e) {
+          html += '<tr style="border-bottom:1px solid #e2e8f0">' +
+            '<td style="padding:6px;font-weight:600">' + escHtml(e.tag || '') + '</td>' +
+            '<td style="padding:6px">' + escHtml(e.count != null ? String(e.count) : '') + '</td>' +
+            '<td style="padding:6px">' + escHtml((e.manufacturer || '') + (e.model ? ' · ' + e.model : '')) + '</td>' +
+            '<td style="padding:6px">' + escHtml((e.capacity || '') + (e.weight_lb ? ' · ' + e.weight_lb + ' lb' : '')) + '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+      }
+      if (Array.isArray(ex.air_outlets) && ex.air_outlets.length) {
+        html += '<h3 style="margin:14px 0 6px;font-size:13px;color:#1e293b">Air outlets / countables</h3>' +
+          '<ul style="font-size:12px;margin:0;padding-left:18px;color:#334155">' +
+          ex.air_outlets.map(function(a) {
+            return '<li>' + escHtml((a.type || '') + (a.size ? ' · ' + a.size : '')) + ' — <b>' + escHtml(String(a.count != null ? a.count : '?')) + '</b></li>';
+          }).join('') + '</ul>';
+      }
+      if (ex.refrigerant) html += '<div style="margin-top:10px;font-size:12px"><b>Refrigerant:</b> ' + escHtml(ex.refrigerant) + '</div>';
+      if (ex.notes)       html += '<div style="margin-top:6px;font-size:12px;color:#64748b"><b>Notes:</b> ' + escHtml(ex.notes) + '</div>';
+    } else if (kind === 'scope') {
+      if (Array.isArray(ex.scope_items) && ex.scope_items.length) {
+        html += '<h3 style="margin:6px 0 6px;font-size:13px;color:#1e293b">Scope items</h3><ul style="font-size:12px;padding-left:18px;margin:0;color:#334155">';
+        ex.scope_items.forEach(function(s) {
+          html += '<li style="margin-bottom:6px">' +
+            (s.typical_gap ? '<span style="background:#fef3c7;color:#78350f;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">TYPICAL GAP</span>' : '') +
+            '<b>' + escHtml(s.source || '') + ':</b> ' + escHtml(s.description || '') +
+            (s.notes ? ' <span style="color:#64748b">— ' + escHtml(s.notes) + '</span>' : '') +
+            '</li>';
+        });
+        html += '</ul>';
+      }
+      if (Array.isArray(ex.exclusion_flags) && ex.exclusion_flags.length) {
+        html += '<h3 style="margin:14px 0 6px;font-size:13px;color:#dc2626">Exclusion flags</h3><ul style="font-size:12px;padding-left:18px;margin:0;color:#334155">';
+        ex.exclusion_flags.forEach(function(f) {
+          html += '<li><b>' + escHtml(f.item || '') + ':</b> ' + escHtml(f.reason || '') + '</li>';
+        });
+        html += '</ul>';
+      }
+    } else if (kind === 'rfi') {
+      if (Array.isArray(ex.rfis) && ex.rfis.length) {
+        ex.rfis.forEach(function(r, i) {
+          var colors = { high: '#dc2626', medium: '#f59e0b', low: '#64748b' };
+          var c = colors[r.priority] || '#64748b';
+          html += '<div style="border-left:3px solid ' + c + ';background:#f8fafc;padding:10px;margin-bottom:8px;border-radius:0 6px 6px 0">' +
+            '<div style="font-weight:700;font-size:12px;color:#1e293b">RFI #' + (i + 1) + ' — ' + escHtml(r.topic || '') +
+            (r.priority ? ' <span style="color:' + c + ';font-size:10px;text-transform:uppercase;margin-left:4px">' + r.priority + '</span>' : '') +
+            '</div>' +
+            '<div style="font-size:12px;color:#334155;margin-top:4px">' + escHtml(r.question || '') + '</div>' +
+            (r.sheet_ref ? '<div style="font-size:11px;color:#64748b;margin-top:2px">Sheet ref: ' + escHtml(r.sheet_ref) + '</div>' : '') +
+            '</div>';
+        });
+      } else {
+        html += '<div style="font-size:12px;color:#64748b">No RFIs flagged.</div>';
+      }
+    }
+    if (ex.confidence) html += '<div style="margin-top:10px;font-size:11px;color:#64748b">Claude self-reported confidence: <b>' + escHtml(ex.confidence) + '</b></div>';
+    if (!html) html = '<div style="font-size:12px;color:#64748b">Empty result. Raw:<br><pre style="background:#f8fafc;padding:8px;border-radius:6px;font-size:11px;overflow:auto">' + escHtml(JSON.stringify(ex, null, 2)) + '</pre></div>';
+    host.innerHTML = html;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   //   Helpers
   // ══════════════════════════════════════════════════════════════════════════
   function openModal(id)  { document.getElementById(id).classList.add('open'); }
@@ -1435,6 +1608,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=174"></script>
+<script src="sw-register.js?v=176"></script>
 </body>
 </html>
