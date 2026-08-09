@@ -12,8 +12,10 @@
 <title>Estimating — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=165"></script>
-<script src="auth.js?v=165"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="supabase-config.js?v=166"></script>
+<script src="auth.js?v=166"></script>
 <style>
   body { padding-bottom: 24px; }
   .es-wrap { max-width: 1400px; margin: 0 auto; }
@@ -269,6 +271,21 @@
     <div class="field">
       <label>Project address</label>
       <textarea id="eProjectAddr" style="min-height:50px"></textarea>
+    </div>
+
+    <div class="field">
+      <label>Scope of work summary (appears on client PDF)</label>
+      <textarea id="eScope" style="min-height:70px" placeholder="Brief scope description that appears in the client proposal"></textarea>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Inclusions</label>
+        <textarea id="eInclusions" style="min-height:60px" placeholder="What IS included in the price"></textarea>
+      </div>
+      <div class="field">
+        <label>Exclusions</label>
+        <textarea id="eExclusions" style="min-height:60px" placeholder="What is NOT included"></textarea>
+      </div>
     </div>
 
     <div class="modal-actions">
@@ -571,6 +588,9 @@ requireAuth().catch(function(){});
       document.getElementById('eClientName').value  = d.client_name || '';
       document.getElementById('eClientAddr').value  = d.client_address || '';
       document.getElementById('eProjectAddr').value = d.project_address || '';
+      document.getElementById('eScope').value       = d.scope_summary || '';
+      document.getElementById('eInclusions').value  = d.inclusions || '';
+      document.getElementById('eExclusions').value  = d.exclusions || '';
     } else {
       document.getElementById('eName').value        = '';
       document.getElementById('eNumber').value      = '';
@@ -579,6 +599,9 @@ requireAuth().catch(function(){});
       document.getElementById('eClientName').value  = '';
       document.getElementById('eClientAddr').value  = '';
       document.getElementById('eProjectAddr').value = '';
+      document.getElementById('eScope').value       = '';
+      document.getElementById('eInclusions').value  = '';
+      document.getElementById('eExclusions').value  = '';
     }
     openModal('estimateModal');
   }
@@ -592,7 +615,10 @@ requireAuth().catch(function(){});
       project_id:      document.getElementById('eProject').value || null,
       client_name:     document.getElementById('eClientName').value.trim() || null,
       client_address:  document.getElementById('eClientAddr').value.trim() || null,
-      project_address: document.getElementById('eProjectAddr').value.trim() || null
+      project_address: document.getElementById('eProjectAddr').value.trim() || null,
+      scope_summary:   document.getElementById('eScope').value.trim() || null,
+      inclusions:      document.getElementById('eInclusions').value.trim() || null,
+      exclusions:      document.getElementById('eExclusions').value.trim() || null
     };
     if (!patch.name) { showToast('Estimate name is required', 'error'); return; }
     var btn = document.getElementById('estSave');
@@ -665,9 +691,9 @@ requireAuth().catch(function(){});
       (canEdit ? '<div class="detail-actions">' +
         '<button class="btn-secondary" id="editEstBtn">Edit details</button>' +
         '<button class="btn-secondary" id="statusBtn">Change status</button>' +
-        '<button class="btn-secondary" id="proposalBtn" title="Coming soon">📄 Export proposal (soon)</button>' +
-        '<button class="btn-secondary" id="copyInvBtn" title="Coming soon">📥 Copy to Invoicing (soon)</button>' +
-        '<button class="btn-secondary" id="copyWlBtn" title="Coming soon">📥 Copy to Workload (soon)</button>' +
+        '<button class="btn-secondary" id="proposalBtn" title="Export 1-2 page client proposal PDF">📄 Export proposal PDF</button>' +
+        '<button class="btn-secondary" id="copyInvBtn" title="Create AIA billing setup + first draft application">📥 Copy to Invoicing</button>' +
+        '<button class="btn-secondary" id="copyWlBtn" title="Push labor hours to Workload Planner">📥 Copy to Workload</button>' +
       '</div>' : '') +
     '</div>';
   }
@@ -676,9 +702,9 @@ requireAuth().catch(function(){});
     var btn;
     btn = document.getElementById('editEstBtn'); if (btn) btn.addEventListener('click', function() { openEstimateModal(currentEst.id); });
     btn = document.getElementById('statusBtn');  if (btn) btn.addEventListener('click', changeStatus);
-    btn = document.getElementById('proposalBtn');if (btn) btn.addEventListener('click', function() { showToast('Proposal PDF export coming in next release', 'error'); });
-    btn = document.getElementById('copyInvBtn'); if (btn) btn.addEventListener('click', function() { showToast('Copy to Invoicing coming in next release', 'error'); });
-    btn = document.getElementById('copyWlBtn');  if (btn) btn.addEventListener('click', function() { showToast('Copy to Workload coming in next release', 'error'); });
+    btn = document.getElementById('proposalBtn');if (btn) btn.addEventListener('click', exportProposalPDF);
+    btn = document.getElementById('copyInvBtn'); if (btn) btn.addEventListener('click', copyToInvoicing);
+    btn = document.getElementById('copyWlBtn');  if (btn) btn.addEventListener('click', copyToWorkload);
 
     // Add line / assembly / markup listeners
     document.querySelectorAll('[data-addline]').forEach(function(b) {
@@ -1083,6 +1109,398 @@ requireAuth().catch(function(){});
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  //   COPY TO INVOICING — create aia_project + first draft application
+  // ══════════════════════════════════════════════════════════════════════════
+  async function copyToInvoicing() {
+    if (!canEdit) return;
+    if (!currentEst.project_id) {
+      showToast('Link estimate to a project first (Edit details → pick project)', 'error');
+      return;
+    }
+    if (currentEst.status !== 'awarded') {
+      if (!confirm('Estimate is not marked "awarded" yet. Continue anyway?')) return;
+    }
+
+    var totals = computeAllTotals(currentLines, currentEst);
+    if (!totals.bidPrice || totals.bidPrice <= 0) {
+      showToast('Bid price must be > 0 before copying', 'error');
+      return;
+    }
+
+    // Check if aia_project already exists for this project
+    var existing = await supabaseClient.from('aia_projects')
+      .select('id').eq('project_id', currentEst.project_id).maybeSingle();
+    var aiaProjectId;
+    if (existing.data) {
+      if (!confirm('AIA billing already exists for this project. Add another draft application to it?')) return;
+      aiaProjectId = existing.data.id;
+    } else {
+      var setupPatch = {
+        project_id:            currentEst.project_id,
+        original_contract_sum: Math.round(totals.bidPrice * 100) / 100,
+        retainage_rate:        0.05,
+        contract_for:          currentEst.name,
+        client_name:           currentEst.client_name,
+        client_address:        currentEst.client_address,
+        contract_date:         currentEst.awarded_at ? currentEst.awarded_at.slice(0, 10) : null,
+        created_by:            currentUserId
+      };
+      var setupRes = await supabaseClient.from('aia_projects').insert(setupPatch).select().single();
+      if (setupRes.error) { showToast('Setup failed: ' + setupRes.error.message, 'error'); return; }
+      aiaProjectId = setupRes.data.id;
+    }
+
+    // Determine next application number
+    var lastApp = await supabaseClient.from('aia_applications')
+      .select('application_no').eq('aia_project_id', aiaProjectId)
+      .order('application_no', { ascending: false }).limit(1).maybeSingle();
+    var nextAppNo = (lastApp && lastApp.data) ? lastApp.data.application_no + 1 : 1;
+
+    var today = new Date();
+    var appRes = await supabaseClient.from('aia_applications').insert({
+      aia_project_id:  aiaProjectId,
+      application_no:  nextAppNo,
+      period_from:     ymd(firstOfMonth(today)),
+      period_to:       ymd(lastOfMonth(today)),
+      application_date:ymd(today),
+      status:          'draft',
+      previous_certificates: 0,
+      created_by:      currentUserId
+    }).select().single();
+    if (appRes.error) { showToast('Application create failed: ' + appRes.error.message, 'error'); return; }
+    var appId = appRes.data.id;
+
+    // Roll up estimate line items into Schedule of Values, one item per category
+    var byCat = {};
+    currentLines.forEach(function(li) {
+      if (li.is_optional) return;
+      (byCat[li.category] = byCat[li.category] || []).push(li);
+    });
+    var lineItems = [];
+    var sortOrder = 1;
+    var totalRolledUp = 0;
+    CATEGORIES.forEach(function(cat) {
+      var items = byCat[cat.key];
+      if (!items || !items.length) return;
+      var baseValue = 0;
+      items.forEach(function(li) {
+        var q = Number(li.quantity || 0);
+        var mat = q * Number(li.unit_material_cost || 0);
+        var hrs = q * Number(li.unit_labor_hours || 0);
+        var lab = hrs * laborRate(li.labor_crew_type, currentEst);
+        baseValue += mat + lab;
+      });
+      // Scale from base cost to bid price proportionally (spreads OH/profit/tax across categories)
+      var proportion = totals.baseCost > 0 ? baseValue / totals.baseCost : 0;
+      var scheduledValue = Math.round(proportion * totals.bidPrice * 100) / 100;
+      totalRolledUp += scheduledValue;
+      lineItems.push({
+        application_id:  appId,
+        item_no:         String(sortOrder),
+        description:     cat.label,
+        scheduled_value: scheduledValue,
+        sort_order:      sortOrder
+      });
+      sortOrder++;
+    });
+    // Fix rounding drift by adjusting last item
+    if (lineItems.length && Math.abs(totalRolledUp - totals.bidPrice) > 0.01) {
+      var drift = totals.bidPrice - totalRolledUp;
+      lineItems[lineItems.length - 1].scheduled_value =
+        Math.round((lineItems[lineItems.length - 1].scheduled_value + drift) * 100) / 100;
+    }
+    if (lineItems.length) {
+      var linesInsert = await supabaseClient.from('aia_line_items').insert(lineItems);
+      if (linesInsert.error) { showToast('Line items failed: ' + linesInsert.error.message, 'error'); return; }
+    }
+
+    // Link estimate ← aia_project
+    await supabaseClient.from('estimates').update({ aia_project_id: aiaProjectId }).eq('id', currentEst.id);
+
+    showToast('✅ Created AIA billing setup + Application #' + nextAppNo + ' — opening…', 'success');
+    setTimeout(function() { window.location.href = 'invoicing.html?app=' + appId; }, 1200);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   COPY TO WORKLOAD — push labor hours per crew to workload planner
+  // ══════════════════════════════════════════════════════════════════════════
+  async function copyToWorkload() {
+    if (!canEdit) return;
+    if (!currentEst.project_id) {
+      showToast('Link estimate to a project first (Edit details → pick project)', 'error');
+      return;
+    }
+    var totals = computeAllTotals(currentLines, currentEst);
+    if (!totals.laborHours) {
+      showToast('No labor hours in estimate — add labor to line items first', 'error');
+      return;
+    }
+
+    var smCrew   = prompt('Average SM crew size (concurrent men per day)?', '3');
+    if (smCrew === null) return;
+    var pipeCrew = prompt('Average Piping crew size (concurrent men per day)?', '3');
+    if (pipeCrew === null) return;
+    var suCrew   = prompt('Average Start-up crew size (concurrent men per day)?', '1');
+    if (suCrew === null) return;
+
+    var smSize   = Math.max(1, Number(smCrew)   || 1);
+    var pipeSize = Math.max(1, Number(pipeCrew) || 1);
+    var suSize   = Math.max(1, Number(suCrew)   || 1);
+
+    var smDays   = totals.laborBreakdown.sm      > 0 ? Math.ceil(totals.laborBreakdown.sm      / (8 * smSize))   : 0;
+    var pipeDays = totals.laborBreakdown.pipe    > 0 ? Math.ceil(totals.laborBreakdown.pipe    / (8 * pipeSize)) : 0;
+    var suDays   = totals.laborBreakdown.startup > 0 ? Math.ceil(totals.laborBreakdown.startup / (8 * suSize))   : 0;
+
+    var patch = {
+      sm_needed:        totals.laborBreakdown.sm      > 0 ? smSize   : 0,
+      sm_days:          smDays,
+      pipe_needed:      totals.laborBreakdown.pipe    > 0 ? pipeSize : 0,
+      pipe_days:        pipeDays,
+      startup_needed:   totals.laborBreakdown.startup > 0 ? suSize   : 0,
+      startup_days:     suDays,
+      planned_man_hours:Math.round(totals.laborHours),
+      workload_updated_at: new Date().toISOString(),
+      workload_updated_by: currentUserId
+    };
+
+    var r = await supabaseClient.from('projects').update(patch).eq('id', currentEst.project_id);
+    if (r.error) { showToast('Push failed: ' + r.error.message, 'error'); return; }
+
+    var summary = '🔩 ' + smSize + '×' + smDays + 'd · 🔧 ' + pipeSize + '×' + pipeDays + 'd · ⚡ ' + suSize + '×' + suDays + 'd';
+    showToast('✅ Pushed to Workload Planner: ' + summary + ' (planned ' + Math.round(totals.laborHours) + ' hrs)', 'success');
+    setTimeout(function() { window.location.href = 'workload.html'; }, 1800);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   EXPORT CLIENT PROPOSAL PDF
+  // ══════════════════════════════════════════════════════════════════════════
+  function exportProposalPDF() {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      showToast('PDF library not loaded — refresh the page', 'error'); return;
+    }
+    var totals = computeAllTotals(currentLines, currentEst);
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({ unit: 'pt', format: 'letter' });   // 612 × 792
+    var pageW = 612;
+    var margin = 40;
+    var y = margin;
+
+    // ─── Header block ────────────────────────────────────────
+    doc.setFillColor(11, 61, 102);
+    doc.rect(0, 0, pageW, 90, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.text('NORTHERN WOLVES AC', margin, 42);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('55 9th Street, Unit 55A-2, Brooklyn, NY 11215', margin, 60);
+    doc.text('Ruslan Zhdamarov · 347-440-3030 · ruslan@northernwolvesac.com', margin, 74);
+
+    // Big PROPOSAL label right side
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(26);
+    doc.text('PROPOSAL', pageW - margin, 42, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    if (currentEst.estimate_no) doc.text('No. ' + currentEst.estimate_no, pageW - margin, 60, { align: 'right' });
+    doc.text('Date: ' + new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }), pageW - margin, 74, { align: 'right' });
+
+    y = 120;
+    doc.setTextColor(0, 0, 0);
+
+    // ─── To / From block ────────────────────────────────────
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('PREPARED FOR:', margin, y);
+    doc.text('PROJECT:', pageW / 2 + 20, y);
+    y += 4;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, margin + 220, y);
+    doc.line(pageW / 2 + 20, y, pageW - margin, y);
+    y += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    var clientLines = [currentEst.client_name || '—'];
+    if (currentEst.client_address) {
+      currentEst.client_address.split('\n').forEach(function(line) { clientLines.push(line); });
+    }
+    clientLines.forEach(function(line, i) { doc.text(line, margin, y + i * 12); });
+    var projLines = [currentEst.name];
+    if (currentEst.project_address) {
+      currentEst.project_address.split('\n').forEach(function(line) { projLines.push(line); });
+    }
+    if (currentEst.bid_due_date) projLines.push('Bid due: ' + currentEst.bid_due_date);
+    projLines.forEach(function(line, i) { doc.text(line, pageW / 2 + 20, y + i * 12); });
+    y += Math.max(clientLines.length, projLines.length) * 12 + 20;
+
+    // ─── Scope summary ──────────────────────────────────────
+    if (currentEst.scope_summary) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('SCOPE OF WORK', margin, y);
+      y += 4;
+      doc.setDrawColor(11, 61, 102);
+      doc.setLineWidth(1);
+      doc.line(margin, y, pageW - margin, y);
+      doc.setLineWidth(0.5);
+      y += 12;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      var scope = doc.splitTextToSize(currentEst.scope_summary, pageW - 2 * margin);
+      doc.text(scope, margin, y);
+      y += scope.length * 11 + 12;
+    }
+
+    // ─── Line items summary (by category, no cost split) ──
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('PRICE BREAKDOWN', margin, y);
+    y += 4;
+    doc.setDrawColor(11, 61, 102);
+    doc.setLineWidth(1);
+    doc.line(margin, y, pageW - margin, y);
+    doc.setLineWidth(0.5);
+    y += 8;
+
+    var byCat = {};
+    currentLines.forEach(function(li) {
+      if (li.is_optional) return;
+      (byCat[li.category] = byCat[li.category] || []).push(li);
+    });
+    var body = [];
+    CATEGORIES.forEach(function(cat) {
+      var items = byCat[cat.key];
+      if (!items || !items.length) return;
+      var baseValue = 0;
+      items.forEach(function(li) {
+        var q = Number(li.quantity || 0);
+        baseValue += q * Number(li.unit_material_cost || 0);
+        baseValue += q * Number(li.unit_labor_hours || 0) * laborRate(li.labor_crew_type, currentEst);
+      });
+      var proportion = totals.baseCost > 0 ? baseValue / totals.baseCost : 0;
+      var withMarkups = proportion * totals.bidPrice;
+      body.push([cat.icon + '  ' + cat.label, fmtMoney(withMarkups)]);
+    });
+
+    doc.autoTable({
+      startY: y,
+      head: [['CATEGORY', 'AMOUNT']],
+      body: body,
+      styles: { font: 'helvetica', fontSize: 10, cellPadding: 6 },
+      headStyles: { fillColor: [217, 225, 242], textColor: [11, 61, 102], fontStyle: 'bold', halign: 'left' },
+      columnStyles: { 0: { cellWidth: 380 }, 1: { halign: 'right' } },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: margin, right: margin }
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // Bid Price highlight
+    doc.setFillColor(255, 242, 204);
+    doc.rect(margin, y, pageW - 2 * margin, 40, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(11, 61, 102);
+    doc.text('TOTAL BID PRICE:', margin + 12, y + 26);
+    doc.setFontSize(18);
+    doc.text(fmtMoney(totals.bidPrice), pageW - margin - 12, y + 26, { align: 'right' });
+    y += 56;
+    doc.setTextColor(0, 0, 0);
+
+    // Check if we need a new page for inclusions/exclusions
+    if (y > 620) { doc.addPage(); y = margin; }
+
+    // ─── Inclusions ─────────────────────────────────────────
+    if (currentEst.inclusions) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('INCLUSIONS', margin, y);
+      y += 12;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      var inc = doc.splitTextToSize(currentEst.inclusions, pageW - 2 * margin);
+      doc.text(inc, margin, y);
+      y += inc.length * 11 + 12;
+    }
+    if (currentEst.exclusions) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('EXCLUSIONS', margin, y);
+      y += 12;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      var exc = doc.splitTextToSize(currentEst.exclusions, pageW - 2 * margin);
+      doc.text(exc, margin, y);
+      y += exc.length * 11 + 12;
+    }
+
+    // ─── Standard terms ─────────────────────────────────────
+    if (y > 640) { doc.addPage(); y = margin; }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('TERMS & CONDITIONS', margin, y);
+    y += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    var terms = [
+      '• Payment terms: progress billing per AIA G702/G703 on 30-day cycles.',
+      '• Sales tax on materials is included in the bid price above.',
+      '• Standard 1-year workmanship warranty on labor; equipment carries manufacturer warranty.',
+      '• Price valid for 30 days from date above.',
+      '• Change orders in writing before work begins.'
+    ];
+    terms.forEach(function(t, i) { doc.text(t, margin, y + i * 11); });
+    y += terms.length * 11 + 24;
+
+    // ─── Signature block ────────────────────────────────────
+    if (y > 690) { doc.addPage(); y = margin; }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('ACCEPTED BY (Client):', margin, y);
+    doc.text('CONTRACTOR (Northern Wolves AC):', pageW / 2 + 10, y);
+    y += 20;
+    doc.setDrawColor(100, 100, 100);
+    doc.line(margin, y, margin + 220, y);
+    doc.line(pageW / 2 + 10, y, pageW - margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Signature / Date', margin, y + 10);
+    doc.text('Ruslan Zhdamarov, Owner / Date', pageW / 2 + 10, y + 10);
+
+    // ─── Footer on every page ──────────────────────────────
+    var pageCount = doc.internal.getNumberOfPages();
+    for (var p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(150, 150, 150);
+      doc.text('Northern Wolves AC · Proposal · ' + (currentEst.estimate_no || currentEst.name),
+               margin, 780);
+      doc.text('Page ' + p + ' of ' + pageCount, pageW - margin, 780, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+    }
+
+    // Filename: proposal-<estimateNo or name>-<YYYY-MM-DD>.pdf
+    var slug = (currentEst.estimate_no || currentEst.name || 'estimate')
+      .replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-|-$/g, '').substring(0, 60);
+    var fileName = 'proposal-' + slug + '-' + ymd(new Date()) + '.pdf';
+    doc.save(fileName);
+    showToast('✅ Proposal PDF downloaded', 'success');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //   Date helpers
+  // ══════════════════════════════════════════════════════════════════════════
+  function firstOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function lastOfMonth(d)  { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+  function ymd(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   //   Helpers
   // ══════════════════════════════════════════════════════════════════════════
   function fmtMoney(n) {
@@ -1106,6 +1524,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=165"></script>
+<script src="sw-register.js?v=166"></script>
 </body>
 </html>
