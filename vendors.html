@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Vendor Library — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=173"></script>
+<script src="auth.js?v=173"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .vl-wrap { max-width: 1200px; margin: 0 auto; }
+  .vl-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+    align-items: center; flex-wrap: wrap;
+  }
+  .vl-toolbar input {
+    padding: 8px 12px; font-size: 13px; border: 1px solid var(--nw-border);
+    border-radius: 8px; background: #fff; min-width: 340px;
+  }
+  .vl-toolbar .grow { flex: 1; }
+  .btn-primary {
+    background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+    padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+
+  .vl-layout {
+    display: grid; grid-template-columns: 340px 1fr; gap: 0;
+    height: calc(100vh - 130px);
+  }
+  @media (max-width: 800px) { .vl-layout { grid-template-columns: 1fr; height: auto; } .vl-detail { display: none; } .vl-layout.detail-open .vl-list { display: none; } .vl-layout.detail-open .vl-detail { display: block; } }
+
+  .vl-list {
+    background: var(--nw-card); border-right: 1px solid var(--nw-border);
+    overflow-y: auto;
+  }
+  .v-row {
+    padding: 10px 14px; border-bottom: 1px solid var(--nw-border);
+    cursor: pointer;
+  }
+  .v-row:hover, .v-row.active { background: #f0f9ff; }
+  .v-row.active { border-left: 3px solid var(--nw-primary); padding-left: 11px; }
+  .v-row .name { font-weight: 700; font-size: 13px; color: var(--nw-text); }
+  .v-row .meta { font-size: 11px; color: var(--nw-muted); margin-top: 2px; }
+  .v-row .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 8px;
+    background: #e0f2fe; color: #075985; font-size: 10px; font-weight: 700;
+    margin-left: 4px;
+  }
+
+  .vl-detail {
+    padding: 20px 24px; overflow-y: auto; background: #fff;
+  }
+  .vl-detail h2 { margin: 0 0 4px; font-size: 22px; color: var(--nw-text); }
+  .vl-detail .sub { font-size: 12px; color: var(--nw-muted); margin-bottom: 16px; }
+  .vl-detail h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--nw-muted); margin: 20px 0 8px; border-bottom: 1px solid var(--nw-border);
+    padding-bottom: 4px;
+  }
+  .vl-detail .row {
+    padding: 6px 0; font-size: 13px;
+    display: grid; grid-template-columns: 120px 1fr; gap: 8px;
+  }
+  .vl-detail .row b { color: var(--nw-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; }
+
+  .contact-card {
+    background: #f8fafc; border-radius: 8px; padding: 10px 14px;
+    margin-bottom: 8px; border-left: 3px solid var(--nw-primary);
+  }
+  .contact-card.primary { border-left-color: #f59e0b; background: #fef3c7; }
+  .contact-card .cn { font-weight: 700; font-size: 13px; color: var(--nw-text); }
+  .contact-card .ct { font-size: 11px; color: var(--nw-muted); }
+  .contact-card .cd { margin-top: 4px; font-size: 12px; color: var(--nw-text); display: flex; gap: 12px; flex-wrap: wrap; }
+  .contact-card .cd a { color: var(--nw-primary); text-decoration: none; }
+
+  .mfr-chip {
+    display: inline-block; padding: 3px 10px; margin: 2px;
+    background: #ede9fe; color: #5b21b6; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .mfr-chip.match { background: #fbbf24; color: #78350f; }
+
+  .empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="vl-wrap">
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content"><h1>Vendor Library</h1></div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="vl-toolbar">
+    <input type="search" id="qSearch" placeholder="🔍 Search vendor or manufacturer (e.g. Trane, Runtal, LG)…" autofocus>
+    <div class="grow"></div>
+    <span style="font-size:11px;color:var(--nw-muted)" id="matchCount"></span>
+  </div>
+
+  <div class="vl-layout" id="layout">
+    <div class="vl-list" id="vList"></div>
+    <div class="vl-detail" id="vDetail">
+      <div class="empty">
+        <div class="icon">📇</div>
+        <p>Pick a vendor from the list to see contacts and manufacturers, or type a manufacturer name above to find the rep.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var vendors = [], contactsByVendor = {}, mfrsByVendor = {};
+  var currentVendorId = null;
+  var currentSearchLower = '';   // if user typed a mfr name, highlight it
+
+  init();
+
+  async function init() {
+    var r1 = await supabaseClient.from('vendors').select('*').order('name');
+    var r2 = await supabaseClient.from('vendor_contacts').select('*').order('is_primary', { ascending: false });
+    var r3 = await supabaseClient.from('vendor_manufacturers').select('*').order('manufacturer_name');
+    if (r1.error || r2.error || r3.error) {
+      document.getElementById('vList').innerHTML = '<div class="empty"><div class="icon">⚠️</div><p>Load error</p></div>';
+      return;
+    }
+    vendors = r1.data || [];
+    (r2.data || []).forEach(function(c) {
+      (contactsByVendor[c.vendor_id] = contactsByVendor[c.vendor_id] || []).push(c);
+    });
+    (r3.data || []).forEach(function(m) {
+      (mfrsByVendor[m.vendor_id] = mfrsByVendor[m.vendor_id] || []).push(m);
+    });
+    renderList();
+    document.getElementById('qSearch').addEventListener('input', renderList);
+  }
+
+  function renderList() {
+    var q = (document.getElementById('qSearch').value || '').toLowerCase().trim();
+    currentSearchLower = q;
+    // Rank vendors: match by name > match by manufacturer > match by any contact
+    var results = vendors.map(function(v) {
+      var reasons = [];
+      var mfrs = mfrsByVendor[v.id] || [];
+      if (!q) { reasons.push('all'); }
+      else {
+        if (v.name.toLowerCase().indexOf(q) >= 0) reasons.push('vendor name');
+        if ((v.notes || '').toLowerCase().indexOf(q) >= 0) reasons.push('vendor notes');
+        var mfrHits = mfrs.filter(function(m) { return m.manufacturer_name.toLowerCase().indexOf(q) >= 0; });
+        if (mfrHits.length) reasons.push('reps ' + mfrHits[0].manufacturer_name + (mfrHits.length > 1 ? ' + ' + (mfrHits.length - 1) + ' more' : ''));
+        var contacts = contactsByVendor[v.id] || [];
+        var contactHit = contacts.some(function(c) {
+          return (c.name || '').toLowerCase().indexOf(q) >= 0
+              || (c.email || '').toLowerCase().indexOf(q) >= 0;
+        });
+        if (contactHit) reasons.push('contact');
+      }
+      return reasons.length ? { v: v, reasons: reasons, mfrCount: mfrs.length } : null;
+    }).filter(Boolean);
+
+    document.getElementById('matchCount').textContent = q ? results.length + ' match' + (results.length === 1 ? '' : 'es') : (vendors.length + ' vendors');
+
+    var host = document.getElementById('vList');
+    if (!results.length) {
+      host.innerHTML = '<div class="empty"><div class="icon">🔍</div><p>No matches for "<b>' + escHtml(q) + '</b>"</p></div>';
+      return;
+    }
+    host.innerHTML = results.map(function(r) {
+      var v = r.v;
+      var badge = q ? '<span class="badge">' + escHtml(r.reasons[0]) + '</span>' : '';
+      return '<div class="v-row' + (v.id === currentVendorId ? ' active' : '') + '" data-vid="' + v.id + '">' +
+        '<div class="name">' + escHtml(v.name) + badge + '</div>' +
+        '<div class="meta">' + (v.quote_email ? '📧 ' + escHtml(v.quote_email) + ' · ' : '') +
+          r.mfrCount + ' mfr line' + (r.mfrCount === 1 ? '' : 's') +
+        '</div>' +
+      '</div>';
+    }).join('');
+    host.querySelectorAll('[data-vid]').forEach(function(el) {
+      el.addEventListener('click', function() { renderDetail(el.getAttribute('data-vid')); });
+    });
+
+    // Auto-select first match if a search is active
+    if (q && results.length && (!currentVendorId || !results.find(function(r) { return r.v.id === currentVendorId; }))) {
+      renderDetail(results[0].v.id);
+    }
+  }
+
+  function renderDetail(vendorId) {
+    currentVendorId = vendorId;
+    document.getElementById('layout').classList.add('detail-open');
+    var v = vendors.find(function(x) { return x.id === vendorId; });
+    if (!v) return;
+
+    var contacts = (contactsByVendor[vendorId] || []).slice().sort(function(a, b) {
+      return (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0);
+    });
+    var mfrs = mfrsByVendor[vendorId] || [];
+
+    var html = '<h2>' + escHtml(v.name) + '</h2>';
+    if (v.notes) html += '<div class="sub">' + escHtml(v.notes) + '</div>';
+
+    // Vendor info
+    html += '<h3>Bid intake</h3>';
+    if (v.quote_email) {
+      html += '<div class="row"><b>Quote email</b><span><a href="mailto:' + escHtml(v.quote_email) + '">' + escHtml(v.quote_email) + '</a></span></div>';
+    } else {
+      html += '<div class="row"><b>Quote email</b><span style="color:var(--nw-muted);font-style:italic">not on file — send to a contact directly</span></div>';
+    }
+    if (v.extra_emails) {
+      html += '<div class="row"><b>Also cc / alt</b><span>' + escHtml(v.extra_emails) + '</span></div>';
+    }
+
+    // Contacts
+    html += '<h3>Contacts (' + contacts.length + ')</h3>';
+    if (!contacts.length) {
+      html += '<div style="color:var(--nw-muted);font-size:12px;font-style:italic">No contacts on file yet.</div>';
+    }
+    contacts.forEach(function(c) {
+      html += '<div class="contact-card' + (c.is_primary ? ' primary' : '') + '">' +
+        '<div class="cn">' + escHtml(c.name) + (c.is_primary ? ' <span style="font-size:10px;color:#78350f;background:#fbbf24;padding:1px 6px;border-radius:8px;font-weight:700;margin-left:4px">PRIMARY</span>' : '') + '</div>' +
+        (c.title ? '<div class="ct">' + escHtml(c.title) + '</div>' : '') +
+        '<div class="cd">' +
+          (c.email ? '<span>📧 <a href="mailto:' + escHtml(c.email) + '">' + escHtml(c.email) + '</a></span>' : '') +
+          (c.phone ? '<span>📞 <a href="tel:' + escHtml(String(c.phone).replace(/[^0-9+]/g, '')) + '">' + escHtml(c.phone) + '</a></span>' : '') +
+        '</div>' +
+        (c.notes ? '<div style="font-size:11px;color:var(--nw-muted);margin-top:4px">' + escHtml(c.notes) + '</div>' : '') +
+      '</div>';
+    });
+
+    // Manufacturers
+    html += '<h3>Manufacturers repped (' + mfrs.length + ')</h3>';
+    if (!mfrs.length) {
+      html += '<div style="color:var(--nw-muted);font-size:12px;font-style:italic">No manufacturer lines on file.</div>';
+    } else {
+      html += '<div>' + mfrs.map(function(m) {
+        var isMatch = currentSearchLower && m.manufacturer_name.toLowerCase().indexOf(currentSearchLower) >= 0;
+        return '<span class="mfr-chip' + (isMatch ? ' match' : '') + '">' + escHtml(m.manufacturer_name) + '</span>';
+      }).join('') + '</div>';
+    }
+
+    document.getElementById('vDetail').innerHTML = html;
+
+    // Highlight active in list
+    document.querySelectorAll('.v-row').forEach(function(el) {
+      el.classList.toggle('active', el.getAttribute('data-vid') === vendorId);
+    });
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=173"></script>
+</body>
+</html>

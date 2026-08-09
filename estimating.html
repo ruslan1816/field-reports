@@ -15,8 +15,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="supabase-config.js?v=172"></script>
-<script src="auth.js?v=172"></script>
+<script src="supabase-config.js?v=173"></script>
+<script src="auth.js?v=173"></script>
 <style>
   body { padding-bottom: 24px; }
   .es-wrap { max-width: 1400px; margin: 0 auto; }
@@ -667,6 +667,7 @@ requireAuth().catch(function(){});
       'All estimates' +
       (canEdit ? ' · <a href="#" id="crumbNew">+ New estimate</a>' : '') +
       ' · <a href="assembly-library.html">📚 Assembly Library</a>' +
+      ' · <a href="vendors.html">📇 Vendor Library</a>' +
       ' · <label style="margin-left:12px">Estimator: <select id="crumbEstimator" style="padding:3px 8px;font-size:12px;border:1px solid var(--nw-border);border-radius:5px"><option value="">All</option><option value="__me__">Just me</option></select></label>' +
       ' · <label>Status: <select id="crumbStatus" style="padding:3px 8px;font-size:12px;border:1px solid var(--nw-border);border-radius:5px"><option value="">All</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="awarded">Awarded</option><option value="lost">Lost</option></select></label>';
     var link = document.getElementById('crumbNew');
@@ -2015,6 +2016,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=172"></script>
+<script src="sw-register.js?v=173"></script>
 </body>
 </html>
