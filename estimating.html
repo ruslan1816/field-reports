@@ -14,8 +14,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="supabase-config.js?v=166"></script>
-<script src="auth.js?v=166"></script>
+<script src="supabase-config.js?v=167"></script>
+<script src="auth.js?v=167"></script>
 <style>
   body { padding-bottom: 24px; }
   .es-wrap { max-width: 1400px; margin: 0 auto; }
@@ -363,6 +363,15 @@
       <div class="field">
         <label><input type="checkbox" id="lOptional"> Optional / Alternate line</label>
       </div>
+      <div class="field">
+        <label><input type="checkbox" id="lFirm" checked> Firm quote (uncheck = Budget/placeholder)</label>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label><input type="checkbox" id="lWetTap"> Wet-tap subcontract line ($10,000 standard per connection)</label>
+        <div class="field-hint">Kept as own component in Totals, per Pricing Standards</div>
+      </div>
     </div>
 
     <div class="modal-actions">
@@ -402,23 +411,45 @@ requireAuth().catch(function(){});
   'use strict';
 
   var MGMT_ROLES = ['admin','manager','lead_pm','project_manager','apm'];
+
+  // 7 fixed categories matching Kastriot's Cost Breakdown Template
   var CATEGORIES = [
-    { key: 'mobilization', label: 'Mobilization',                  icon: '🚚' },
-    { key: 'equipment',    label: 'Equipment',                     icon: '🏭' },
-    { key: 'sm',           label: 'Sheet Metal / Ductwork',        icon: '🔩' },
-    { key: 'piping',       label: 'Piping / Refrigerant',          icon: '🔧' },
-    { key: 'controls',     label: 'Controls / BMS',                icon: '⚡' },
-    { key: 'insulation',   label: 'Insulation',                    icon: '🧻' },
-    { key: 'tab',          label: 'Testing & Balancing',           icon: '📊' },
-    { key: 'startup',      label: 'Startup & Commissioning',       icon: '🎯' },
-    { key: 'closeout',     label: 'Close-out / Documentation',     icon: '✅' },
-    { key: 'permits',      label: 'Permits / Inspections',         icon: '📋' },
-    { key: 'rentals',      label: 'Rentals / Access / Hoisting',   icon: '🏗️' },
-    { key: 'other',        label: 'Other',                         icon: '📦' }
+    { key: 'disconnects',       label: 'Disconnects',        icon: '✂️' },
+    { key: 'equipment',         label: 'Equipment',          icon: '🏭' },
+    { key: 'ductwork',          label: 'Ductwork',           icon: '🔩' },
+    { key: 'pipework',          label: 'Pipework',           icon: '🔧' },
+    { key: 'equipment_install', label: 'Equipment Install',  icon: '🛠️' },
+    { key: 'air_outlets',       label: 'Air Outlets Install',icon: '🌬️' },
+    { key: 'services',          label: 'Services',           icon: '📋' }
   ];
   function catMeta(key) { return CATEGORIES.find(function(c) { return c.key === key; }) || CATEGORIES[CATEGORIES.length - 1]; }
 
+  // Which categories contribute to Equipment/Material (TAXABLE) vs Labor vs Services
+  // Rules from Cost Breakdown Template.md
+  var MATERIAL_CATEGORIES  = ['equipment', 'ductwork', 'pipework'];   // material portion is TAXABLE
+  var LABOR_CATEGORIES     = ['disconnects', 'ductwork', 'pipework',
+                              'equipment_install', 'air_outlets'];    // labor portion, never taxed
+  var SERVICES_CATEGORIES  = ['services'];                             // never taxed
+
   var CREW_LABEL = { sm: '🔩 SM', pipe: '🔧 P', startup: '⚡ SU', other: 'Other', none: '—' };
+
+  // Reference rates from Standards (informational — user still types quantities)
+  var STD_RATES = {
+    ductworkSdPerFloor: 2500,
+    pipingSdPerFloor:   1300,
+    tabPerFloor:        2500,
+    wetTapPerConn:      10000,
+    airOutlets: {
+      diffuser: 1.6, linear: 0.8, vav: 2.67, damper: 2.67, fpb: 8
+    },
+    equipmentTiers: {
+      '1-30 lb':    4,   // 1/4 day * 2 men
+      '40-90 lb':   8,   // 1/2 day * 2 men
+      '100-190 lb': 16,  // 1 day * 2 men
+      '200-500 lb': 32,  // 1 day * 4 men
+      '600+ lb':    48   // 1 day * 6 men
+    }
+  };
 
   var currentUserId = null, currentUserRole = null, canEdit = false;
   var params = new URLSearchParams(window.location.search);
@@ -719,7 +750,7 @@ requireAuth().catch(function(){});
     document.querySelectorAll('[data-linedel]').forEach(function(b) {
       b.addEventListener('click', function(e) { e.stopPropagation(); deleteLine(b.getAttribute('data-linedel')); });
     });
-    ['mLaborSM','mLaborPipe','mLaborSU','mLaborOther','mTax','mOverhead','mProfit','mContingency','mBond'].forEach(function(id) {
+    ['mLabor','mOFCI','mOverhead','mMisc','mTax'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('change', saveMarkups);
     });
@@ -795,6 +826,8 @@ requireAuth().catch(function(){});
               (li.vendor_name ? '<div style="font-size:10px;color:var(--nw-muted)">' + escHtml(li.vendor_name) +
                 (li.vendor_quote_ref ? ' · ' + escHtml(li.vendor_quote_ref) : '') + '</div>' : '') +
               (li.is_optional ? '<span style="font-size:10px;background:#e2e8f0;padding:1px 6px;border-radius:4px;margin-left:6px">ALT</span>' : '') +
+              (li.is_firm === false ? '<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;margin-left:6px" title="Budget/placeholder — not firm quote">⚠ BUDGET</span>' : '') +
+              (li.is_wet_tap ? '<span style="font-size:10px;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;margin-left:6px">💧 WET-TAP</span>' : '') +
             '</td>' +
             '<td class="num">' + fmtNum(qty) + '</td>' +
             '<td class="ctr">' + escHtml(li.unit || '') + '</td>' +
@@ -828,42 +861,52 @@ requireAuth().catch(function(){});
   // ══════════════════════════════════════════════════════════════════════════
   function renderMarkupsPanel(totals) {
     var lock = canEdit ? '' : 'readonly';
-    return '<div class="panel"><h3>Rates & Markups</h3>' +
+    var ofciChecked = currentEst.is_ofci ? 'checked' : '';
+    return '<div class="panel"><h3>Rates & Markups <span style="font-size:10px;font-weight:400;color:var(--nw-muted);text-transform:none;letter-spacing:0">(per NWAC Standards)</span></h3>' +
       '<div class="mk-grid">' +
-        '<div>🔩 SM crew ($/hr)</div><div><input type="number" step="0.01" id="mLaborSM"    value="' + currentEst.labor_rate_sm     + '" ' + lock + '></div>' +
-        '<div>🔧 Piping ($/hr)</div><div><input type="number" step="0.01" id="mLaborPipe"  value="' + currentEst.labor_rate_pipe   + '" ' + lock + '></div>' +
-        '<div>⚡ Startup ($/hr)</div><div><input type="number" step="0.01" id="mLaborSU"    value="' + currentEst.labor_rate_startup + '" ' + lock + '></div>' +
-        '<div>Other ($/hr)</div><div><input type="number" step="0.01" id="mLaborOther" value="' + currentEst.labor_rate_other  + '" ' + lock + '></div>' +
+        '<div>Labor rate ($/hr per man)</div><div><input type="number" step="0.01" id="mLabor" value="' + currentEst.labor_rate + '" ' + lock + '></div>' +
         '<div style="grid-column:1/-1;border-top:1px solid var(--nw-border);margin:4px 0"></div>' +
-        '<div>Sales tax on material (%)</div><div><input type="number" step="0.001" id="mTax"         value="' + (currentEst.tax_rate        * 100).toFixed(3) + '" ' + lock + '></div>' +
-        '<div>Overhead (%)</div>              <div><input type="number" step="0.001" id="mOverhead"    value="' + (currentEst.overhead_pct    * 100).toFixed(3) + '" ' + lock + '></div>' +
-        '<div>Profit (%)</div>                <div><input type="number" step="0.001" id="mProfit"      value="' + (currentEst.profit_pct      * 100).toFixed(3) + '" ' + lock + '></div>' +
-        '<div>Contingency (%)</div>           <div><input type="number" step="0.001" id="mContingency" value="' + (currentEst.contingency_pct * 100).toFixed(3) + '" ' + lock + '></div>' +
-        '<div>Bond (%)</div>                  <div><input type="number" step="0.001" id="mBond"        value="' + (currentEst.bond_pct        * 100).toFixed(3) + '" ' + lock + '></div>' +
+        '<div><label style="cursor:pointer"><input type="checkbox" id="mOFCI" ' + ofciChecked + ' ' + (canEdit ? '' : 'disabled') + '> OFCI (owner-furnished eqp) → 30% overhead</label></div><div></div>' +
+        '<div>Overhead (%)</div>              <div><input type="number" step="0.001" id="mOverhead" value="' + (currentEst.overhead_pct       * 100).toFixed(3) + '" ' + lock + '></div>' +
+        '<div>Miscellaneous (%)</div>         <div><input type="number" step="0.001" id="mMisc"     value="' + (currentEst.miscellaneous_pct  * 100).toFixed(3) + '" ' + lock + '></div>' +
+        '<div>Sales tax on material (%)</div> <div><input type="number" step="0.001" id="mTax"      value="' + (currentEst.tax_rate           * 100).toFixed(3) + '" ' + lock + '></div>' +
+      '</div>' +
+      '<div style="font-size:10px;color:var(--nw-muted);margin-top:8px;line-height:1.4">' +
+        '• Miscellaneous is 2% of Base Subtotal (peer to overhead, not compounded, not taxed)<br>' +
+        '• Sales tax on Equipment/Material only (labor + wet-tap + services never taxed)<br>' +
+        '• Wet-tap standard: $10,000/connection — add as line item under Piping with "Wet-tap" flag' +
       '</div>' +
     '</div>';
   }
 
   function renderSummaryPanel(t) {
-    return '<div class="panel" style="margin-top:12px"><h3>Bid Summary</h3>' +
+    var ohLabel = currentEst.is_ofci ? 'Overhead (30% OFCI)' : 'Overhead (20%)';
+    return '<div class="panel" style="margin-top:12px"><h3>Bid Summary <span style="font-size:10px;font-weight:400;color:var(--nw-muted);text-transform:none;letter-spacing:0">(per Cost Breakdown Template)</span></h3>' +
       '<div class="sum-grid">' +
-        '<div class="lbl">Materials</div>            <div class="val">' + fmtMoney(t.material) + '</div>' +
-        '<div class="lbl">Labor</div>                <div class="val">' + fmtMoney(t.labor) + '</div>' +
-        '<div class="lbl indent">Labor hours (total)</div><div class="val indent">' + fmtNum(t.laborHours) + ' hrs</div>' +
-        '<div class="lbl indent">— SM crew</div>     <div class="val indent">' + fmtNum(t.laborBreakdown.sm) + ' hrs</div>' +
-        '<div class="lbl indent">— Piping</div>      <div class="val indent">' + fmtNum(t.laborBreakdown.pipe) + ' hrs</div>' +
-        '<div class="lbl indent">— Start-up</div>    <div class="val indent">' + fmtNum(t.laborBreakdown.startup) + ' hrs</div>' +
-        '<div class="lbl indent">— Other</div>       <div class="val indent">' + fmtNum(t.laborBreakdown.other) + ' hrs</div>' +
+        '<div class="lbl">— Equipment / Material <span style="font-size:10px;color:var(--nw-muted)">(taxable)</span></div>' +
+          '<div class="val">' + fmtMoney(t.materialTotal) + '</div>' +
+        '<div class="lbl indent">· Equipment quotes</div>   <div class="val indent">' + fmtMoney(t.equipmentMaterial) + '</div>' +
+        '<div class="lbl indent">· Ductwork material</div>  <div class="val indent">' + fmtMoney(t.ductworkMaterial) + '</div>' +
+        '<div class="lbl indent">· Piping material</div>    <div class="val indent">' + fmtMoney(t.pipeworkMaterial) + '</div>' +
+        '<div class="lbl">— Labor</div>                     <div class="val">' + fmtMoney(t.labor) + '</div>' +
+        '<div class="lbl indent">· Total labor hours</div>  <div class="val indent">' + fmtNum(t.laborHours) + ' hrs</div>' +
+        '<div class="lbl indent">· Rate (per man)</div>     <div class="val indent">' + fmtMoney(currentEst.labor_rate) + '/hr</div>' +
+        (t.wetTap > 0 ? '<div class="lbl">— Wet-tap</div><div class="val">' + fmtMoney(t.wetTap) + '</div>' : '') +
+        '<div class="lbl">— Services</div>                  <div class="val">' + fmtMoney(t.services) + '</div>' +
         '<div class="divider"></div>' +
-        '<div class="lbl">Base cost (Mat + Labor)</div><div class="val">' + fmtMoney(t.baseCost) + '</div>' +
-        '<div class="lbl">Sales tax on material</div> <div class="val">' + fmtMoney(t.tax) + '</div>' +
-        '<div class="lbl">Overhead</div>              <div class="val">' + fmtMoney(t.overhead) + '</div>' +
-        '<div class="lbl">Profit</div>                <div class="val">' + fmtMoney(t.profit) + '</div>' +
-        '<div class="lbl">Contingency</div>           <div class="val">' + fmtMoney(t.contingency) + '</div>' +
-        (t.bond > 0 ? '<div class="lbl">Bond</div><div class="val">' + fmtMoney(t.bond) + '</div>' : '') +
-        '<div class="bid-row"><div class="lbl">BID PRICE</div><div class="val">' + fmtMoney(t.bidPrice) + '</div></div>' +
+        '<div class="lbl" style="font-weight:700">Base Subtotal</div>' +
+          '<div class="val" style="font-weight:700">' + fmtMoney(t.baseSubtotal) + '</div>' +
+        '<div class="lbl">' + ohLabel + '</div>              <div class="val">' + fmtMoney(t.overhead) + '</div>' +
+        '<div class="lbl">Miscellaneous (' + (currentEst.miscellaneous_pct * 100).toFixed(1) + '%)</div>' +
+          '<div class="val">' + fmtMoney(t.miscellaneous) + '</div>' +
+        '<div class="lbl">Sales Tax (' + (currentEst.tax_rate * 100).toFixed(3) + '% on material)</div>' +
+          '<div class="val">' + fmtMoney(t.tax) + '</div>' +
+        '<div class="bid-row"><div class="lbl">PROJECT TOTAL</div><div class="val">' + fmtMoney(t.bidPrice) + '</div></div>' +
         '<div style="grid-column:1/-1;font-size:11px;color:var(--nw-muted);margin-top:8px">' +
-          'Margin = ' + fmtMoney(t.profit + t.contingency) + ' (' + Number((t.profit + t.contingency) / (t.bidPrice || 1) * 100).toFixed(1) + '%)' +
+          'Crew hours: 🔩 SM ' + fmtNum(t.laborBreakdown.sm) +
+          ' · 🔧 Piping ' + fmtNum(t.laborBreakdown.pipe) +
+          ' · ⚡ Startup ' + fmtNum(t.laborBreakdown.startup) +
+          ' · Other ' + fmtNum(t.laborBreakdown.other) + ' hrs' +
         '</div>' +
       '</div></div>';
   }
@@ -871,16 +914,18 @@ requireAuth().catch(function(){});
   async function saveMarkups() {
     if (!canEdit) return;
     var num = function(id) { var v = document.getElementById(id).value; return Number(v || 0); };
+    var ofci = document.getElementById('mOFCI').checked;
+    // When toggling OFCI, auto-set overhead to 30% / 20%; user can still override afterwards
+    var overheadPct = num('mOverhead') / 100;
+    if (ofci !== currentEst.is_ofci) {
+      overheadPct = ofci ? 0.30 : 0.20;
+    }
     var patch = {
-      labor_rate_sm:     num('mLaborSM'),
-      labor_rate_pipe:   num('mLaborPipe'),
-      labor_rate_startup:num('mLaborSU'),
-      labor_rate_other:  num('mLaborOther'),
-      tax_rate:          num('mTax')         / 100,
-      overhead_pct:      num('mOverhead')    / 100,
-      profit_pct:        num('mProfit')      / 100,
-      contingency_pct:   num('mContingency') / 100,
-      bond_pct:          num('mBond')        / 100
+      labor_rate:       num('mLabor'),
+      is_ofci:          ofci,
+      overhead_pct:     overheadPct,
+      miscellaneous_pct:num('mMisc') / 100,
+      tax_rate:         num('mTax')  / 100
     };
     var r = await supabaseClient.from('estimates').update(patch).eq('id', currentEst.id);
     if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
@@ -908,34 +953,44 @@ requireAuth().catch(function(){});
       document.getElementById('lQuoteRef').value  = li.vendor_quote_ref || '';
       document.getElementById('lNotes').value     = li.notes || '';
       document.getElementById('lOptional').checked = !!li.is_optional;
+      document.getElementById('lFirm').checked    = li.is_firm !== false;
+      document.getElementById('lWetTap').checked  = !!li.is_wet_tap;
     } else {
-      document.getElementById('lCategory').value  = defaultCategory || 'equipment';
-      document.getElementById('lUnit').value      = '';
+      var cat = defaultCategory || 'equipment';
+      // Sensible defaults by category
+      var crew = cat === 'pipework' ? 'pipe'
+               : cat === 'services' ? 'other'
+               : cat === 'air_outlets' ? 'sm'
+               : 'sm';
+      document.getElementById('lCategory').value  = cat;
+      document.getElementById('lUnit').value      = cat === 'equipment' ? 'ls' : 'ea';
       document.getElementById('lDesc').value      = '';
       document.getElementById('lQty').value       = 1;
       document.getElementById('lMatUnit').value   = 0;
       document.getElementById('lLabHrs').value    = 0;
-      document.getElementById('lCrew').value      = 'sm';
+      document.getElementById('lCrew').value      = crew;
       document.getElementById('lVendor').value    = '';
       document.getElementById('lQuoteRef').value  = '';
       document.getElementById('lNotes').value     = '';
       document.getElementById('lOptional').checked = false;
+      document.getElementById('lFirm').checked    = true;
+      document.getElementById('lWetTap').checked  = false;
     }
     updateLineHint();
     openModal('lineModal');
   }
 
   function updateLineHint() {
-    var q = Number(document.getElementById('lQty').value || 0);
+    var q  = Number(document.getElementById('lQty').value || 0);
     var mu = Number(document.getElementById('lMatUnit').value || 0);
     var lh = Number(document.getElementById('lLabHrs').value || 0);
-    var crew = document.getElementById('lCrew').value;
-    var rate = laborRate(crew, currentEst || { labor_rate_sm:85, labor_rate_pipe:85, labor_rate_startup:95, labor_rate_other:75 });
+    var rate = laborRate(null, currentEst || { labor_rate: 60 });
     var mat = q * mu;
     var totalHrs = q * lh;
     var lab = totalHrs * rate;
     document.getElementById('liveHint').innerHTML =
-      'Material: <b>' + fmtMoney(mat) + '</b> · Labor: <b>' + fmtNum(totalHrs) + ' hrs × ' + fmtMoney(rate) + '/hr = ' + fmtMoney(lab) + '</b> · Line total: <b>' + fmtMoney(mat + lab) + '</b>';
+      'Material: <b>' + fmtMoney(mat) + '</b> · Labor: <b>' + fmtNum(totalHrs) + ' hrs × ' +
+      fmtMoney(rate) + '/hr = ' + fmtMoney(lab) + '</b> · Line total: <b>' + fmtMoney(mat + lab) + '</b>';
   }
 
   async function saveLine() {
@@ -952,7 +1007,9 @@ requireAuth().catch(function(){});
       vendor_name:       document.getElementById('lVendor').value.trim() || null,
       vendor_quote_ref:  document.getElementById('lQuoteRef').value.trim() || null,
       notes:             document.getElementById('lNotes').value.trim() || null,
-      is_optional:       document.getElementById('lOptional').checked
+      is_optional:       document.getElementById('lOptional').checked,
+      is_firm:           document.getElementById('lFirm').checked,
+      is_wet_tap:        document.getElementById('lWetTap').checked
     };
     if (!patch.description) { showToast('Description is required', 'error'); return; }
     var btn = document.getElementById('lSave');
@@ -1060,51 +1117,81 @@ requireAuth().catch(function(){});
   // ══════════════════════════════════════════════════════════════════════════
   //   Cost math
   // ══════════════════════════════════════════════════════════════════════════
-  function laborRate(crew, est) {
-    switch (crew) {
-      case 'sm':      return Number(est.labor_rate_sm      || 0);
-      case 'pipe':    return Number(est.labor_rate_pipe    || 0);
-      case 'startup': return Number(est.labor_rate_startup || 0);
-      case 'other':   return Number(est.labor_rate_other   || 0);
-      default:        return 0;
-    }
-  }
+  // Single labor rate (per NWAC Standards — $60/hr flat)
+  function laborRate(_crew, est) { return Number(est.labor_rate || 60); }
 
+  // Kastriot's Cost Breakdown Template — 4 base components + overhead + misc + tax
+  //
+  //   Equipment/Material (TAXABLE) = equipment quotes + ductwork material + piping material
+  //   Labor              (untaxed) = disconnects + ductwork lab + pipework lab + eqp install + air outlets
+  //   Wet-tap            (untaxed) = every wet-tap line (in Piping section)
+  //   Services           (untaxed) = shop drawings + TAB + rigging + crane + scaffolding
+  //   Base Subtotal      = sum of the 4 above
+  //   Overhead           = Base Subtotal × 20% (30% if OFCI)
+  //   Miscellaneous      = Base Subtotal × 2%   (peer to overhead, never compounded)
+  //   Sales Tax          = Equipment/Material × 8.875% (NY)
+  //   PROJECT TOTAL      = Base Subtotal + Overhead + Miscellaneous + Sales Tax
   function computeAllTotals(lines, est) {
-    var material = 0, labor = 0, laborHours = 0;
+    var rate = laborRate(null, est);
+
+    var equipMat = 0;   // equipment vendor quotes (material portion of equipment lines)
+    var ductMat  = 0;   // ductwork material
+    var pipeMat  = 0;   // pipework material (excludes wet-tap)
+    var labor    = 0;   // all labor $ (across all labor-carrying categories)
+    var laborHours = 0;
+    var wetTap   = 0;
+    var services = 0;
     var breakdown = { sm: 0, pipe: 0, startup: 0, other: 0 };
+
     lines.forEach(function(li) {
       if (li.is_optional) return;
-      var q = Number(li.quantity || 0);
+      var q   = Number(li.quantity || 0);
       var mat = q * Number(li.unit_material_cost || 0);
-      var hrs = q * Number(li.unit_labor_hours || 0);
-      var lab = hrs * laborRate(li.labor_crew_type, est);
-      material   += mat;
-      labor      += lab;
-      laborHours += hrs;
-      if (breakdown[li.labor_crew_type] != null) breakdown[li.labor_crew_type] += hrs;
+      var hrs = q * Number(li.unit_labor_hours   || 0);
+      var lab = hrs * rate;
+
+      // Route material portion to the right bucket
+      if (li.is_wet_tap) {
+        wetTap += mat + lab;  // wet-tap is a subcontract line, treat as flat cost
+      } else if (li.category === 'equipment')     equipMat += mat;
+      else  if (li.category === 'ductwork')       ductMat  += mat;
+      else  if (li.category === 'pipework')       pipeMat  += mat;
+      else  if (li.category === 'services')       services += mat + lab; // services often has 0 labor, uses material $ as line amount
+      // disconnects / equipment_install / air_outlets: material typically 0
+
+      // Labor (only if not wet-tap — wet-tap already captured above)
+      if (!li.is_wet_tap && li.category !== 'services') {
+        labor      += lab;
+        laborHours += hrs;
+        if (breakdown[li.labor_crew_type] != null) breakdown[li.labor_crew_type] += hrs;
+      }
     });
-    var baseCost    = material + labor;
-    var tax         = material * Number(est.tax_rate || 0);
-    var subtotal    = baseCost + tax;
-    var overhead    = subtotal * Number(est.overhead_pct    || 0);
-    var afterOH     = subtotal + overhead;
-    var profit      = afterOH  * Number(est.profit_pct      || 0);
-    var afterProfit = afterOH  + profit;
-    var contingency = afterProfit * Number(est.contingency_pct || 0);
-    var afterCont   = afterProfit + contingency;
-    var bond        = afterCont * Number(est.bond_pct || 0);
-    var bidPrice    = afterCont + bond;
+
+    var materialTotal = equipMat + ductMat + pipeMat;         // TAXABLE base
+    var baseSubtotal  = materialTotal + labor + wetTap + services;
+    var overhead      = baseSubtotal * Number(est.overhead_pct || 0);
+    var misc          = baseSubtotal * Number(est.miscellaneous_pct || 0);
+    var tax           = materialTotal * Number(est.tax_rate || 0);
+    var bidPrice      = baseSubtotal + overhead + misc + tax;
+
     return {
-      material: material, labor: labor, laborHours: laborHours, laborBreakdown: breakdown,
-      baseCost: baseCost, tax: tax, overhead: overhead, profit: profit,
-      contingency: contingency, bond: bond, bidPrice: bidPrice
+      // component subtotals
+      equipmentMaterial: equipMat,
+      ductworkMaterial:  ductMat,
+      pipeworkMaterial:  pipeMat,
+      materialTotal:     materialTotal,
+      labor: labor, laborHours: laborHours, laborBreakdown: breakdown,
+      wetTap: wetTap, services: services,
+      // baseline + markups
+      baseSubtotal: baseSubtotal, overhead: overhead, miscellaneous: misc, tax: tax,
+      bidPrice: bidPrice,
+      // legacy alias for existing callers
+      material: materialTotal, baseCost: baseSubtotal
     };
   }
 
-  // For list view only — compact bid computation
   function computeBidPrice(lines, est) {
-    if (!est.tax_rate && est.tax_rate !== 0) return 0;
+    if (!est) return 0;
     return computeAllTotals(lines, est).bidPrice;
   }
 
@@ -1179,19 +1266,18 @@ requireAuth().catch(function(){});
     var lineItems = [];
     var sortOrder = 1;
     var totalRolledUp = 0;
+    var rate = laborRate(null, currentEst);
     CATEGORIES.forEach(function(cat) {
       var items = byCat[cat.key];
       if (!items || !items.length) return;
       var baseValue = 0;
       items.forEach(function(li) {
         var q = Number(li.quantity || 0);
-        var mat = q * Number(li.unit_material_cost || 0);
-        var hrs = q * Number(li.unit_labor_hours || 0);
-        var lab = hrs * laborRate(li.labor_crew_type, currentEst);
-        baseValue += mat + lab;
+        baseValue += q * Number(li.unit_material_cost || 0);
+        baseValue += q * Number(li.unit_labor_hours || 0) * rate;
       });
-      // Scale from base cost to bid price proportionally (spreads OH/profit/tax across categories)
-      var proportion = totals.baseCost > 0 ? baseValue / totals.baseCost : 0;
+      // Proportional scale from Base Subtotal → bid price (spreads OH + Misc + Tax over categories)
+      var proportion = totals.baseSubtotal > 0 ? baseValue / totals.baseSubtotal : 0;
       var scheduledValue = Math.round(proportion * totals.bidPrice * 100) / 100;
       totalRolledUp += scheduledValue;
       lineItems.push({
@@ -1369,6 +1455,7 @@ requireAuth().catch(function(){});
       (byCat[li.category] = byCat[li.category] || []).push(li);
     });
     var body = [];
+    var pdfRate = laborRate(null, currentEst);
     CATEGORIES.forEach(function(cat) {
       var items = byCat[cat.key];
       if (!items || !items.length) return;
@@ -1376,9 +1463,9 @@ requireAuth().catch(function(){});
       items.forEach(function(li) {
         var q = Number(li.quantity || 0);
         baseValue += q * Number(li.unit_material_cost || 0);
-        baseValue += q * Number(li.unit_labor_hours || 0) * laborRate(li.labor_crew_type, currentEst);
+        baseValue += q * Number(li.unit_labor_hours || 0) * pdfRate;
       });
-      var proportion = totals.baseCost > 0 ? baseValue / totals.baseCost : 0;
+      var proportion = totals.baseSubtotal > 0 ? baseValue / totals.baseSubtotal : 0;
       var withMarkups = proportion * totals.bidPrice;
       body.push([cat.icon + '  ' + cat.label, fmtMoney(withMarkups)]);
     });
@@ -1524,6 +1611,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=166"></script>
+<script src="sw-register.js?v=167"></script>
 </body>
 </html>
