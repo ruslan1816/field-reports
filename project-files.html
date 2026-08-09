@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Project Files — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=175"></script>
+<script src="auth.js?v=175"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .pf-wrap { max-width: 1200px; margin: 0 auto; }
+  .pf-header {
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+    padding: 12px 16px;
+  }
+  .pf-header h2 { margin: 0 0 4px; font-size: 20px; color: var(--nw-text); }
+  .pf-sub { font-size: 12px; color: var(--nw-muted); display: flex; gap: 12px; flex-wrap: wrap; }
+  .pf-sub b { color: var(--nw-text); }
+  .pf-toolbar {
+    display: flex; gap: 10px; padding: 10px 16px;
+    background: #f8fafc; border-bottom: 1px solid var(--nw-border);
+    align-items: center; flex-wrap: wrap;
+  }
+  .pf-toolbar input, .pf-toolbar select {
+    padding: 7px 11px; font-size: 13px; border: 1px solid var(--nw-border);
+    border-radius: 7px; background: #fff;
+  }
+  .pf-toolbar input[type="search"] { min-width: 260px; }
+  .pf-toolbar .grow { flex: 1; }
+  .btn-primary {
+    background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+    padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(6,150,215,.25);
+  }
+  .btn-danger {
+    background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+    padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; cursor: pointer;
+  }
+
+  .cat-section { margin: 10px 16px; background: var(--nw-card); border: 1px solid var(--nw-border); border-radius: 10px; overflow: hidden; }
+  .cat-header {
+    padding: 8px 14px; background: #f1f5f9; font-weight: 700;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--nw-text);
+  }
+  .cat-header .icon { font-size: 18px; }
+  .cat-header .count {
+    margin-left: auto; background: var(--nw-primary); color: #fff;
+    padding: 1px 8px; border-radius: 10px; font-size: 11px;
+  }
+  .cat-empty { padding: 14px; color: var(--nw-muted); font-style: italic; font-size: 12px; }
+  .file-row {
+    display: grid; grid-template-columns: auto 1fr auto auto auto auto;
+    gap: 10px; align-items: center;
+    padding: 8px 14px; border-top: 1px solid var(--nw-border);
+    font-size: 13px;
+  }
+  .file-row .fname { color: var(--nw-primary); font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
+  .file-row .fname:hover { text-decoration: underline; }
+  .file-row .meta { color: var(--nw-muted); font-size: 11px; }
+  .file-row .size { font-family: 'Courier New', monospace; color: var(--nw-muted); font-size: 11px; }
+
+  .iv-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .iv-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 520px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; flex-wrap: wrap;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save { background: var(--nw-primary); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error   { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="pf-wrap">
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content"><h1>Project Files</h1></div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="pf-header" id="pfHeader"></div>
+
+  <div class="pf-toolbar">
+    <input type="search" id="qSearch" placeholder="🔍 Search filenames / notes…">
+    <select id="qCat">
+      <option value="">All categories</option>
+    </select>
+    <div class="grow"></div>
+    <input type="file" id="fileInput" multiple style="display:none">
+    <button class="btn-primary" id="uploadBtn">📤 Upload files</button>
+  </div>
+
+  <div id="mainView"></div>
+</div>
+
+<!-- Category-picker modal shown after selecting file(s) -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal-card">
+    <h2>Upload — pick a category</h2>
+    <div id="uploadFilesList" style="background:#f8fafc;padding:8px 10px;border-radius:6px;font-size:12px;margin-bottom:12px;max-height:140px;overflow-y:auto"></div>
+    <div class="field">
+      <label>Category</label>
+      <select id="uCat"></select>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="uNotes" style="min-height:50px"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="uCancel">Cancel</button>
+      <button class="btn-save"   id="uUpload">Upload</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var CATEGORIES = [
+    { key: 'drawings',       label: 'Drawings',        icon: '📐' },
+    { key: 'quotes',         label: 'Quotes',          icon: '💰' },
+    { key: 'rfi',            label: 'RFI',             icon: '❓' },
+    { key: 'specs',          label: 'Specs',           icon: '📋' },
+    { key: 'permits',        label: 'Permits',         icon: '🏛️' },
+    { key: 'submittals',     label: 'Submittals',      icon: '📤' },
+    { key: 'leveling_sheet', label: 'Leveling Sheet',  icon: '📊' },
+    { key: 'close_out',      label: 'Close-out',       icon: '✅' },
+    { key: 'photos',         label: 'Photos',          icon: '📸' },
+    { key: 'contracts',      label: 'Contracts',       icon: '📜' },
+    { key: 'other',          label: 'Other',           icon: '📄' }
+  ];
+
+  var params = new URLSearchParams(window.location.search);
+  var projectId = params.get('project');
+  if (!projectId) { alert('Missing ?project=<id>'); }
+
+  var currentUserId = null;
+  var currentUserName = null;
+  var project = null;
+  var files = [];
+  var pendingFiles = [];   // FileList from input, awaiting category pick
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) currentUserId = u.data.user.id;
+      var prof = await supabaseClient.from('profiles').select('full_name').eq('id', currentUserId).maybeSingle();
+      if (prof.data) currentUserName = prof.data.full_name;
+    } catch(e) { console.warn(e); }
+
+    // Populate category filters
+    var qCat = document.getElementById('qCat');
+    var uCat = document.getElementById('uCat');
+    CATEGORIES.forEach(function(c) {
+      var o1 = document.createElement('option'); o1.value = c.key; o1.textContent = c.icon + ' ' + c.label; qCat.appendChild(o1);
+      var o2 = document.createElement('option'); o2.value = c.key; o2.textContent = c.icon + ' ' + c.label; uCat.appendChild(o2);
+    });
+    uCat.value = 'other';
+
+    bindEvents();
+    await loadProject();
+    await loadFiles();
+  }
+
+  function bindEvents() {
+    document.getElementById('uploadBtn').addEventListener('click', function() {
+      document.getElementById('fileInput').click();
+    });
+    document.getElementById('fileInput').addEventListener('change', onFilesPicked);
+    document.getElementById('uCancel').addEventListener('click', function() {
+      closeModal('uploadModal');
+      pendingFiles = [];
+      document.getElementById('fileInput').value = '';
+    });
+    document.getElementById('uUpload').addEventListener('click', doUpload);
+    document.getElementById('uploadModal').addEventListener('click', function(e) {
+      if (e.target === this) { closeModal('uploadModal'); pendingFiles = []; document.getElementById('fileInput').value = ''; }
+    });
+    document.getElementById('qSearch').addEventListener('input', render);
+    document.getElementById('qCat').addEventListener('change', render);
+  }
+
+  async function loadProject() {
+    var r = await supabaseClient.from('projects').select('id, short_code, project_name, pm_name, status')
+      .eq('id', projectId).maybeSingle();
+    if (r.data) {
+      project = r.data;
+      document.getElementById('pfHeader').innerHTML =
+        '<h2>' + (project.short_code ? '<span style="background:var(--nw-primary);color:#fff;padding:2px 8px;border-radius:5px;font-size:12px;margin-right:8px">' + escHtml(project.short_code) + '</span>' : '') +
+        escHtml(project.project_name || '') + '</h2>' +
+        '<div class="pf-sub">' +
+          (project.pm_name ? '<span>PM: <b>' + escHtml(project.pm_name) + '</b></span>' : '') +
+          (project.status ? '<span>Status: <b>' + escHtml(project.status) + '</b></span>' : '') +
+        '</div>';
+    }
+  }
+
+  async function loadFiles() {
+    var main = document.getElementById('mainView');
+    main.innerHTML = '<div class="iv-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
+    var r = await supabaseClient.from('project_files')
+      .select('*, uploader:profiles(full_name)')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+    if (r.error) {
+      main.innerHTML = '<div class="iv-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
+      return;
+    }
+    files = r.data || [];
+    render();
+  }
+
+  function render() {
+    var q = (document.getElementById('qSearch').value || '').toLowerCase().trim();
+    var catFilter = document.getElementById('qCat').value;
+    var filtered = files.filter(function(f) {
+      if (catFilter && f.category !== catFilter) return false;
+      if (!q) return true;
+      var hay = (f.filename + ' ' + (f.notes || '') + ' ' + (f.uploader && f.uploader.full_name || '')).toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+    var main = document.getElementById('mainView');
+    if (!filtered.length) {
+      main.innerHTML =
+        '<div class="iv-empty"><div class="icon">📁</div>' +
+        '<p>No files' + (q || catFilter ? ' match filters' : ' uploaded yet') + '.' +
+        (!q && !catFilter ? '<br>Click <b>📤 Upload files</b> above.' : '') +
+        '</p></div>';
+      return;
+    }
+
+    // Group by category
+    var byCat = {};
+    filtered.forEach(function(f) {
+      (byCat[f.category] = byCat[f.category] || []).push(f);
+    });
+    var html = '';
+    CATEGORIES.forEach(function(cat) {
+      var items = byCat[cat.key];
+      if (!items) return;
+      html += '<div class="cat-section">' +
+        '<div class="cat-header">' +
+          '<span class="icon">' + cat.icon + '</span>' +
+          '<span>' + escHtml(cat.label) + '</span>' +
+          '<span class="count">' + items.length + '</span>' +
+        '</div>';
+      items.forEach(function(f) {
+        var when = new Date(f.created_at);
+        var whenStr = when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        html += '<div class="file-row">' +
+          '<span style="font-size:18px">' + fileIcon(f.filename) + '</span>' +
+          '<span class="fname" data-open="' + f.id + '">' + escHtml(f.filename) + (f.notes ? ' <span class="meta">— ' + escHtml(f.notes) + '</span>' : '') + '</span>' +
+          '<span class="size">' + fmtSize(f.size_bytes) + '</span>' +
+          '<span class="meta">' + escHtml((f.uploader && f.uploader.full_name) || '') + '</span>' +
+          '<span class="meta">' + whenStr + '</span>' +
+          '<button class="btn-danger" data-del="' + f.id + '" data-path="' + escHtml(f.storage_path) + '">Delete</button>' +
+        '</div>';
+      });
+      html += '</div>';
+    });
+    main.innerHTML = html;
+    main.querySelectorAll('[data-open]').forEach(function(el) {
+      el.addEventListener('click', function() { openFile(el.getAttribute('data-open')); });
+    });
+    main.querySelectorAll('[data-del]').forEach(function(b) {
+      b.addEventListener('click', function() { deleteFile(b.getAttribute('data-del'), b.getAttribute('data-path')); });
+    });
+  }
+
+  function onFilesPicked(ev) {
+    var list = ev.target.files;
+    if (!list || !list.length) return;
+    pendingFiles = Array.from(list);
+    var host = document.getElementById('uploadFilesList');
+    host.innerHTML = pendingFiles.map(function(f) {
+      return '<div>' + fileIcon(f.name) + ' ' + escHtml(f.name) + ' <span style="color:var(--nw-muted);font-size:11px">(' + fmtSize(f.size) + ')</span></div>';
+    }).join('');
+    openModal('uploadModal');
+  }
+
+  async function doUpload() {
+    if (!pendingFiles.length) return;
+    var category = document.getElementById('uCat').value;
+    var notes = document.getElementById('uNotes').value.trim() || null;
+    var btn = document.getElementById('uUpload');
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    var successCount = 0;
+    for (var i = 0; i < pendingFiles.length; i++) {
+      var file = pendingFiles[i];
+      var path = projectId + '/' + Date.now() + '_' + i + '_' + file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      btn.textContent = 'Uploading ' + (i + 1) + ' of ' + pendingFiles.length + '…';
+      var up = await supabaseClient.storage.from('project-files').upload(path, file, {
+        cacheControl: '3600', upsert: false, contentType: file.type || null
+      });
+      if (up.error) { showToast('Upload failed for ' + file.name + ': ' + up.error.message, 'error'); continue; }
+      var ins = await supabaseClient.from('project_files').insert({
+        project_id:   projectId,
+        filename:     file.name,
+        storage_path: path,
+        category:     category,
+        size_bytes:   file.size,
+        content_type: file.type || null,
+        notes:        notes,
+        uploaded_by:  currentUserId
+      });
+      if (ins.error) { showToast('Row insert failed for ' + file.name + ': ' + ins.error.message, 'error'); continue; }
+      successCount++;
+    }
+    btn.disabled = false; btn.textContent = 'Upload';
+    document.getElementById('fileInput').value = '';
+    document.getElementById('uNotes').value = '';
+    pendingFiles = [];
+    closeModal('uploadModal');
+    if (successCount) showToast('✅ Uploaded ' + successCount + ' file' + (successCount === 1 ? '' : 's'), 'success');
+    await loadFiles();
+  }
+
+  async function openFile(id) {
+    var f = files.find(function(x) { return x.id === id; });
+    if (!f) return;
+    var signed = await supabaseClient.storage.from('project-files').createSignedUrl(f.storage_path, 3600);
+    if (signed.error) { showToast('Could not open: ' + signed.error.message, 'error'); return; }
+    window.open(signed.data.signedUrl, '_blank');
+  }
+
+  async function deleteFile(id, path) {
+    if (!confirm('Delete this file permanently?')) return;
+    try {
+      var d1 = await supabaseClient.storage.from('project-files').remove([path]);
+      if (d1.error) console.warn('storage remove:', d1.error);
+    } catch(e) { console.warn(e); }
+    var d2 = await supabaseClient.from('project_files').delete().eq('id', id);
+    if (d2.error) { showToast('Delete failed: ' + d2.error.message, 'error'); return; }
+    showToast('Deleted', 'success');
+    await loadFiles();
+  }
+
+  function fileIcon(name) {
+    var ext = (name || '').split('.').pop().toLowerCase();
+    if (['pdf'].indexOf(ext) >= 0) return '📕';
+    if (['jpg','jpeg','png','gif','webp','heic'].indexOf(ext) >= 0) return '🖼️';
+    if (['doc','docx','odt'].indexOf(ext) >= 0) return '📝';
+    if (['xls','xlsx','csv'].indexOf(ext) >= 0) return '📊';
+    if (['dwg','dxf','rvt'].indexOf(ext) >= 0) return '📐';
+    return '📄';
+  }
+  function fmtSize(bytes) {
+    if (!bytes) return '';
+    var kb = bytes / 1024;
+    if (kb < 1024) return kb.toFixed(1) + ' KB';
+    return (kb / 1024).toFixed(1) + ' MB';
+  }
+  function openModal(id)  { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=175"></script>
+</body>
+</html>
