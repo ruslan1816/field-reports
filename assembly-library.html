@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Assembly Library — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=172"></script>
+<script src="auth.js?v=172"></script>
+<style>
+  body { padding-bottom: 24px; }
+  .al-wrap { max-width: 1400px; margin: 0 auto; }
+  .al-toolbar {
+    display: flex; gap: 10px; padding: 12px 16px;
+    background: var(--nw-card); border-bottom: 1px solid var(--nw-border);
+    align-items: center; flex-wrap: wrap;
+  }
+  .al-toolbar select, .al-toolbar input {
+    padding: 7px 11px; font-size: 13px; border: 1px solid var(--nw-border);
+    border-radius: 7px; background: #fff;
+  }
+  .al-toolbar .grow { flex: 1; }
+  .btn-new {
+    background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+    padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(6,150,215,.25);
+  }
+  .btn-secondary {
+    background: #fff; color: var(--nw-primary); border: 1px solid var(--nw-primary);
+    padding: 7px 14px; border-radius: 7px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .btn-danger {
+    background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+    padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  .readonly-badge {
+    font-size: 11px; padding: 4px 8px; border-radius: 6px;
+    background: #f1f5f9; color: #475569; font-weight: 700;
+  }
+  .cat-tabs {
+    display: flex; gap: 6px; padding: 6px 16px; background: #f8fafc; border-bottom: 1px solid var(--nw-border);
+    overflow-x: auto;
+  }
+  .cat-tab {
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    cursor: pointer; background: var(--nw-section); color: var(--nw-text);
+    border: 1px solid var(--nw-border); white-space: nowrap;
+  }
+  .cat-tab.active { background: var(--nw-primary); color: #fff; border-color: var(--nw-primary); }
+  .cat-tab .cnt {
+    font-size: 10px; margin-left: 4px; padding: 1px 6px; border-radius: 10px;
+    background: rgba(0,0,0,.1);
+  }
+  .cat-tab.active .cnt { background: rgba(255,255,255,.25); }
+
+  .a-table {
+    width: calc(100% - 32px); margin: 12px 16px;
+    border-collapse: collapse; background: var(--nw-card);
+    border: 1px solid var(--nw-border); border-radius: 10px; overflow: hidden;
+  }
+  .a-table th, .a-table td { padding: 8px 10px; border-bottom: 1px solid var(--nw-border); font-size: 12px; }
+  .a-table thead th {
+    background: #f1f5f9; text-align: left; font-weight: 700; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.5px; color: var(--nw-muted);
+  }
+  .a-table tbody tr:hover { background: #f0f9ff; cursor: pointer; }
+  .a-table .num { text-align: right; font-family: 'Courier New', monospace; }
+  .a-table .cat-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 10px; font-weight: 700; background: #e0f2fe; color: #075985;
+  }
+  .a-table .crew-pill {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 600; background: #f1f5f9; color: #334155;
+  }
+  .a-table tr.inactive td { opacity: 0.5; }
+
+  .iv-empty { padding: 60px 20px; text-align: center; color: var(--nw-muted); }
+  .iv-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: none; align-items: flex-start; justify-content: center; padding: 24px 12px;
+    z-index: 200; overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 620px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); padding: 20px 22px 24px;
+  }
+  .modal-card h2 { font-size: 18px; margin: 0 0 14px; }
+  .modal-card .field { margin-bottom: 12px; }
+  .modal-card label {
+    display: block; font-size: 12px; font-weight: 700; color: var(--nw-muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid var(--nw-border);
+    border-radius: 7px; box-sizing: border-box; font-family: inherit;
+  }
+  .modal-card .row { display: flex; gap: 10px; }
+  .modal-card .row > .field { flex: 1; }
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; flex-wrap: wrap;
+  }
+  .modal-actions button {
+    padding: 9px 18px; border-radius: 7px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--nw-section); color: var(--nw-text); border: 1px solid var(--nw-border) !important; }
+  .btn-save { background: var(--nw-primary); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #047857; }
+  .toast.error   { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="al-wrap">
+  <div class="header">
+    <a href="index.html" class="back-btn">&#8592;</a>
+    <div class="header-content">
+      <h1>Assembly Library</h1>
+    </div>
+    <div class="profile-circle" id="profileCircle">--</div>
+  </div>
+
+  <div class="al-toolbar">
+    <input type="search" id="qSearch" placeholder="🔍 Search name, description, vendor…" style="min-width:280px">
+    <label style="font-size:12px;color:var(--nw-muted)"><input type="checkbox" id="qActiveOnly" checked> Active only</label>
+    <div class="grow"></div>
+    <span class="readonly-badge" id="readonlyBadge" style="display:none">👁️ Read-only</span>
+    <button class="btn-new" id="btnNew">+ New assembly</button>
+  </div>
+
+  <div class="cat-tabs" id="catTabs"></div>
+
+  <div id="mainView"></div>
+</div>
+
+<!-- ═══════════ Add / Edit modal ═══════════ -->
+<div class="modal-overlay" id="asmModal">
+  <div class="modal-card">
+    <h2 id="asmTitle">New Assembly</h2>
+
+    <div class="row">
+      <div class="field">
+        <label>Name *</label>
+        <input type="text" id="mName" placeholder="e.g. Copper M-Type — 3/4&quot; pipe w/ 1&quot; insulation">
+      </div>
+      <div class="field" style="max-width:200px">
+        <label>Category *</label>
+        <select id="mCat"></select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Description</label>
+      <textarea id="mDesc" style="min-height:50px" placeholder="Optional longer description shown in the picker"></textarea>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Default qty</label>
+        <input type="number" id="mQty" step="0.0001" value="1">
+      </div>
+      <div class="field">
+        <label>Unit</label>
+        <input type="text" id="mUnit" placeholder="ea / ft / lf / sqft / ls / floor / day">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Unit material $</label>
+        <input type="number" id="mMat" step="0.0001" value="0">
+      </div>
+      <div class="field">
+        <label>Unit labor hrs</label>
+        <input type="number" id="mHrs" step="0.001" value="0">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Labor crew *</label>
+        <select id="mCrew">
+          <option value="sm">🔩 Sheet Metal</option>
+          <option value="pipe">🔧 Piping</option>
+          <option value="startup">⚡ Start-up / Controls</option>
+          <option value="other">Other</option>
+          <option value="none">None (no labor)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Vendor (optional)</label>
+        <input type="text" id="mVendor" placeholder="e.g. Ferguson">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="mNotes" style="min-height:40px"></textarea>
+    </div>
+
+    <div class="field">
+      <label><input type="checkbox" id="mActive" checked> Active (show in Estimating picker)</label>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-danger" id="btnDelete" style="margin-right:auto;display:none">🗑 Delete</button>
+      <button class="btn-cancel" id="btnCancel">Cancel</button>
+      <button class="btn-save"   id="btnSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var MGMT_ROLES = ['admin','manager','lead_pm','project_manager','apm'];
+  var CATEGORIES = [
+    { key: 'disconnects',       label: 'Disconnects',        icon: '✂️' },
+    { key: 'equipment',         label: 'Equipment',          icon: '🏭' },
+    { key: 'ductwork',          label: 'Ductwork',           icon: '🔩' },
+    { key: 'pipework',          label: 'Pipework',           icon: '🔧' },
+    { key: 'equipment_install', label: 'Equipment Install',  icon: '🛠️' },
+    { key: 'air_outlets',       label: 'Air Outlets',        icon: '🌬️' },
+    { key: 'services',          label: 'Services',           icon: '📋' }
+  ];
+
+  var currentUserId = null, canEdit = false;
+  var allAssemblies = [];
+  var activeCat = '';   // '' = all
+  var editingId = null;
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) currentUserId = u.data.user.id;
+      var prof = await supabaseClient.from('profiles').select('role').eq('id', currentUserId).maybeSingle();
+      if (prof.data) canEdit = MGMT_ROLES.indexOf(prof.data.role) >= 0;
+    } catch(e){ console.warn(e); }
+
+    if (!canEdit) {
+      document.getElementById('readonlyBadge').style.display = '';
+      document.getElementById('btnNew').style.display = 'none';
+    }
+
+    // Populate category dropdown in modal
+    var mCat = document.getElementById('mCat');
+    CATEGORIES.forEach(function(c) {
+      var o = document.createElement('option'); o.value = c.key; o.textContent = c.icon + ' ' + c.label; mCat.appendChild(o);
+    });
+
+    bindEvents();
+    await refresh();
+  }
+
+  function bindEvents() {
+    document.getElementById('btnNew').addEventListener('click', function() { openModal(); });
+    document.getElementById('btnCancel').addEventListener('click', closeModalX);
+    document.getElementById('btnSave').addEventListener('click', save);
+    document.getElementById('btnDelete').addEventListener('click', del);
+    document.getElementById('asmModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModalX();
+    });
+    document.getElementById('qSearch').addEventListener('input', render);
+    document.getElementById('qActiveOnly').addEventListener('change', render);
+  }
+
+  async function refresh() {
+    var main = document.getElementById('mainView');
+    main.innerHTML = '<div class="iv-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
+    var r = await supabaseClient.from('estimate_assemblies').select('*').order('category, name');
+    if (r.error) {
+      main.innerHTML = '<div class="iv-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
+      return;
+    }
+    allAssemblies = r.data || [];
+    renderCatTabs();
+    render();
+  }
+
+  function renderCatTabs() {
+    var counts = {};
+    allAssemblies.forEach(function(a) {
+      counts[a.category] = (counts[a.category] || 0) + 1;
+    });
+    var host = document.getElementById('catTabs');
+    var html = '<div class="cat-tab' + (activeCat === '' ? ' active' : '') + '" data-cat="">' +
+      'All <span class="cnt">' + allAssemblies.length + '</span></div>';
+    CATEGORIES.forEach(function(c) {
+      var n = counts[c.key] || 0;
+      html += '<div class="cat-tab' + (activeCat === c.key ? ' active' : '') + '" data-cat="' + c.key + '">' +
+        c.icon + ' ' + c.label + ' <span class="cnt">' + n + '</span></div>';
+    });
+    host.innerHTML = html;
+    host.querySelectorAll('[data-cat]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        activeCat = el.getAttribute('data-cat');
+        renderCatTabs();
+        render();
+      });
+    });
+  }
+
+  function render() {
+    var q = (document.getElementById('qSearch').value || '').toLowerCase().trim();
+    var activeOnly = document.getElementById('qActiveOnly').checked;
+    var filtered = allAssemblies.filter(function(a) {
+      if (activeCat && a.category !== activeCat) return false;
+      if (activeOnly && !a.is_active) return false;
+      if (!q) return true;
+      var hay = (a.name + ' ' + (a.description||'') + ' ' + (a.vendor_name||'') + ' ' + (a.notes||'')).toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+
+    var main = document.getElementById('mainView');
+    if (!filtered.length) {
+      main.innerHTML = '<div class="iv-empty"><div class="icon">📚</div>' +
+        '<p>No assemblies match. ' + (canEdit ? 'Click <b>+ New assembly</b> above to add one.' : 'Ask a PM or admin to add one.') + '</p></div>';
+      return;
+    }
+
+    var html = '<table class="a-table"><thead><tr>' +
+      '<th style="width:220px">Name</th>' +
+      '<th style="width:130px">Category</th>' +
+      '<th>Description</th>' +
+      '<th style="width:60px" class="num">Qty</th>' +
+      '<th style="width:70px">Unit</th>' +
+      '<th style="width:90px" class="num">Mat $/u</th>' +
+      '<th style="width:80px" class="num">Lab hrs/u</th>' +
+      '<th style="width:80px">Crew</th>' +
+      '<th style="width:130px">Vendor</th>' +
+      '<th style="width:60px"></th>' +
+      '</tr></thead><tbody>';
+    filtered.forEach(function(a) {
+      var cat = CATEGORIES.find(function(c) { return c.key === a.category; }) || {label:a.category,icon:'•'};
+      html += '<tr data-id="' + a.id + '"' + (!a.is_active ? ' class="inactive"' : '') + '>' +
+        '<td><b>' + escHtml(a.name) + '</b>' +
+          (!a.is_active ? ' <span style="font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:4px">INACTIVE</span>' : '') +
+        '</td>' +
+        '<td><span class="cat-pill">' + cat.icon + ' ' + escHtml(cat.label) + '</span></td>' +
+        '<td style="color:var(--nw-muted);font-size:11px">' + escHtml(a.description || '') + '</td>' +
+        '<td class="num">' + fmtNum(a.quantity_default) + '</td>' +
+        '<td>' + escHtml(a.unit || '') + '</td>' +
+        '<td class="num">' + fmtMoney(a.unit_material_cost) + '</td>' +
+        '<td class="num">' + fmtNum(a.unit_labor_hours) + '</td>' +
+        '<td><span class="crew-pill">' + escHtml(a.labor_crew_type) + '</span></td>' +
+        '<td>' + escHtml(a.vendor_name || '') + '</td>' +
+        '<td>' + (canEdit ? '<button class="btn-secondary" style="padding:2px 8px;font-size:10px">Edit</button>' : '') + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+    main.innerHTML = html;
+    main.querySelectorAll('tr[data-id]').forEach(function(row) {
+      row.addEventListener('click', function() { if (canEdit) openModal(row.getAttribute('data-id')); });
+    });
+  }
+
+  function openModal(id) {
+    editingId = id || null;
+    document.getElementById('asmTitle').textContent = id ? 'Edit Assembly' : 'New Assembly';
+    document.getElementById('btnDelete').style.display = id ? '' : 'none';
+    if (id) {
+      var a = allAssemblies.find(function(x) { return x.id === id; });
+      if (!a) return;
+      document.getElementById('mName').value    = a.name;
+      document.getElementById('mCat').value     = a.category;
+      document.getElementById('mDesc').value    = a.description || '';
+      document.getElementById('mQty').value     = a.quantity_default;
+      document.getElementById('mUnit').value    = a.unit || '';
+      document.getElementById('mMat').value     = a.unit_material_cost;
+      document.getElementById('mHrs').value     = a.unit_labor_hours;
+      document.getElementById('mCrew').value    = a.labor_crew_type;
+      document.getElementById('mVendor').value  = a.vendor_name || '';
+      document.getElementById('mNotes').value   = a.notes || '';
+      document.getElementById('mActive').checked = !!a.is_active;
+    } else {
+      document.getElementById('mName').value    = '';
+      document.getElementById('mCat').value     = activeCat || 'equipment';
+      document.getElementById('mDesc').value    = '';
+      document.getElementById('mQty').value     = 1;
+      document.getElementById('mUnit').value    = 'ea';
+      document.getElementById('mMat').value     = 0;
+      document.getElementById('mHrs').value     = 0;
+      document.getElementById('mCrew').value    = 'sm';
+      document.getElementById('mVendor').value  = '';
+      document.getElementById('mNotes').value   = '';
+      document.getElementById('mActive').checked = true;
+    }
+    document.getElementById('asmModal').classList.add('open');
+  }
+
+  function closeModalX() {
+    document.getElementById('asmModal').classList.remove('open');
+    editingId = null;
+  }
+
+  async function save() {
+    if (!canEdit) return;
+    var patch = {
+      name:               document.getElementById('mName').value.trim(),
+      category:           document.getElementById('mCat').value,
+      description:        document.getElementById('mDesc').value.trim() || null,
+      quantity_default:   Number(document.getElementById('mQty').value || 1),
+      unit:               document.getElementById('mUnit').value.trim() || null,
+      unit_material_cost: Number(document.getElementById('mMat').value || 0),
+      unit_labor_hours:   Number(document.getElementById('mHrs').value || 0),
+      labor_crew_type:    document.getElementById('mCrew').value,
+      vendor_name:        document.getElementById('mVendor').value.trim() || null,
+      notes:              document.getElementById('mNotes').value.trim() || null,
+      is_active:          document.getElementById('mActive').checked
+    };
+    if (!patch.name) { showToast('Name required', 'error'); return; }
+    var btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    var r;
+    if (editingId) {
+      r = await supabaseClient.from('estimate_assemblies').update(patch).eq('id', editingId);
+    } else {
+      patch.created_by = currentUserId;
+      r = await supabaseClient.from('estimate_assemblies').insert(patch);
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    closeModalX();
+    showToast('✅ Saved', 'success');
+    refresh();
+  }
+
+  async function del() {
+    if (!editingId || !canEdit) return;
+    if (!confirm('Delete this assembly permanently?')) return;
+    var r = await supabaseClient.from('estimate_assemblies').delete().eq('id', editingId);
+    if (r.error) { showToast('Delete failed: ' + r.error.message, 'error'); return; }
+    closeModalX();
+    showToast('Deleted', 'success');
+    refresh();
+  }
+
+  function fmtMoney(n) {
+    var v = Number(n || 0);
+    return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtNum(n) {
+    var v = Number(n || 0);
+    return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+  }
+  function showToast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function() { t.classList.remove('show'); }, 3500);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+})();
+</script>
+<script src="sw-register.js?v=172"></script>
+</body>
+</html>
