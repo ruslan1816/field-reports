@@ -8,8 +8,8 @@
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="supabase-config.js?v=169"></script>
-<script src="auth.js?v=169"></script>
+<script src="supabase-config.js?v=170"></script>
+<script src="auth.js?v=170"></script>
 <style>
   html, body { height: 100%; margin: 0; overflow: hidden; }
   body { display: flex; flex-direction: column; background: #1e293b; color: #fff; }
@@ -229,12 +229,17 @@
 <div class="tk-main">
   <!-- ─── TOOL SIDEBAR ─── -->
   <div class="tk-tools">
-    <h3>Tools</h3>
-    <button class="tool-btn" data-tool="scale">
-      <span class="icon">📏</span> Set Scale
+    <h3>Drawing Scale</h3>
+    <select id="scalePreset" style="width:100%;padding:8px 10px;background:#1e293b;color:#fff;border:1px solid #475569;border-radius:6px;font-size:12px;font-weight:600">
+      <option value="">— Choose scale —</option>
+    </select>
+    <div class="scale-badge unset" id="scaleBadge" style="margin-top:6px">Scale: <b>not set</b></div>
+    <button class="tool-btn" data-tool="scale" style="margin-top:6px">
+      <span class="icon">📏</span> Custom (2 clicks)
     </button>
-    <div class="tool-hint">Click 2 points on a known distance (e.g. a dimensioned wall) then type the actual feet.</div>
+    <div class="tool-hint">Prefer picking a common scale above. Only use custom on blown-up detail with no standard scale.</div>
 
+    <h3 style="margin-top:14px">Tools</h3>
     <button class="tool-btn" data-tool="length">
       <span class="icon">📐</span> Length
     </button>
@@ -249,8 +254,6 @@
       <span class="icon">🔢</span> Count
     </button>
     <div class="tool-hint">Click each item to add a counter mark.</div>
-
-    <div class="scale-badge unset" id="scaleBadge">Scale: <b>not set</b></div>
 
     <h3 style="margin-top:16px">Layer (category)</h3>
     <div id="layerLegend"></div>
@@ -322,6 +325,36 @@ requireAuth().catch(function(){});
   'use strict';
 
   var MGMT_ROLES = ['admin','manager','lead_pm','project_manager','apm'];
+
+  // Common architectural + engineering drawing scales.
+  // Formula: PDF points/foot = (inches_on_paper) × 72 pt/inch
+  //          because 1 PDF pt = 1/72 inch and points on canvas are stored in PDF native coords.
+  var SCALE_PRESETS = [
+    // ── Architectural (paper" = 1 foot) ──
+    { group: 'Architectural', label: '1/128" = 1\'',  ptsPerFoot: (1/128) * 72 },
+    { group: 'Architectural', label: '1/64" = 1\'',   ptsPerFoot: (1/64)  * 72 },
+    { group: 'Architectural', label: '1/32" = 1\'',   ptsPerFoot: (1/32)  * 72 },
+    { group: 'Architectural', label: '1/16" = 1\'',   ptsPerFoot: (1/16)  * 72 },
+    { group: 'Architectural', label: '3/32" = 1\'',   ptsPerFoot: (3/32)  * 72 },
+    { group: 'Architectural', label: '1/8" = 1\'',    ptsPerFoot: (1/8)   * 72 },
+    { group: 'Architectural', label: '3/16" = 1\'',   ptsPerFoot: (3/16)  * 72 },
+    { group: 'Architectural', label: '1/4" = 1\'',    ptsPerFoot: (1/4)   * 72 },
+    { group: 'Architectural', label: '3/8" = 1\'',    ptsPerFoot: (3/8)   * 72 },
+    { group: 'Architectural', label: '1/2" = 1\'',    ptsPerFoot: (1/2)   * 72 },
+    { group: 'Architectural', label: '3/4" = 1\'',    ptsPerFoot: (3/4)   * 72 },
+    { group: 'Architectural', label: '1" = 1\'',      ptsPerFoot: 72 },
+    { group: 'Architectural', label: '1 1/2" = 1\'',  ptsPerFoot: 1.5 * 72 },
+    { group: 'Architectural', label: '3" = 1\'',      ptsPerFoot: 3   * 72 },
+    // ── Engineering (1 inch = N feet) ──
+    { group: 'Engineering',   label: '1" = 10\'',     ptsPerFoot: 72 / 10 },
+    { group: 'Engineering',   label: '1" = 20\'',     ptsPerFoot: 72 / 20 },
+    { group: 'Engineering',   label: '1" = 30\'',     ptsPerFoot: 72 / 30 },
+    { group: 'Engineering',   label: '1" = 40\'',     ptsPerFoot: 72 / 40 },
+    { group: 'Engineering',   label: '1" = 50\'',     ptsPerFoot: 72 / 50 },
+    { group: 'Engineering',   label: '1" = 60\'',     ptsPerFoot: 72 / 60 },
+    { group: 'Engineering',   label: '1" = 100\'',    ptsPerFoot: 72 / 100 }
+  ];
+
   var LAYERS = [
     { key: 'ductwork',          label: 'Ductwork',          color: '#f59e0b' },
     { key: 'pipework',          label: 'Pipework',          color: '#0696D7' },
@@ -373,9 +406,30 @@ requireAuth().catch(function(){});
         (est.data.quote_number ? '#' + est.data.quote_number + ' · ' : '') + est.data.name;
     }
 
+    populateScalePresets();
     renderLayerLegend();
     bindEvents();
     await loadDrawings();
+  }
+
+  function populateScalePresets() {
+    var sel = document.getElementById('scalePreset');
+    // Group by architectural / engineering
+    var groups = {};
+    SCALE_PRESETS.forEach(function(p, idx) {
+      (groups[p.group] = groups[p.group] || []).push({ idx: idx, p: p });
+    });
+    Object.keys(groups).forEach(function(gName) {
+      var og = document.createElement('optgroup');
+      og.label = gName;
+      groups[gName].forEach(function(item) {
+        var o = document.createElement('option');
+        o.value = String(item.idx);
+        o.textContent = item.p.label;
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
   }
 
   function renderLayerLegend() {
@@ -411,6 +465,7 @@ requireAuth().catch(function(){});
         selectTool(b.getAttribute('data-tool'));
       });
     });
+    document.getElementById('scalePreset').addEventListener('change', applyPresetScale);
     document.getElementById('undoBtn').addEventListener('click', undoLast);
     document.getElementById('rollupBtn').addEventListener('click', openRollup);
 
@@ -638,25 +693,71 @@ requireAuth().catch(function(){});
     if (feet <= 0) { showToast('Enter positive feet', 'error'); return; }
     var pxDist = Math.hypot(draftPoints[1][0]-draftPoints[0][0], draftPoints[1][1]-draftPoints[0][1]);
     scalePxPerFoot = pxDist / feet;
+    currentScaleLabel = 'Custom (' + feet + ' ft measured)';
+    document.getElementById('scalePreset').value = '';   // clear preset selector
     // Recompute existing lengths/areas on this page with the new scale
     await recomputeAllOnPage();
     // Persist the scale as a "scale" measurement so it survives refresh
-    await saveMeasurement({ tool_type: 'scale', points: draftPoints.slice(), computed_value: feet, computed_unit: 'ft' });
+    await saveMeasurement({
+      tool_type: 'scale',
+      points: draftPoints.slice(),
+      label: currentScaleLabel,
+      computed_value: feet,
+      computed_unit: 'ft'
+    });
     draftPoints = [];
     closeModal('scaleModal');
     updateScaleBadge();
     redrawOverlay();
   }
 
+  var currentScaleLabel = null;   // e.g. "1/4\" = 1'"  or  "Custom"
+
   function updateScaleBadge() {
     var badge = document.getElementById('scaleBadge');
     if (scalePxPerFoot) {
       badge.classList.remove('unset');
-      badge.innerHTML = 'Scale: <b>' + scalePxPerFoot.toFixed(2) + ' px/ft</b>';
+      var lbl = currentScaleLabel || 'Custom';
+      badge.innerHTML = 'Scale: <b>' + escHtml(lbl) + '</b><br><span style="font-size:10px;color:#94a3b8">' + scalePxPerFoot.toFixed(3) + ' pt/ft</span>';
     } else {
       badge.classList.add('unset');
-      badge.innerHTML = 'Scale: <b>not set</b> — draw a scale line first';
+      badge.innerHTML = 'Scale: <b>not set</b><br><span style="font-size:10px">Pick a scale above ↑</span>';
     }
+  }
+
+  async function applyPresetScale() {
+    var idx = parseInt(document.getElementById('scalePreset').value, 10);
+    if (isNaN(idx)) return;
+    var preset = SCALE_PRESETS[idx];
+    if (!preset) return;
+    if (!currentDrawing) { showToast('Load a drawing first', 'error'); return; }
+    if (!canEdit) { showToast('Read-only', 'error'); return; }
+
+    scalePxPerFoot = preset.ptsPerFoot;
+    currentScaleLabel = preset.label;
+
+    // Save as scale measurement (points=[[0,0]] anchor, label carries the ratio name)
+    var m = {
+      drawing_id:            currentDrawing.id,
+      page_number:           currentPage,
+      tool_type:             'scale',
+      points:                [[0, 0]],
+      label:                 preset.label,
+      computed_value:        1,
+      computed_unit:         'ft',
+      scale_pixels_per_foot: preset.ptsPerFoot,
+      color:                 '#dc2626',
+      notes:                 'Common ' + preset.group + ' scale: ' + preset.label
+    };
+    var r = await supabaseClient.from('estimate_measurements').insert(m).select().single();
+    if (r.error) { showToast('Save failed: ' + r.error.message, 'error'); return; }
+    measurements.push(r.data);
+
+    await recomputeAllOnPage();
+    updateScaleBadge();
+    redrawOverlay();
+    renderMeasList();
+    showToast('✅ Scale set to ' + preset.label, 'success');
   }
 
   async function recomputeAllOnPage() {
@@ -705,6 +806,15 @@ requireAuth().catch(function(){});
     // Find latest scale on this page
     var scaleM = measurements.filter(function(m) { return m.tool_type === 'scale'; }).pop();
     scalePxPerFoot = scaleM ? Number(scaleM.scale_pixels_per_foot) : null;
+    currentScaleLabel = scaleM ? (scaleM.label || 'Custom') : null;
+    // Restore dropdown to matching preset if any
+    var sel = document.getElementById('scalePreset');
+    sel.value = '';
+    if (scaleM && scaleM.label) {
+      for (var i = 0; i < SCALE_PRESETS.length; i++) {
+        if (SCALE_PRESETS[i].label === scaleM.label) { sel.value = String(i); break; }
+      }
+    }
     updateScaleBadge();
     redrawOverlay();
     renderMeasList();
@@ -761,12 +871,15 @@ requireAuth().catch(function(){});
       host.innerHTML = measurements.map(function(m) {
         var lay = LAYERS.find(function(l) { return l.key === m.layer_category; });
         var v = Number(m.computed_value || 0);
+        var valText = m.tool_type === 'scale'
+          ? (m.label || fmtVal(v, m.computed_unit))
+          : fmtVal(v, m.computed_unit);
         return '<div class="meas-item ' + m.tool_type + '">' +
           '<div class="top">' +
             '<span>' + toolIcon(m.tool_type) + ' ' + m.tool_type + '</span>' +
-            '<span class="val">' + fmtVal(v, m.computed_unit) + '</span>' +
+            '<span class="val">' + escHtml(valText) + '</span>' +
           '</div>' +
-          (m.label ? '<div class="lbl">' + escHtml(m.label) + '</div>' : '') +
+          (m.tool_type !== 'scale' && m.label ? '<div class="lbl">' + escHtml(m.label) + '</div>' : '') +
           '<div class="lay">' +
             (lay ? '<span style="display:flex;align-items:center;gap:4px"><span class="layer-swatch" style="background:' + lay.color + '"></span>' + lay.label + '</span>' : '<span>—</span>') +
             (canEdit ? '<button data-del="' + m.id + '">✕</button>' : '') +
@@ -857,6 +970,8 @@ requireAuth().catch(function(){});
     if (m.tool_type === 'count') {
       drawCountMark(pts[0], color);
     } else if (m.tool_type === 'scale' || m.tool_type === 'length') {
+      // Preset scales are stored as a single anchor point → skip drawing entirely
+      if (m.tool_type === 'scale' && pts.length < 2) return;
       overlayCtx.beginPath();
       overlayCtx.moveTo(pts[0][0], pts[0][1]);
       for (var i = 1; i < pts.length; i++) overlayCtx.lineTo(pts[i][0], pts[i][1]);
@@ -864,7 +979,9 @@ requireAuth().catch(function(){});
       pts.forEach(function(p) { drawDot(p, color); });
       // Label at midpoint
       var mid = midOf(pts);
-      drawLabel(mid, fmtVal(m.computed_value, m.computed_unit), color);
+      var lbl = m.tool_type === 'scale' ? (m.label || fmtVal(m.computed_value, m.computed_unit))
+                                        : fmtVal(m.computed_value, m.computed_unit);
+      drawLabel(mid, lbl, color);
     } else if (m.tool_type === 'area') {
       overlayCtx.beginPath();
       overlayCtx.moveTo(pts[0][0], pts[0][1]);
@@ -1019,6 +1136,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=169"></script>
+<script src="sw-register.js?v=170"></script>
 </body>
 </html>
