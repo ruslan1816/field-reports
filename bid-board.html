@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Bid Board — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=173"></script>
+<script src="auth.js?v=173"></script>
+<style>
+  body { padding-bottom: 24px; background: #f8fafc; }
+  .bb-wrap { max-width: 1600px; margin: 0 auto; }
+
+  /* ═══════ HEADER (title + Create New Project) ═══════ */
+  .bb-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px 8px;
+  }
+  .bb-head h1 { margin: 0; font-size: 24px; font-weight: 800; color: #0f172a; flex: 1; }
+  .btn-create {
+    background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; border: none;
+    padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 13px;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(249,115,22,.3); display: flex; align-items: center; gap: 6px;
+  }
+  .btn-create:hover { filter: brightness(1.05); }
+
+  /* ═══════ PIPELINE — 10-stage tab strip ═══════ */
+  .bb-pipeline {
+    display: flex; overflow-x: auto; gap: 0; padding: 0 20px;
+    border-bottom: 1px solid #e2e8f0; background: #fff;
+    scrollbar-width: thin;
+  }
+  .bb-stage {
+    padding: 12px 16px 10px; cursor: pointer;
+    border-bottom: 3px solid transparent; white-space: nowrap;
+    min-width: 110px; text-align: left;
+    transition: background .15s;
+  }
+  .bb-stage:hover { background: #f8fafc; }
+  .bb-stage.active { border-bottom-color: #0696D7; background: #f0f9ff; }
+  .bb-stage .stage-name {
+    font-size: 12px; font-weight: 600; color: #475569; text-transform: none;
+  }
+  .bb-stage.active .stage-name { color: #0696D7; font-weight: 700; }
+  .bb-stage .stage-count { font-weight: 700; color: #0f172a; margin-left: 4px; }
+  .bb-stage .stage-sum {
+    font-size: 12px; color: #94a3b8; margin-top: 2px; font-family: 'Courier New', monospace;
+  }
+  .bb-stage.active .stage-sum { color: #64748b; }
+  .stage-new-pill {
+    display: inline-block; background: #dbeafe; color: #1e40af;
+    font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px; margin-top: 3px;
+  }
+
+  /* ═══════ TOOLBAR (search / sort / filter) ═══════ */
+  .bb-toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 20px; background: #fff; border-bottom: 1px solid #e2e8f0;
+  }
+  .bb-search {
+    flex: 0 0 260px; padding: 7px 12px; border: 1px solid #cbd5e1;
+    border-radius: 7px; font-size: 13px; background: #f8fafc;
+  }
+  .bb-toolbar select {
+    padding: 7px 11px; font-size: 12px; border: 1px solid #cbd5e1;
+    border-radius: 7px; background: #fff;
+  }
+
+  /* ═══════ TABLE ═══════ */
+  .bb-table-wrap {
+    background: #fff; border: 1px solid #e2e8f0; border-top: none;
+    overflow: auto; max-height: calc(100vh - 260px);
+  }
+  .bb-table { width: 100%; border-collapse: collapse; }
+  .bb-table thead th {
+    background: #f8fafc; text-align: left; padding: 10px 12px;
+    font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;
+    letter-spacing: 0.4px; border-bottom: 1px solid #e2e8f0;
+    position: sticky; top: 0; z-index: 5;
+  }
+  .bb-table tbody td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+  .bb-table tbody tr:hover { background: #f0f9ff; cursor: pointer; }
+  .bb-table .col-name { min-width: 260px; }
+  .bb-table .col-name a { color: #0696D7; font-weight: 600; text-decoration: none; }
+  .bb-table .col-name a:hover { text-decoration: underline; }
+  .bb-table .col-name .sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  .bb-table .col-num { text-align: right; font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums; }
+  .bb-table .col-due .past { color: #dc2626; font-size: 11px; font-weight: 700; }
+  .bb-table .col-due .soon { color: #ea580c; font-size: 11px; font-weight: 700; }
+
+  /* Status pill (row-level, editable) */
+  .stage-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    border: 1px solid transparent; cursor: pointer;
+    background: #f1f5f9; color: #475569;
+  }
+  .stage-pill.invitation    { background: #f5f3ff; color: #6d28d9; border-color: #c4b5fd; }
+  .stage-pill.to_do         { background: #e0e7ff; color: #3730a3; border-color: #a5b4fc; }
+  .stage-pill.estimating    { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .stage-pill.bid_submitted { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .stage-pill.accepted      { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+  .stage-pill.in_progress   { background: #cffafe; color: #155e75; border-color: #67e8f9; }
+  .stage-pill.complete      { background: #dcfce7; color: #14532d; border-color: #86efac; }
+  .stage-pill.delayed       { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+  .stage-pill.lost          { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .stage-pill.archived      { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+
+  .intent-pill {
+    display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid transparent; background: #f1f5f9; color: #64748b;
+  }
+  .intent-pill.will_bid   { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .intent-pill.no_bid     { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .intent-pill.undecided  { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+
+  .bb-empty {
+    padding: 80px 20px; text-align: center; color: #64748b;
+    background: #fff; border: 1px solid #e2e8f0; border-top: none;
+  }
+  .bb-empty .icon { font-size: 56px; margin-bottom: 12px; opacity: 0.4; }
+  .bb-empty h3 { margin: 0 0 6px; font-size: 16px; color: #334155; }
+  .bb-empty p  { margin: 0; font-size: 13px; }
+
+  /* Small chart icon in Info column */
+  .info-ic { color: #cbd5e1; font-size: 14px; }
+
+  /* Modal (Create New Project) */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.55);
+    align-items: center; justify-content: center; z-index: 500;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 12px; padding: 20px 22px; width: min(560px, 92vw);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;
+  }
+  .modal-card h2 { margin: 0 0 14px; font-size: 18px; color: #0f172a; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 11px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: 13px; background: #fff; box-sizing: border-box; font-family: inherit;
+  }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .btn-primary { background: linear-gradient(135deg, #0696D7, #0479B2); color: #fff; border: none;
+                 padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .btn-secondary { background: #fff; color: #475569; border: 1px solid #cbd5e1;
+                   padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 12px 18px; border-radius: 8px;
+    font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.3);
+    opacity: 0; transition: opacity .2s; z-index: 700;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #dc2626; }
+  .toast.success { background: #059669; }
+</style>
+</head>
+<body>
+
+<div class="bb-wrap">
+  <div class="bb-head">
+    <a href="index.html" style="text-decoration:none;color:#0696D7;font-weight:700;font-size:13px;margin-right:8px">← Home</a>
+    <h1>Bid Board</h1>
+    <button class="btn-create" id="createBtn">＋ Create New Project</button>
+  </div>
+
+  <!-- Pipeline stages -->
+  <div class="bb-pipeline" id="pipeline"></div>
+
+  <!-- Toolbar -->
+  <div class="bb-toolbar">
+    <input class="bb-search" id="searchInput" placeholder="Search projects…">
+    <label style="font-size:12px;color:#64748b">Sort by
+      <select id="sortSelect">
+        <option value="name">Name</option>
+        <option value="due">Due Date</option>
+        <option value="updated" selected>Recently updated</option>
+        <option value="value">Total Sales ↓</option>
+      </select>
+    </label>
+    <label style="font-size:12px;color:#64748b">Estimator
+      <select id="estimatorFilter">
+        <option value="">All</option>
+      </select>
+    </label>
+    <span style="flex:1"></span>
+    <span id="rowCount" style="font-size:12px;color:#94a3b8"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="bb-table-wrap">
+    <table class="bb-table" id="bbTable" style="display:none">
+      <thead>
+        <tr>
+          <th class="col-name">Name</th>
+          <th style="width:44px">Info</th>
+          <th>Requester Company</th>
+          <th>Project</th>
+          <th>Due Date</th>
+          <th id="thContext">Total Sales</th>
+          <th>Estimator</th>
+          <th id="thStatus">Status</th>
+        </tr>
+      </thead>
+      <tbody id="bbBody"></tbody>
+    </table>
+    <div class="bb-empty" id="bbEmpty">
+      <div class="icon">📋</div>
+      <h3>No projects in this stage</h3>
+      <p>Click <b>＋ Create New Project</b> to start a new bid.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ Create New Project modal ═══════ -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal-card">
+    <h2>New Bid Project</h2>
+    <div class="field">
+      <label>Estimate name</label>
+      <input type="text" id="npName" placeholder="e.g. Yeshiva University Gym" autofocus>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Project number (customer's, optional)</label>
+        <input type="text" id="npNumber" placeholder="e.g. 11010174">
+      </div>
+      <div class="field">
+        <label>Starting stage</label>
+        <select id="npStage">
+          <option value="invitation">Invitation</option>
+          <option value="to_do">To Do</option>
+          <option value="estimating" selected>Estimating</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Project address</label>
+      <input type="text" id="npAddress" placeholder="e.g. 2540 Amsterdam Ave, New York, NY">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Requester (GC) — optional</label>
+        <input type="text" id="npGc" placeholder="e.g. Vanguard Construction">
+      </div>
+      <div class="field">
+        <label>Bid due date</label>
+        <input type="date" id="npDue">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="createCancel">Cancel</button>
+      <button class="btn-primary" id="createSave">Create & open</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var MGMT_ROLES = ['admin','manager','lead_pm','project_manager','apm'];
+
+  // 10 stages — order matters (matches Procore)
+  var STAGES = [
+    { key: 'invitation',    label: 'Invitations',    context: 'invitation' },
+    { key: 'to_do',         label: 'To Do',          context: 'internal'   },
+    { key: 'estimating',    label: 'Estimating',     context: 'internal'   },
+    { key: 'bid_submitted', label: 'Bid Submitted',  context: 'internal'   },
+    { key: 'accepted',      label: 'Accepted',       context: 'internal'   },
+    { key: 'in_progress',   label: 'In Progress',    context: 'internal'   },
+    { key: 'complete',      label: 'Complete',       context: 'internal'   },
+    { key: 'delayed',       label: 'Delayed',        context: 'internal'   },
+    { key: 'lost',          label: 'Lost',           context: 'internal'   },
+    { key: 'archived',      label: 'Archived',       context: 'internal'   }
+  ];
+  var STAGE_LABEL = {};
+  STAGES.forEach(function(s){ STAGE_LABEL[s.key] = s.label; });
+
+  var currentUser = null, canEdit = false, userProfile = null;
+  var currentStage = 'estimating';
+  var estimates = [];   // all
+  var stageCounts = {}, stageSums = {};
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) currentUser = u.data.user;
+      var prof = await supabaseClient.from('profiles')
+        .select('id,role,full_name').eq('id', currentUser.id).maybeSingle();
+      if (prof.data) {
+        userProfile = prof.data;
+        canEdit = MGMT_ROLES.indexOf(prof.data.role) >= 0;
+      }
+    } catch(e){ console.warn(e); }
+
+    // Deep-link: ?stage=estimating
+    var q = new URLSearchParams(location.search);
+    if (q.get('stage') && STAGE_LABEL[q.get('stage')]) currentStage = q.get('stage');
+
+    bindEvents();
+    await loadEstimates();
+    renderPipeline();
+    renderTable();
+  }
+
+  function bindEvents() {
+    document.getElementById('createBtn').addEventListener('click', openCreate);
+    document.getElementById('createCancel').addEventListener('click', function() {
+      document.getElementById('createModal').classList.remove('open');
+    });
+    document.getElementById('createSave').addEventListener('click', createProject);
+    document.getElementById('searchInput').addEventListener('input', renderTable);
+    document.getElementById('sortSelect').addEventListener('change', renderTable);
+    document.getElementById('estimatorFilter').addEventListener('change', renderTable);
+  }
+
+  async function loadEstimates() {
+    // Pull every estimate + a few line-item aggregates for the $ totals
+    var { data, error } = await supabaseClient
+      .from('estimates')
+      .select('id, name, quote_number, project_number, bid_stage, bid_intent, ' +
+              'requester_company, requester_email, invitation_date, ' +
+              'bid_due_date, due_time, project_address, client_name, ' +
+              'estimator_name, created_at, updated_at, ' +
+              'labor_rate, overhead_pct, miscellaneous_pct, tax_rate, is_ofci')
+      .order('updated_at', { ascending: false });
+    if (error) { toast('Load failed: ' + error.message, 'error'); return; }
+    estimates = data || [];
+
+    // Roll up line items for totals per estimate (single query)
+    var ids = estimates.map(function(e){ return e.id; });
+    var totalsById = {};
+    if (ids.length) {
+      var li = await supabaseClient.from('estimate_line_items')
+        .select('estimate_id, quantity, unit_material_cost, unit_labor_hours, is_wet_tap')
+        .in('estimate_id', ids);
+      (li.data || []).forEach(function(r) {
+        totalsById[r.estimate_id] = (totalsById[r.estimate_id] || 0) +
+          (Number(r.quantity)||0) * ((Number(r.unit_material_cost)||0) + (Number(r.unit_labor_hours)||0) * 60);
+      });
+    }
+    estimates.forEach(function(e) {
+      var subtotal = totalsById[e.id] || 0;
+      // Apply overhead + misc + tax roughly for the pipeline totals column
+      var ovh   = subtotal * (Number(e.overhead_pct)      || 0.20);
+      var misc  = subtotal * (Number(e.miscellaneous_pct) || 0.02);
+      var tax   = subtotal * (Number(e.tax_rate)          || 0.08875);
+      e._total_sales = subtotal + ovh + misc + tax;
+    });
+
+    // Build stage counts + sums
+    stageCounts = {}; stageSums = {};
+    STAGES.forEach(function(s){ stageCounts[s.key] = 0; stageSums[s.key] = 0; });
+    estimates.forEach(function(e) {
+      var st = e.bid_stage || 'estimating';
+      if (stageCounts.hasOwnProperty(st)) {
+        stageCounts[st]++;
+        stageSums[st] += Number(e._total_sales) || 0;
+      }
+    });
+
+    // Populate estimator filter
+    var estSel = document.getElementById('estimatorFilter');
+    var uniq = {};
+    estimates.forEach(function(e){ if (e.estimator_name) uniq[e.estimator_name] = true; });
+    Object.keys(uniq).sort().forEach(function(n) {
+      var o = document.createElement('option'); o.value = n; o.textContent = n;
+      estSel.appendChild(o);
+    });
+  }
+
+  function renderPipeline() {
+    var host = document.getElementById('pipeline');
+    host.innerHTML = STAGES.map(function(s) {
+      var newPill = s.key === 'invitation' && stageCounts[s.key]
+        ? '<div class="stage-new-pill">' + stageCounts[s.key] + ' NEW</div>' : '';
+      return '<div class="bb-stage' + (s.key === currentStage ? ' active' : '') +
+             '" data-stage="' + s.key + '">' +
+        '<div class="stage-name">' + s.label +
+          ' <span class="stage-count">(' + (stageCounts[s.key] || 0) + ')</span></div>' +
+        '<div class="stage-sum">' + fmt$(stageSums[s.key] || 0) + '</div>' +
+        newPill +
+      '</div>';
+    }).join('');
+    host.querySelectorAll('.bb-stage').forEach(function(el) {
+      el.addEventListener('click', function() {
+        currentStage = el.getAttribute('data-stage');
+        var url = new URL(location.href);
+        url.searchParams.set('stage', currentStage);
+        history.replaceState({}, '', url);
+        renderPipeline(); renderTable();
+      });
+    });
+  }
+
+  function renderTable() {
+    var q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+    var estFilter = document.getElementById('estimatorFilter').value;
+    var sort = document.getElementById('sortSelect').value;
+    var isInvitationStage = currentStage === 'invitation';
+
+    document.getElementById('thContext').textContent = isInvitationStage ? 'Invitation Date' : 'Total Sales';
+    document.getElementById('thStatus').textContent  = isInvitationStage ? 'Bid Intent' : 'Status';
+
+    var rows = estimates.filter(function(e) {
+      if ((e.bid_stage || 'estimating') !== currentStage) return false;
+      if (estFilter && e.estimator_name !== estFilter) return false;
+      if (q) {
+        var hay = [(e.name||''), (e.project_address||''), (e.client_name||''),
+                   (e.requester_company||''), String(e.quote_number || ''),
+                   (e.project_number||'')].join(' ').toLowerCase();
+        if (hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+
+    // Sort
+    if (sort === 'name') rows.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+    else if (sort === 'due') rows.sort(function(a,b){
+      return (a.bid_due_date||'9999-12-31').localeCompare(b.bid_due_date||'9999-12-31');
+    });
+    else if (sort === 'value') rows.sort(function(a,b){ return (b._total_sales||0) - (a._total_sales||0); });
+    else rows.sort(function(a,b){ return (b.updated_at||'').localeCompare(a.updated_at||''); });
+
+    document.getElementById('rowCount').textContent = rows.length + ' project' + (rows.length === 1 ? '' : 's');
+
+    var body = document.getElementById('bbBody');
+    if (!rows.length) {
+      document.getElementById('bbTable').style.display = 'none';
+      document.getElementById('bbEmpty').style.display = '';
+      return;
+    }
+    document.getElementById('bbTable').style.display = '';
+    document.getElementById('bbEmpty').style.display = 'none';
+
+    body.innerHTML = rows.map(function(e) {
+      var due = e.bid_due_date ? fmtDate(e.bid_due_date) : '<span style="color:#94a3b8">—</span>';
+      var duePill = '';
+      if (e.bid_due_date) {
+        var days = Math.floor((new Date(e.bid_due_date) - new Date()) / 86400000);
+        if (days < 0)      duePill = '<div class="past">Past Due</div>';
+        else if (days < 3) duePill = '<div class="soon">Due in ' + days + 'd</div>';
+      }
+      var contextCell, statusCell;
+      if (isInvitationStage) {
+        contextCell = e.invitation_date ? fmtDate(e.invitation_date) : '<span style="color:#94a3b8">—</span>';
+        statusCell = intentPillHtml(e.bid_intent || 'undecided', e.id);
+      } else {
+        contextCell = '<span class="col-num">' + fmt$(e._total_sales || 0) + '</span>';
+        statusCell = stagePillHtml(e.bid_stage || 'estimating', e.id);
+      }
+      var estimator = e.estimator_name
+        ? '<span style="display:inline-flex;align-items:center;gap:6px">' +
+          '<span style="width:22px;height:22px;background:#dbeafe;color:#1e40af;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">' +
+          initials(e.estimator_name) + '</span>' +
+          esc(e.estimator_name) + '</span>'
+        : '<span style="color:#cbd5e1">—</span>';
+      var name = e.name || '(untitled)';
+      var sub = e.quote_number ? 'Q#' + e.quote_number : (e.project_number || '--');
+      return '<tr data-id="' + e.id + '">' +
+        '<td class="col-name"><a href="bid-project.html?id=' + e.id + '">' + esc(name) + '</a>' +
+          '<div class="sub">' + esc(sub) + '</div></td>' +
+        '<td><span class="info-ic">📊</span></td>' +
+        '<td>' + (e.requester_company ? esc(e.requester_company) : '<span style="color:#cbd5e1">—</span>') +
+          (e.requester_email ? '<div style="font-size:11px;color:#94a3b8">' + esc(e.requester_email) + '</div>' : '') +
+          '</td>' +
+        '<td style="font-size:12px;color:#64748b">' + (e.project_address ? esc(e.project_address) : '<span style="color:#cbd5e1">—</span>') + '</td>' +
+        '<td class="col-due">' + due + duePill + '</td>' +
+        '<td>' + contextCell + '</td>' +
+        '<td>' + estimator + '</td>' +
+        '<td>' + statusCell + '</td>' +
+      '</tr>';
+    }).join('');
+
+    // Row click → open project (but ignore clicks on links/pills)
+    body.querySelectorAll('tr').forEach(function(tr) {
+      tr.addEventListener('click', function(ev) {
+        if (ev.target.closest('a') || ev.target.closest('select') || ev.target.closest('.stage-pill') || ev.target.closest('.intent-pill')) return;
+        location.href = 'bid-project.html?id=' + tr.getAttribute('data-id');
+      });
+    });
+    // Wire pill dropdown changes
+    body.querySelectorAll('select[data-stage-for]').forEach(function(sel) {
+      sel.addEventListener('change', function(e) { updateStage(sel.getAttribute('data-stage-for'), sel.value); });
+    });
+    body.querySelectorAll('select[data-intent-for]').forEach(function(sel) {
+      sel.addEventListener('change', function(e) { updateIntent(sel.getAttribute('data-intent-for'), sel.value); });
+    });
+  }
+
+  function stagePillHtml(stage, id) {
+    if (!canEdit) {
+      return '<span class="stage-pill ' + stage + '">' + STAGE_LABEL[stage] + '</span>';
+    }
+    var opts = STAGES.map(function(s){
+      return '<option value="' + s.key + '"' + (s.key === stage ? ' selected' : '') + '>' + s.label + '</option>';
+    }).join('');
+    return '<select data-stage-for="' + id + '" class="stage-pill ' + stage + '"' +
+      ' style="border:1px solid;font-family:inherit;font-size:11px;padding:3px 8px;cursor:pointer">' + opts + '</select>';
+  }
+
+  function intentPillHtml(intent, id) {
+    if (!canEdit) {
+      return '<span class="intent-pill ' + intent + '">' + intent.replace('_',' ') + '</span>';
+    }
+    var opts = [
+      ['undecided','Undecided'],['will_bid','Will Bid'],['no_bid','No Bid']
+    ].map(function(pair){
+      return '<option value="' + pair[0] + '"' + (pair[0] === intent ? ' selected' : '') + '>' + pair[1] + '</option>';
+    }).join('');
+    return '<select data-intent-for="' + id + '" class="intent-pill ' + intent + '"' +
+      ' style="border:1px solid;font-family:inherit;font-size:10px;padding:3px 8px;cursor:pointer">' + opts + '</select>';
+  }
+
+  async function updateStage(id, newStage) {
+    var upd = await supabaseClient.from('estimates').update({ bid_stage: newStage }).eq('id', id);
+    if (upd.error) { toast('Update failed: ' + upd.error.message, 'error'); return; }
+    // Refresh in-memory + re-render
+    var row = estimates.find(function(e){ return e.id === id; });
+    if (row) row.bid_stage = newStage;
+    toast('Moved to ' + STAGE_LABEL[newStage], 'success');
+    // Rebuild counts
+    stageCounts = {}; stageSums = {};
+    STAGES.forEach(function(s){ stageCounts[s.key] = 0; stageSums[s.key] = 0; });
+    estimates.forEach(function(e) {
+      var st = e.bid_stage || 'estimating';
+      if (stageCounts.hasOwnProperty(st)) {
+        stageCounts[st]++;
+        stageSums[st] += Number(e._total_sales) || 0;
+      }
+    });
+    renderPipeline(); renderTable();
+  }
+
+  async function updateIntent(id, newIntent) {
+    var upd = await supabaseClient.from('estimates').update({ bid_intent: newIntent }).eq('id', id);
+    if (upd.error) { toast('Update failed: ' + upd.error.message, 'error'); return; }
+    var row = estimates.find(function(e){ return e.id === id; });
+    if (row) row.bid_intent = newIntent;
+    toast('Bid intent updated', 'success');
+    renderTable();
+  }
+
+  function openCreate() {
+    if (!canEdit) { toast('Only management can create bid projects', 'error'); return; }
+    document.getElementById('npName').value = '';
+    document.getElementById('npNumber').value = '';
+    document.getElementById('npAddress').value = '';
+    document.getElementById('npGc').value = '';
+    document.getElementById('npDue').value = '';
+    document.getElementById('npStage').value = currentStage === 'invitation' ? 'invitation' : 'estimating';
+    document.getElementById('createModal').classList.add('open');
+  }
+
+  async function createProject() {
+    var name = document.getElementById('npName').value.trim();
+    if (!name) { toast('Estimate name required', 'error'); return; }
+    var payload = {
+      name:              name,
+      project_number:    document.getElementById('npNumber').value.trim() || null,
+      project_address:   document.getElementById('npAddress').value.trim() || null,
+      requester_company: document.getElementById('npGc').value.trim() || null,
+      bid_due_date:      document.getElementById('npDue').value || null,
+      bid_stage:         document.getElementById('npStage').value,
+      bid_intent:        document.getElementById('npStage').value === 'invitation' ? 'undecided' : null,
+      invitation_date:   document.getElementById('npStage').value === 'invitation'
+                           ? new Date().toISOString().slice(0,10) : null,
+      estimator_name:    (userProfile && userProfile.full_name) || (currentUser && currentUser.email) || null,
+      created_by:        currentUser ? currentUser.id : null
+    };
+    var ins = await supabaseClient.from('estimates').insert(payload).select().single();
+    if (ins.error) { toast('Create failed: ' + ins.error.message, 'error'); return; }
+    location.href = 'bid-project.html?id=' + ins.data.id;
+  }
+
+  function fmt$(n) {
+    if (!n) return '$0';
+    if (n >= 1000000) return '$' + (n/1000000).toFixed(1) + 'M';
+    if (n >= 1000)    return '$' + (n/1000).toFixed(0) + 'k';
+    return '$' + Math.round(n).toLocaleString();
+  }
+  function fmtDate(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function initials(name) {
+    return (name || '').split(/\s+/).slice(0,2).map(function(w){ return w[0] || ''; }).join('').toUpperCase();
+  }
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function toast(msg, kind) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind ? ' ' + kind : '');
+    setTimeout(function(){ t.classList.remove('show'); }, 3200);
+  }
+})();
+</script>
+<script src="sw-register.js?v=177"></script>
+</body>
+</html>

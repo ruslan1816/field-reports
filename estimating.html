@@ -222,12 +222,45 @@
 
 <div class="es-wrap">
   <div class="header">
-    <a href="index.html" class="back-btn">&#8592;</a>
+    <a href="bid-board.html" class="back-btn">&#8592;</a>
     <div class="header-content">
       <h1 id="pageTitle">Estimating</h1>
     </div>
     <div class="profile-circle" id="profileCircle">--</div>
   </div>
+
+  <!-- Bid Project 5-tab shell (visible only when opened via ?id=<estimate>) -->
+  <div id="bpShell" style="display:none;padding:0 16px;background:#fff;border-bottom:1px solid #e2e8f0">
+    <div style="padding:10px 4px 6px;font-size:12px;color:#64748b">
+      <a href="bid-board.html" style="color:#0696D7;text-decoration:none;font-weight:600">Bid Board</a>
+      <span style="color:#cbd5e1">›</span>
+      <a id="bpShellCrumb" href="#" style="color:#0696D7;text-decoration:none;font-weight:600">Project</a>
+      <span style="color:#cbd5e1">›</span>
+      <span style="color:#334155;font-weight:600">Estimating</span>
+    </div>
+    <div style="display:flex;gap:0">
+      <a id="bpTabOverview"   style="padding:10px 16px;color:#64748b;text-decoration:none;font-size:13px;font-weight:600;border-bottom:3px solid transparent">Overview</a>
+      <a id="bpTabDocuments"  style="padding:10px 16px;color:#64748b;text-decoration:none;font-size:13px;font-weight:600;border-bottom:3px solid transparent">Documents</a>
+      <a id="bpTabTakeoff"    style="padding:10px 16px;color:#64748b;text-decoration:none;font-size:13px;font-weight:600;border-bottom:3px solid transparent">Takeoff</a>
+      <a id="bpTabEstimating" style="padding:10px 16px;color:#0696D7;text-decoration:none;font-size:13px;font-weight:700;border-bottom:3px solid #0696D7">Estimating</a>
+      <a id="bpTabProposal"   style="padding:10px 16px;color:#64748b;text-decoration:none;font-size:13px;font-weight:600;border-bottom:3px solid transparent">Proposal</a>
+    </div>
+  </div>
+  <script>
+    (function(){
+      var q = new URLSearchParams(location.search);
+      var eid = q.get('id') || q.get('est');
+      if (!eid) return;
+      var shell = document.getElementById('bpShell');
+      shell.style.display = '';
+      document.getElementById('bpShellCrumb').href    = 'bid-project.html?id=' + eid;
+      document.getElementById('bpTabOverview').href   = 'bid-project.html?id=' + eid + '#overview';
+      document.getElementById('bpTabDocuments').href  = 'bid-project.html?id=' + eid + '#documents';
+      document.getElementById('bpTabTakeoff').href    = 'takeoff.html?est=' + eid;
+      document.getElementById('bpTabEstimating').href = 'estimating.html?est=' + eid;
+      document.getElementById('bpTabProposal').href   = 'bid-project.html?id=' + eid + '#proposal';
+    })();
+  </script>
 
   <div class="iv-crumb" id="crumb"></div>
 

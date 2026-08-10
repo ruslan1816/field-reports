@@ -207,6 +207,39 @@
 </head>
 <body>
 
+<!-- Bid Project 5-tab shell (visible only when ?est=<estimate>) -->
+<div id="bpShell" style="display:none;padding:8px 16px 0;background:#0f172a;border-bottom:1px solid #1e293b">
+  <div style="font-size:11px;color:#64748b;margin-bottom:4px">
+    <a href="bid-board.html" style="color:#38bdf8;text-decoration:none;font-weight:600">Bid Board</a>
+    <span style="color:#475569">›</span>
+    <a id="bpShellCrumb" href="#" style="color:#38bdf8;text-decoration:none;font-weight:600">Project</a>
+    <span style="color:#475569">›</span>
+    <span style="color:#e2e8f0;font-weight:600">Takeoff</span>
+  </div>
+  <div style="display:flex;gap:0">
+    <a id="bpTabOverview"   style="padding:8px 14px;color:#94a3b8;text-decoration:none;font-size:12px;font-weight:600;border-bottom:2px solid transparent">Overview</a>
+    <a id="bpTabDocuments"  style="padding:8px 14px;color:#94a3b8;text-decoration:none;font-size:12px;font-weight:600;border-bottom:2px solid transparent">Documents</a>
+    <a id="bpTabTakeoff"    style="padding:8px 14px;color:#38bdf8;text-decoration:none;font-size:12px;font-weight:700;border-bottom:2px solid #38bdf8">Takeoff</a>
+    <a id="bpTabEstimating" style="padding:8px 14px;color:#94a3b8;text-decoration:none;font-size:12px;font-weight:600;border-bottom:2px solid transparent">Estimating</a>
+    <a id="bpTabProposal"   style="padding:8px 14px;color:#94a3b8;text-decoration:none;font-size:12px;font-weight:600;border-bottom:2px solid transparent">Proposal</a>
+  </div>
+</div>
+<script>
+  (function(){
+    var q = new URLSearchParams(location.search);
+    var eid = q.get('est') || q.get('id');
+    if (!eid) return;
+    var shell = document.getElementById('bpShell');
+    shell.style.display = '';
+    document.getElementById('bpShellCrumb').href    = 'bid-project.html?id=' + eid;
+    document.getElementById('bpTabOverview').href   = 'bid-project.html?id=' + eid + '#overview';
+    document.getElementById('bpTabDocuments').href  = 'bid-project.html?id=' + eid + '#documents';
+    document.getElementById('bpTabTakeoff').href    = 'takeoff.html?est=' + eid;
+    document.getElementById('bpTabEstimating').href = 'estimating.html?est=' + eid;
+    document.getElementById('bpTabProposal').href   = 'bid-project.html?id=' + eid + '#proposal';
+  })();
+</script>
+
 <div class="tk-header">
   <a href="#" class="back" id="backBtn">← Back</a>
   <h1 id="hdrTitle">On-Screen Takeoff</h1>

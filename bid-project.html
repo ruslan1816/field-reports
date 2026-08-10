@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NW Field">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0696D7">
+<title>Bid Project — Northern Wolves AC</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=173"></script>
+<script src="auth.js?v=173"></script>
+<style>
+  body { background: #f8fafc; padding-bottom: 40px; }
+  .bp-wrap { max-width: 1600px; margin: 0 auto; }
+
+  .bp-crumb { padding: 12px 20px 4px; font-size: 12px; color: #64748b; }
+  .bp-crumb a { color: #0696D7; text-decoration: none; font-weight: 600; }
+  .bp-crumb a:hover { text-decoration: underline; }
+
+  .bp-title-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 4px 20px 12px;
+  }
+  .bp-title {
+    flex: 1; font-size: 26px; font-weight: 800; color: #0f172a;
+    border: 1px solid transparent; padding: 4px 8px; border-radius: 6px; background: transparent;
+  }
+  .bp-title:focus { outline: none; border-color: #0696D7; background: #fff; }
+
+  .bp-stage-select {
+    padding: 6px 12px; font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; border-radius: 12px; border: 1px solid transparent;
+    cursor: pointer; font-family: inherit;
+  }
+  .st-invitation    { background: #f5f3ff; color: #6d28d9; border-color: #c4b5fd; }
+  .st-to_do         { background: #e0e7ff; color: #3730a3; border-color: #a5b4fc; }
+  .st-estimating    { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .st-bid_submitted { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .st-accepted      { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+  .st-in_progress   { background: #cffafe; color: #155e75; border-color: #67e8f9; }
+  .st-complete      { background: #dcfce7; color: #14532d; border-color: #86efac; }
+  .st-delayed       { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+  .st-lost          { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .st-archived      { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+
+  .btn-primary { background: linear-gradient(135deg,#0696D7,#0479B2); color:#fff; border:none;
+                 padding: 8px 16px; border-radius: 7px; font-weight: 700; font-size: 12px; cursor: pointer; }
+  .btn-secondary { background:#fff; color:#0696D7; border:1px solid #0696D7;
+                   padding: 7px 14px; border-radius: 7px; font-weight: 700; font-size: 12px; cursor: pointer; }
+  .btn-orange { background: linear-gradient(135deg,#f97316,#ea580c); color:#fff; border:none;
+                padding: 8px 16px; border-radius: 7px; font-weight: 700; font-size: 12px; cursor: pointer;
+                box-shadow: 0 2px 8px rgba(249,115,22,.3); }
+  .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+                padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+
+  /* ═══════ TAB BAR ═══════ */
+  .bp-tabs {
+    display: flex; gap: 0; padding: 0 20px; border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+  }
+  .bp-tab {
+    padding: 12px 20px; font-size: 13px; font-weight: 600; color: #64748b;
+    border-bottom: 3px solid transparent; cursor: pointer; text-decoration: none;
+    display: inline-block;
+  }
+  .bp-tab:hover { color: #0696D7; background: #f8fafc; }
+  .bp-tab.active { color: #0696D7; border-bottom-color: #0696D7; font-weight: 700; }
+
+  .bp-body { padding: 16px 20px; }
+
+  /* ═══════ 2-COL LAYOUT ═══════ */
+  .bp-2col { display: grid; grid-template-columns: 1fr 380px; gap: 16px; }
+  @media (max-width: 1100px) { .bp-2col { grid-template-columns: 1fr; } }
+
+  .card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 18px;
+  }
+  .card h3 {
+    margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #0f172a;
+  }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 11px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: 13px; box-sizing: border-box; background: #fff; font-family: inherit;
+  }
+  .field textarea { min-height: 80px; resize: vertical; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Notes/Tasks side panel */
+  .side-item {
+    padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+    margin-bottom: 8px; font-size: 13px; background: #f8fafc;
+  }
+  .side-item .who { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+  /* Documents */
+  .doc-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid #e2e8f0; margin-bottom: 6px; background: #fff;
+  }
+  .doc-row .fname { flex: 1; font-size: 13px; color: #0696D7; font-weight: 600; }
+  .doc-row .size  { font-size: 11px; color: #94a3b8; }
+
+  .empty-block {
+    padding: 40px 20px; text-align: center; color: #94a3b8; font-size: 13px;
+  }
+
+  .action-tile {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 24px; display: flex; align-items: center; gap: 16px;
+  }
+  .action-tile .icon {
+    font-size: 40px; width: 60px; text-align: center;
+  }
+  .action-tile .txt { flex: 1; }
+  .action-tile h3 { margin: 0 0 4px; font-size: 15px; color: #0f172a; }
+  .action-tile p { margin: 0; font-size: 12px; color: #64748b; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 12px 18px; border-radius: 8px;
+    font-size: 13px; z-index: 700; opacity: 0; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #059669; }
+  .toast.error { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="bp-wrap">
+  <div class="bp-crumb"><a href="bid-board.html">Bid Board</a> <span style="color:#cbd5e1">›</span> <span id="crumbName">…</span></div>
+
+  <div class="bp-title-row">
+    <input class="bp-title" id="bpTitle" placeholder="Project name">
+    <select class="bp-stage-select st-estimating" id="stageSel"></select>
+    <button class="btn-secondary" id="deleteBtn" style="color:#991b1b;border-color:#fca5a5">🗑 Archive</button>
+  </div>
+
+  <div class="bp-tabs">
+    <a class="bp-tab active" data-tab="overview"   href="#overview">Overview</a>
+    <a class="bp-tab"        data-tab="documents"  href="#documents">Documents</a>
+    <a class="bp-tab"        data-tab="takeoff"    id="tabTakeoff"    href="#takeoff">Takeoff</a>
+    <a class="bp-tab"        data-tab="estimating" id="tabEstimating" href="#estimating">Estimating</a>
+    <a class="bp-tab"        data-tab="proposal"   href="#proposal">Proposal</a>
+  </div>
+
+  <!-- ═══════ OVERVIEW ═══════ -->
+  <div class="bp-body" id="body-overview">
+    <div class="bp-2col">
+      <div>
+        <div class="card">
+          <h3>Estimate Overview</h3>
+          <div class="field-row">
+            <div class="field">
+              <label>Estimate Name</label>
+              <input type="text" id="ovName">
+            </div>
+            <div class="field">
+              <label>Project Number (customer's)</label>
+              <input type="text" id="ovNumber" placeholder="e.g. 11010174">
+            </div>
+          </div>
+          <div class="field">
+            <label>Project Description</label>
+            <textarea id="ovDescription"></textarea>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Estimator</label>
+              <input type="text" id="ovEstimator">
+            </div>
+            <div class="field">
+              <label>Office</label>
+              <select id="ovOffice">
+                <option value="">— Select —</option>
+                <option>NYC</option>
+                <option>Long Island</option>
+                <option>NJ</option>
+                <option>Westchester</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Square Footage</label>
+              <input type="number" id="ovSqft" step="1">
+            </div>
+            <div class="field">
+              <label>Quote # (auto)</label>
+              <input type="text" id="ovQuote" readonly style="background:#f1f5f9">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Bid Due Date</label>
+              <input type="date" id="ovDue">
+            </div>
+            <div class="field">
+              <label>Due Time</label>
+              <input type="time" id="ovDueTime">
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Customer / Requester</h3>
+          <div class="field-row">
+            <div class="field">
+              <label>Requester Company (GC — if from invitation)</label>
+              <input type="text" id="ovGc" placeholder="e.g. Vanguard Construction & Co.">
+            </div>
+            <div class="field">
+              <label>Requester Email</label>
+              <input type="email" id="ovGcEmail" placeholder="gmo@vanguardcon.com">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Invitation Date</label>
+              <input type="date" id="ovInviteDate">
+            </div>
+            <div class="field">
+              <label>Bid Intent</label>
+              <select id="ovIntent">
+                <option value="">—</option>
+                <option value="undecided">Undecided</option>
+                <option value="will_bid">Will Bid</option>
+                <option value="no_bid">No Bid</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>End Customer (if different from GC)</label>
+            <input type="text" id="ovCustomer">
+          </div>
+          <div class="field">
+            <label>Project Address</label>
+            <input type="text" id="ovAddress" placeholder="2540 Amsterdam Ave, New York, NY">
+          </div>
+        </div>
+
+        <div style="text-align:right;margin-top:12px">
+          <button class="btn-primary" id="saveOvBtn">💾 Save Overview</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="display:flex;align-items:center"><span style="flex:1">📝 Notes (<span id="notesCount">0</span>)</span>
+            <button class="btn-secondary" id="addNoteBtn">＋ Note</button></h3>
+          <div id="notesList"></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <h3 style="display:flex;align-items:center"><span style="flex:1">✅ Tasks (<span id="tasksCount">0</span>)</span>
+            <button class="btn-secondary" id="addTaskBtn">＋ Task</button></h3>
+          <div id="tasksList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ DOCUMENTS ═══════ -->
+  <div class="bp-body" id="body-documents" style="display:none">
+    <div class="card">
+      <h3 style="display:flex;align-items:center">
+        <span style="flex:1">📁 Project Documents</span>
+        <a class="btn-orange" id="openDocsBtn" href="#">📤 Full documents page →</a>
+      </h3>
+      <div id="docsList">
+        <div class="empty-block">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ TAKEOFF (link to takeoff.html) ═══════ -->
+  <div class="bp-body" id="body-takeoff" style="display:none">
+    <div class="action-tile">
+      <div class="icon">📐</div>
+      <div class="txt">
+        <h3>On-Screen Takeoff</h3>
+        <p>Measure ductwork, count air outlets, mark up drawings, roll up into estimate line items.</p>
+      </div>
+      <a class="btn-orange" id="openTakeoffBtn" href="#">Open Takeoff →</a>
+    </div>
+  </div>
+
+  <!-- ═══════ ESTIMATING (link to estimating.html) ═══════ -->
+  <div class="bp-body" id="body-estimating" style="display:none">
+    <div class="action-tile">
+      <div class="icon">💰</div>
+      <div class="txt">
+        <h3>Estimating — Line Items & Pricing</h3>
+        <p>Add cost items by category, apply NWAC standards ($60/hr, 20% overhead, 2% misc, 8.875% tax), see live totals.</p>
+      </div>
+      <a class="btn-orange" id="openEstBtn" href="#">Open Estimate →</a>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Summary</h3>
+      <div id="estSummary" style="font-size:13px;color:#64748b">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ═══════ PROPOSAL ═══════ -->
+  <div class="bp-body" id="body-proposal" style="display:none">
+    <div class="action-tile">
+      <div class="icon">📄</div>
+      <div class="txt">
+        <h3>Proposal PDF</h3>
+        <p>Generate the client-ready proposal PDF from the current estimate + scope/inclusions/exclusions.</p>
+      </div>
+      <a class="btn-orange" id="openPropBtn" href="#">Open Proposal Editor →</a>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Scope Text</h3>
+      <div class="field">
+        <label>Scope Summary</label>
+        <textarea id="propScope"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Inclusions</label>
+          <textarea id="propInc"></textarea>
+        </div>
+        <div class="field">
+          <label>Exclusions</label>
+          <textarea id="propExc"></textarea>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <button class="btn-primary" id="savePropBtn">💾 Save Proposal Text</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+requireAuth().catch(function(){});
+(function() {
+  'use strict';
+
+  var MGMT_ROLES = ['admin','manager','lead_pm','project_manager','apm'];
+  var STAGES = [
+    ['invitation','Invitation'],['to_do','To Do'],['estimating','Estimating'],
+    ['bid_submitted','Bid Submitted'],['accepted','Accepted'],['in_progress','In Progress'],
+    ['complete','Complete'],['delayed','Delayed'],['lost','Lost'],['archived','Archived']
+  ];
+
+  var params = new URLSearchParams(location.search);
+  var estimateId = params.get('id');
+  if (!estimateId) { alert('Missing ?id=<estimate id>'); location.href = 'bid-board.html'; return; }
+
+  var currentUser = null, canEdit = false;
+  var currentEstimate = null;
+  var currentTab = (location.hash || '#overview').replace('#', '') || 'overview';
+
+  init();
+
+  async function init() {
+    try {
+      var u = await supabaseClient.auth.getUser();
+      if (u && u.data && u.data.user) currentUser = u.data.user;
+      var prof = await supabaseClient.from('profiles').select('id,role,full_name').eq('id', currentUser.id).maybeSingle();
+      if (prof.data) canEdit = MGMT_ROLES.indexOf(prof.data.role) >= 0;
+    } catch(e){ console.warn(e); }
+
+    populateStages();
+    bindEvents();
+    await loadEstimate();
+    setTab(currentTab);
+  }
+
+  function populateStages() {
+    var sel = document.getElementById('stageSel');
+    STAGES.forEach(function(s) {
+      var o = document.createElement('option'); o.value = s[0]; o.textContent = s[1]; sel.appendChild(o);
+    });
+    sel.disabled = !canEdit;
+  }
+
+  function bindEvents() {
+    document.querySelectorAll('.bp-tab').forEach(function(t) {
+      t.addEventListener('click', function(e) {
+        e.preventDefault();
+        setTab(t.getAttribute('data-tab'));
+      });
+    });
+    document.getElementById('stageSel').addEventListener('change', updateStage);
+    document.getElementById('bpTitle').addEventListener('blur', updateTitle);
+    document.getElementById('saveOvBtn').addEventListener('click', saveOverview);
+    document.getElementById('savePropBtn').addEventListener('click', saveProposalText);
+    document.getElementById('addNoteBtn').addEventListener('click', addNote);
+    document.getElementById('addTaskBtn').addEventListener('click', addTask);
+    document.getElementById('deleteBtn').addEventListener('click', archive);
+  }
+
+  function setTab(tab) {
+    currentTab = tab;
+    location.hash = tab;
+    document.querySelectorAll('.bp-tab').forEach(function(t) {
+      t.classList.toggle('active', t.getAttribute('data-tab') === tab);
+    });
+    ['overview','documents','takeoff','estimating','proposal'].forEach(function(k) {
+      document.getElementById('body-' + k).style.display = (k === tab) ? '' : 'none';
+    });
+    if (tab === 'documents') loadDocs();
+    if (tab === 'estimating') loadEstSummary();
+  }
+
+  async function loadEstimate() {
+    var res = await supabaseClient.from('estimates').select('*').eq('id', estimateId).maybeSingle();
+    if (res.error || !res.data) { toast('Load failed', 'error'); return; }
+    currentEstimate = res.data;
+    hydrateOverview();
+    loadNotesTasks();
+  }
+
+  function hydrateOverview() {
+    var e = currentEstimate;
+    document.getElementById('crumbName').textContent = e.name || '(untitled)';
+    document.getElementById('bpTitle').value = e.name || '';
+    document.title = (e.quote_number ? 'Q' + e.quote_number + ' · ' : '') + (e.name || 'Bid Project') + ' — NWAC';
+
+    var stageSel = document.getElementById('stageSel');
+    stageSel.value = e.bid_stage || 'estimating';
+    stageSel.className = 'bp-stage-select st-' + (e.bid_stage || 'estimating');
+
+    document.getElementById('ovName').value        = e.name || '';
+    document.getElementById('ovNumber').value      = e.project_number || '';
+    document.getElementById('ovDescription').value = e.project_description || '';
+    document.getElementById('ovEstimator').value   = e.estimator_name || '';
+    document.getElementById('ovOffice').value      = e.office || '';
+    document.getElementById('ovSqft').value        = e.square_footage || '';
+    document.getElementById('ovQuote').value       = e.quote_number || '';
+    document.getElementById('ovDue').value         = e.bid_due_date || '';
+    document.getElementById('ovDueTime').value     = e.due_time || '';
+    document.getElementById('ovGc').value          = e.requester_company || '';
+    document.getElementById('ovGcEmail').value     = e.requester_email || '';
+    document.getElementById('ovInviteDate').value  = e.invitation_date || '';
+    document.getElementById('ovIntent').value      = e.bid_intent || '';
+    document.getElementById('ovCustomer').value    = e.client_name || '';
+    document.getElementById('ovAddress').value     = e.project_address || '';
+
+    document.getElementById('propScope').value = e.scope_summary || '';
+    document.getElementById('propInc').value   = e.inclusions   || '';
+    document.getElementById('propExc').value   = e.exclusions   || '';
+
+    // Wire tab links
+    document.getElementById('openDocsBtn').href    = 'project-files.html?project=' + estimateId + '&kind=estimate';
+    document.getElementById('openTakeoffBtn').href = 'takeoff.html?est=' + estimateId;
+    document.getElementById('tabTakeoff').href     = 'takeoff.html?est=' + estimateId;
+    document.getElementById('openEstBtn').href     = 'estimating.html?est=' + estimateId;
+    document.getElementById('tabEstimating').href  = 'estimating.html?est=' + estimateId;
+    document.getElementById('openPropBtn').href    = 'estimating.html?est=' + estimateId + '&tab=proposal';
+
+    // Make Takeoff / Estimating tabs actually navigate away (they open the full-featured pages)
+    document.getElementById('tabTakeoff').addEventListener('click', function(ev) {
+      ev.preventDefault(); location.href = 'takeoff.html?est=' + estimateId;
+    });
+    document.getElementById('tabEstimating').addEventListener('click', function(ev) {
+      ev.preventDefault(); location.href = 'estimating.html?est=' + estimateId;
+    });
+  }
+
+  async function updateStage() {
+    if (!canEdit) return;
+    var v = document.getElementById('stageSel').value;
+    var upd = await supabaseClient.from('estimates').update({
+      bid_stage: v,
+      archived_at: v === 'archived' ? new Date().toISOString() : null
+    }).eq('id', estimateId);
+    if (upd.error) { toast('Stage update failed: ' + upd.error.message, 'error'); return; }
+    document.getElementById('stageSel').className = 'bp-stage-select st-' + v;
+    toast('Stage → ' + v.replace('_',' '), 'success');
+  }
+
+  async function updateTitle() {
+    if (!canEdit) return;
+    var v = document.getElementById('bpTitle').value.trim();
+    if (!v) return;
+    if (v === currentEstimate.name) return;
+    var upd = await supabaseClient.from('estimates').update({ name: v }).eq('id', estimateId);
+    if (upd.error) { toast('Rename failed: ' + upd.error.message, 'error'); return; }
+    currentEstimate.name = v;
+    document.getElementById('crumbName').textContent = v;
+    document.getElementById('ovName').value = v;
+    toast('Renamed', 'success');
+  }
+
+  async function saveOverview() {
+    if (!canEdit) { toast('View only', 'error'); return; }
+    var payload = {
+      name:                document.getElementById('ovName').value.trim() || currentEstimate.name,
+      project_number:      document.getElementById('ovNumber').value.trim() || null,
+      project_description: document.getElementById('ovDescription').value.trim() || null,
+      estimator_name:      document.getElementById('ovEstimator').value.trim() || null,
+      office:              document.getElementById('ovOffice').value || null,
+      square_footage:      parseFloat(document.getElementById('ovSqft').value) || null,
+      bid_due_date:        document.getElementById('ovDue').value || null,
+      due_time:            document.getElementById('ovDueTime').value || null,
+      requester_company:   document.getElementById('ovGc').value.trim() || null,
+      requester_email:     document.getElementById('ovGcEmail').value.trim() || null,
+      invitation_date:     document.getElementById('ovInviteDate').value || null,
+      bid_intent:          document.getElementById('ovIntent').value || null,
+      client_name:         document.getElementById('ovCustomer').value.trim() || null,
+      project_address:     document.getElementById('ovAddress').value.trim() || null
+    };
+    var upd = await supabaseClient.from('estimates').update(payload).eq('id', estimateId);
+    if (upd.error) { toast('Save failed: ' + upd.error.message, 'error'); return; }
+    toast('Saved', 'success');
+    currentEstimate = Object.assign({}, currentEstimate, payload);
+    document.getElementById('crumbName').textContent = payload.name;
+    document.getElementById('bpTitle').value = payload.name;
+  }
+
+  async function saveProposalText() {
+    if (!canEdit) { toast('View only', 'error'); return; }
+    var upd = await supabaseClient.from('estimates').update({
+      scope_summary: document.getElementById('propScope').value.trim() || null,
+      inclusions:    document.getElementById('propInc').value.trim() || null,
+      exclusions:    document.getElementById('propExc').value.trim() || null
+    }).eq('id', estimateId);
+    if (upd.error) { toast('Save failed: ' + upd.error.message, 'error'); return; }
+    toast('Proposal text saved', 'success');
+  }
+
+  async function archive() {
+    if (!canEdit) return;
+    if (!confirm('Move this project to Archived? You can restore later from the Archived tab.')) return;
+    var upd = await supabaseClient.from('estimates').update({
+      bid_stage: 'archived', archived_at: new Date().toISOString()
+    }).eq('id', estimateId);
+    if (upd.error) { toast('Archive failed: ' + upd.error.message, 'error'); return; }
+    toast('Archived', 'success');
+    setTimeout(function(){ location.href = 'bid-board.html?stage=archived'; }, 700);
+  }
+
+  // ─── Notes / Tasks ──────────────────────────────────────────────
+  async function loadNotesTasks() {
+    var n = await supabaseClient.from('bid_project_notes')
+      .select('id, body, created_at, created_by').eq('estimate_id', estimateId).order('created_at', {ascending:false});
+    renderNotes(n.data || []);
+    var t = await supabaseClient.from('bid_project_tasks')
+      .select('id, title, due_date, is_done, created_by').eq('estimate_id', estimateId).order('is_done').order('due_date');
+    renderTasks(t.data || []);
+  }
+  function renderNotes(notes) {
+    document.getElementById('notesCount').textContent = notes.length;
+    var host = document.getElementById('notesList');
+    if (!notes.length) { host.innerHTML = '<div class="empty-block">No notes yet.</div>'; return; }
+    host.innerHTML = notes.map(function(n) {
+      return '<div class="side-item">' + esc(n.body) +
+        '<div class="who">' + new Date(n.created_at).toLocaleString() + '</div></div>';
+    }).join('');
+  }
+  function renderTasks(tasks) {
+    document.getElementById('tasksCount').textContent = tasks.length;
+    var host = document.getElementById('tasksList');
+    if (!tasks.length) { host.innerHTML = '<div class="empty-block">No tasks yet.</div>'; return; }
+    host.innerHTML = tasks.map(function(t) {
+      return '<div class="side-item" style="' + (t.is_done ? 'opacity:0.5;text-decoration:line-through' : '') + '">' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+        '<input type="checkbox" data-task-id="' + t.id + '"' + (t.is_done ? ' checked' : '') + '>' +
+        esc(t.title) + '</label>' +
+        (t.due_date ? '<div class="who">Due ' + t.due_date + '</div>' : '') +
+      '</div>';
+    }).join('');
+    host.querySelectorAll('input[data-task-id]').forEach(function(cb) {
+      cb.addEventListener('change', async function() {
+        await supabaseClient.from('bid_project_tasks').update({
+          is_done: cb.checked,
+          completed_at: cb.checked ? new Date().toISOString() : null
+        }).eq('id', cb.getAttribute('data-task-id'));
+        loadNotesTasks();
+      });
+    });
+  }
+  async function addNote() {
+    var b = prompt('Note:');
+    if (!b || !b.trim()) return;
+    var ins = await supabaseClient.from('bid_project_notes').insert({
+      estimate_id: estimateId, body: b.trim(), created_by: currentUser ? currentUser.id : null
+    });
+    if (ins.error) { toast('Note add failed: ' + ins.error.message, 'error'); return; }
+    loadNotesTasks();
+  }
+  async function addTask() {
+    var t = prompt('Task title:');
+    if (!t || !t.trim()) return;
+    var d = prompt('Due date (YYYY-MM-DD, optional):') || null;
+    var ins = await supabaseClient.from('bid_project_tasks').insert({
+      estimate_id: estimateId, title: t.trim(), due_date: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null,
+      created_by: currentUser ? currentUser.id : null
+    });
+    if (ins.error) { toast('Task add failed: ' + ins.error.message, 'error'); return; }
+    loadNotesTasks();
+  }
+
+  // ─── Documents (short list) ─────────────────────────────────────
+  async function loadDocs() {
+    var host = document.getElementById('docsList');
+    host.innerHTML = '<div class="empty-block">Loading…</div>';
+    // project-files uses ?project=<projectId>; when opened from a bid estimate we key by estimateId
+    var q = await supabaseClient.from('project_files')
+      .select('id, file_name, file_size, category, storage_path, uploaded_by, created_at')
+      .eq('project_id', estimateId).order('created_at', {ascending:false});
+    if (q.error) {
+      host.innerHTML = '<div class="empty-block" style="color:#dc2626">' + esc(q.error.message) + '</div>'; return;
+    }
+    var files = q.data || [];
+    if (!files.length) {
+      host.innerHTML = '<div class="empty-block">No documents uploaded yet — click <b>Full documents page</b> to upload.</div>';
+      return;
+    }
+    host.innerHTML = files.slice(0, 30).map(function(f) {
+      var kb = f.file_size ? Math.round(f.file_size / 1024) + ' KB' : '';
+      return '<div class="doc-row">' +
+        '<span style="font-size:16px">📄</span>' +
+        '<div style="flex:1"><div class="fname">' + esc(f.file_name) + '</div>' +
+        '<div class="size">' + esc(f.category || 'other') + ' · ' + kb + ' · ' + new Date(f.created_at).toLocaleDateString() + '</div>' +
+        '</div></div>';
+    }).join('') + (files.length > 30 ? '<div style="font-size:11px;color:#94a3b8;margin-top:6px">Showing 30 of ' + files.length + '. Open full docs page →</div>' : '');
+  }
+
+  // ─── Estimating summary ─────────────────────────────────────────
+  async function loadEstSummary() {
+    var host = document.getElementById('estSummary');
+    host.innerHTML = 'Loading…';
+    var li = await supabaseClient.from('estimate_line_items')
+      .select('category, quantity, unit_material_cost, unit_labor_hours, is_wet_tap').eq('estimate_id', estimateId);
+    if (li.error) { host.textContent = 'Error: ' + li.error.message; return; }
+    var lines = li.data || [];
+    if (!lines.length) { host.textContent = 'No line items yet — open Estimate to add them.'; return; }
+
+    var byCat = {}, matTot = 0, laborHrs = 0;
+    lines.forEach(function(l) {
+      var mat = (Number(l.quantity)||0) * (Number(l.unit_material_cost)||0);
+      var hrs = (Number(l.quantity)||0) * (Number(l.unit_labor_hours)||0);
+      matTot += mat; laborHrs += hrs;
+      (byCat[l.category] = byCat[l.category] || { m:0, h:0, n:0 });
+      byCat[l.category].m += mat;
+      byCat[l.category].h += hrs;
+      byCat[l.category].n++;
+    });
+    var laborRate = Number(currentEstimate.labor_rate) || 60;
+    var laborTot = laborHrs * laborRate;
+    var subtotal = matTot + laborTot;
+    var ovh   = subtotal * (Number(currentEstimate.overhead_pct)      || 0.20);
+    var misc  = subtotal * (Number(currentEstimate.miscellaneous_pct) || 0.02);
+    var tax   = matTot   * (Number(currentEstimate.tax_rate)          || 0.08875);
+    var total = subtotal + ovh + misc + tax;
+
+    var catHtml = Object.keys(byCat).map(function(k) {
+      var c = byCat[k];
+      return '<tr><td style="padding:4px 8px">' + k.replace('_',' ') + '</td>' +
+        '<td style="padding:4px 8px" class="col-num">' + c.n + '</td>' +
+        '<td style="padding:4px 8px" class="col-num">$' + Math.round(c.m).toLocaleString() + '</td>' +
+        '<td style="padding:4px 8px" class="col-num">' + c.h.toFixed(1) + '</td></tr>';
+    }).join('');
+
+    host.innerHTML =
+      '<table style="width:100%;font-size:12px;border-collapse:collapse">' +
+      '<thead><tr style="background:#f1f5f9"><th style="text-align:left;padding:4px 8px">Category</th>' +
+      '<th style="text-align:right;padding:4px 8px">Lines</th>' +
+      '<th style="text-align:right;padding:4px 8px">Material $</th>' +
+      '<th style="text-align:right;padding:4px 8px">Labor hrs</th></tr></thead><tbody>' + catHtml + '</tbody></table>' +
+      '<div style="margin-top:12px;padding:10px;background:#f8fafc;border-radius:6px">' +
+      '<div>Material subtotal: <b>$' + Math.round(matTot).toLocaleString() + '</b></div>' +
+      '<div>Labor: <b>' + laborHrs.toFixed(1) + ' hrs</b> × $' + laborRate + ' = $' + Math.round(laborTot).toLocaleString() + '</div>' +
+      '<div>Overhead + Misc + Tax: <b>$' + Math.round(ovh + misc + tax).toLocaleString() + '</b></div>' +
+      '<div style="font-size:16px;margin-top:6px;font-weight:700;color:#059669">Total: $' + Math.round(total).toLocaleString() + '</div>' +
+      '</div>';
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function toast(m, k){
+    var t = document.getElementById('toast');
+    t.textContent = m; t.className = 'toast show' + (k ? ' ' + k : '');
+    setTimeout(function(){ t.classList.remove('show'); }, 3000);
+  }
+})();
+</script>
+<script src="sw-register.js?v=177"></script>
+</body>
+</html>
