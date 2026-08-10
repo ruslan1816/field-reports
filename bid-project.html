@@ -12,6 +12,7 @@
 <title>Bid Project — Northern Wolves AC</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="supabase-config.js?v=173"></script>
 <script src="auth.js?v=173"></script>
 <style>
@@ -140,7 +141,15 @@
   <div class="bp-title-row">
     <input class="bp-title" id="bpTitle" placeholder="Project name">
     <select class="bp-stage-select st-estimating" id="stageSel"></select>
-    <button class="btn-secondary" id="deleteBtn" style="color:#991b1b;border-color:#fca5a5">🗑 Archive</button>
+    <div style="position:relative">
+      <button class="btn-secondary" id="actionsBtn" title="Project actions">⋯</button>
+      <div id="actionsMenu" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:220px;z-index:60">
+        <a href="#" data-act="save-template"  style="display:block;padding:10px 14px;font-size:13px;color:#334155;text-decoration:none;border-bottom:1px solid #f1f5f9">📌 Save as Template</a>
+        <a href="#" data-act="duplicate"      style="display:block;padding:10px 14px;font-size:13px;color:#334155;text-decoration:none;border-bottom:1px solid #f1f5f9">📄 Duplicate Project</a>
+        <a href="#" data-act="add-alt"        style="display:block;padding:10px 14px;font-size:13px;color:#334155;text-decoration:none;border-bottom:1px solid #f1f5f9">➕ Add Alternate Estimate</a>
+        <a href="#" data-act="archive"        style="display:block;padding:10px 14px;font-size:13px;color:#991b1b;text-decoration:none">🗑 Archive</a>
+      </div>
+    </div>
   </div>
 
   <div class="bp-tabs">
@@ -149,6 +158,13 @@
     <a class="bp-tab"        data-tab="takeoff"    id="tabTakeoff"    href="#takeoff">Takeoff</a>
     <a class="bp-tab"        data-tab="estimating" id="tabEstimating" href="#estimating">Estimating</a>
     <a class="bp-tab"        data-tab="proposal"   href="#proposal">Proposal</a>
+  </div>
+
+  <!-- Estimate versions strip (E1/E2/E3) — Procore-style -->
+  <div id="versionStrip" style="display:none;padding:6px 20px;background:#f8fafc;border-bottom:1px solid #e2e8f0;align-items:center;gap:8px">
+    <span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Versions:</span>
+    <span id="versionChips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1"></span>
+    <button class="btn-secondary" id="addVerBtn" style="padding:4px 10px;font-size:11px">+ Alt Estimate</button>
   </div>
 
   <!-- ═══════ OVERVIEW ═══════ -->
@@ -308,37 +324,59 @@
     </div>
   </div>
 
-  <!-- ═══════ PROPOSAL ═══════ -->
+  <!-- ═══════ PROPOSAL — WYSIWYG editor ═══════ -->
   <div class="bp-body" id="body-proposal" style="display:none">
-    <div class="action-tile">
-      <div class="icon">📄</div>
-      <div class="txt">
-        <h3>Proposal PDF</h3>
-        <p>Generate the client-ready proposal PDF from the current estimate + scope/inclusions/exclusions.</p>
+    <div class="card" style="padding:0;overflow:hidden">
+      <!-- Toolbar -->
+      <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;align-items:center">
+        <button class="prop-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+        <button class="prop-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+        <button class="prop-btn" data-cmd="underline" title="Underline"><u>U</u></button>
+        <span style="width:1px;height:20px;background:#cbd5e1;margin:0 4px"></span>
+        <button class="prop-btn" data-cmd="insertUnorderedList" title="Bullet list">• List</button>
+        <button class="prop-btn" data-cmd="insertOrderedList" title="Numbered list">1. List</button>
+        <span style="width:1px;height:20px;background:#cbd5e1;margin:0 4px"></span>
+        <button class="prop-btn" data-block="h2" title="Section heading">H2</button>
+        <button class="prop-btn" data-block="h3" title="Sub heading">H3</button>
+        <button class="prop-btn" data-block="p"  title="Paragraph">¶</button>
+        <span style="width:1px;height:20px;background:#cbd5e1;margin:0 4px"></span>
+        <button class="prop-btn" id="insHeaderBtn" title="Insert company header + customer block">📋 Header</button>
+        <button class="prop-btn" id="insScopeBtn"  title="Insert scope of work block">📝 Scope</button>
+        <button class="prop-btn" id="insLinesBtn"  title="Insert line-items table">📊 Line Items</button>
+        <button class="prop-btn" id="insTotalsBtn" title="Insert totals block">💰 Totals</button>
+        <span style="flex:1"></span>
+        <button class="btn-secondary" id="loadTplBtn" style="font-size:11px;padding:5px 10px" title="Reset to default template (overwrites current)">↺ Default Template</button>
+        <button class="btn-primary" id="savePropBtn" style="font-size:12px;padding:6px 12px">💾 Save</button>
+        <button class="btn-orange"  id="exportPropBtn" style="font-size:12px;padding:6px 12px">📄 Export PDF</button>
       </div>
-      <a class="btn-orange" id="openPropBtn" href="#">Open Proposal Editor →</a>
+      <!-- WYSIWYG canvas -->
+      <div id="propEditor" contenteditable="true"
+        style="min-height:60vh;padding:32px 40px;background:#fff;outline:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:1.55;color:#0f172a"></div>
     </div>
-    <div class="card" style="margin-top:16px">
-      <h3>Scope Text</h3>
-      <div class="field">
-        <label>Scope Summary</label>
-        <textarea id="propScope"></textarea>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Inclusions</label>
-          <textarea id="propInc"></textarea>
-        </div>
-        <div class="field">
-          <label>Exclusions</label>
-          <textarea id="propExc"></textarea>
-        </div>
-      </div>
-      <div style="text-align:right">
-        <button class="btn-primary" id="savePropBtn">💾 Save Proposal Text</button>
-      </div>
-    </div>
+    <p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:8px">
+      Ctrl+S to save · Insert blocks pull live data from the current estimate
+    </p>
   </div>
+
+  <style>
+    .prop-btn {
+      padding: 5px 9px; background: #fff; border: 1px solid #cbd5e1; border-radius: 5px;
+      font-size: 12px; cursor: pointer; font-family: inherit; color: #334155;
+    }
+    .prop-btn:hover { background: #f0f9ff; border-color: #0696D7; }
+    #propEditor h1 { font-size: 22px; font-weight: 800; margin: 0 0 12px; color: #0f172a; }
+    #propEditor h2 { font-size: 16px; font-weight: 700; margin: 14px 0 6px; color: #0f172a; border-bottom: 2px solid #226B8A; padding-bottom: 4px; }
+    #propEditor h3 { font-size: 13px; font-weight: 700; margin: 10px 0 4px; color: #226B8A; text-transform: uppercase; letter-spacing: .5px; }
+    #propEditor p  { margin: 0 0 8px; }
+    #propEditor table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 12px; }
+    #propEditor th   { background: #226B8A; color: #fff; text-align: left; padding: 6px 8px; font-weight: 700; }
+    #propEditor td   { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
+    #propEditor .totals-row td { font-weight: 700; }
+    #propEditor .grand td { background: #f8fafc; font-size: 14px; color: #0f172a; }
+    #propEditor ul, #propEditor ol { padding-left: 24px; margin: 6px 0 12px; }
+    #propEditor .co-header { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 12px 0; border-bottom: 2px solid #226B8A; }
+    #propEditor .co-header .col b { display: block; font-size: 13px; color: #226B8A; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+  </style>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -397,10 +435,49 @@ requireAuth().catch(function(){});
     document.getElementById('stageSel').addEventListener('change', updateStage);
     document.getElementById('bpTitle').addEventListener('blur', updateTitle);
     document.getElementById('saveOvBtn').addEventListener('click', saveOverview);
-    document.getElementById('savePropBtn').addEventListener('click', saveProposalText);
     document.getElementById('addNoteBtn').addEventListener('click', addNote);
     document.getElementById('addTaskBtn').addEventListener('click', addTask);
-    document.getElementById('deleteBtn').addEventListener('click', archive);
+    // Actions menu
+    document.getElementById('actionsBtn').addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      var m = document.getElementById('actionsMenu');
+      m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', function() { document.getElementById('actionsMenu').style.display = 'none'; });
+    document.getElementById('actionsMenu').addEventListener('click', function(ev) {
+      var a = ev.target.closest('[data-act]'); if (!a) return;
+      ev.preventDefault();
+      var act = a.getAttribute('data-act');
+      document.getElementById('actionsMenu').style.display = 'none';
+      if (act === 'save-template')   saveAsTemplate();
+      else if (act === 'duplicate')  duplicateProject();
+      else if (act === 'add-alt')    addAltEstimate();
+      else if (act === 'archive')    archive();
+    });
+    // Version strip
+    document.getElementById('addVerBtn').addEventListener('click', addAltEstimate);
+    // Proposal editor
+    document.querySelectorAll('.prop-btn[data-cmd]').forEach(function(b) {
+      b.addEventListener('mousedown', function(e){ e.preventDefault(); });
+      b.addEventListener('click', function() { document.execCommand(b.getAttribute('data-cmd'), false, null); });
+    });
+    document.querySelectorAll('.prop-btn[data-block]').forEach(function(b) {
+      b.addEventListener('mousedown', function(e){ e.preventDefault(); });
+      b.addEventListener('click', function() { document.execCommand('formatBlock', false, b.getAttribute('data-block')); });
+    });
+    document.getElementById('insHeaderBtn').addEventListener('click', insertHeader);
+    document.getElementById('insScopeBtn').addEventListener('click',  insertScope);
+    document.getElementById('insLinesBtn').addEventListener('click',  insertLineItems);
+    document.getElementById('insTotalsBtn').addEventListener('click', insertTotals);
+    document.getElementById('loadTplBtn').addEventListener('click',   loadDefaultProposal);
+    document.getElementById('savePropBtn').addEventListener('click',  savePropHtml);
+    document.getElementById('exportPropBtn').addEventListener('click', exportPropPdf);
+    // Ctrl+S save when in proposal
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && currentTab === 'proposal') {
+        e.preventDefault(); savePropHtml();
+      }
+    });
   }
 
   function setTab(tab) {
@@ -414,6 +491,7 @@ requireAuth().catch(function(){});
     });
     if (tab === 'documents') loadDocs();
     if (tab === 'estimating') loadEstSummary();
+    if (tab === 'proposal')   loadProposal();
   }
 
   async function loadEstimate() {
@@ -422,6 +500,274 @@ requireAuth().catch(function(){});
     currentEstimate = res.data;
     hydrateOverview();
     loadNotesTasks();
+    loadVersions();
+  }
+
+  // ─── Estimate versions (E1/E2/E3) ───────────────────────────────
+  async function loadVersions() {
+    // Root of the "bid project" = the primary estimate row
+    var rootId = currentEstimate.parent_estimate_id || currentEstimate.id;
+    var q = await supabaseClient.from('estimates')
+      .select('id, version_label, version_number, parent_estimate_id, name')
+      .or('id.eq.' + rootId + ',parent_estimate_id.eq.' + rootId)
+      .order('version_number', {ascending: true});
+    if (q.error || !q.data) return;
+    var versions = q.data;
+    if (versions.length <= 1) {
+      document.getElementById('versionStrip').style.display = 'none';
+      return;
+    }
+    document.getElementById('versionStrip').style.display = 'flex';
+    document.getElementById('versionChips').innerHTML = versions.map(function(v) {
+      var active = v.id === estimateId;
+      return '<a href="bid-project.html?id=' + v.id + '"' +
+        ' style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-decoration:none;' +
+        (active
+          ? 'background:#0696D7;color:#fff'
+          : 'background:#fff;color:#334155;border:1px solid #cbd5e1') + '">' +
+        'E' + v.version_number + (v.version_label && v.version_label !== 'Original Estimate' ? ' · ' + esc(v.version_label) : '') +
+        '</a>';
+    }).join('');
+  }
+
+  async function addAltEstimate() {
+    if (!canEdit) return;
+    var label = prompt('Label for this alternate (e.g. "R-410A option" or "Value Engineered"):', 'Alt ' + Date.now().toString().slice(-4));
+    if (!label) return;
+    var rootId = currentEstimate.parent_estimate_id || currentEstimate.id;
+    // Find highest version_number so far
+    var vq = await supabaseClient.from('estimates')
+      .select('version_number').or('id.eq.' + rootId + ',parent_estimate_id.eq.' + rootId);
+    var maxV = 1;
+    (vq.data || []).forEach(function(r){ if (r.version_number > maxV) maxV = r.version_number; });
+    var newVer = maxV + 1;
+    var srcFields = Object.assign({}, currentEstimate);
+    // Wipe fields that must be unique / are audit
+    delete srcFields.id; delete srcFields.quote_number;
+    delete srcFields.created_at; delete srcFields.updated_at;
+    delete srcFields.sent_at; delete srcFields.awarded_at;
+    delete srcFields.aia_project_id;
+    srcFields.parent_estimate_id = rootId;
+    srcFields.version_label      = label;
+    srcFields.version_number     = newVer;
+    srcFields.is_template        = false;
+    srcFields.template_source_id = null;
+    srcFields.archived_at        = null;
+    srcFields.name = (currentEstimate.name || 'Untitled') + ' — ' + label;
+    var ins = await supabaseClient.from('estimates').insert(srcFields).select().single();
+    if (ins.error) { toast('Add alt failed: ' + ins.error.message, 'error'); return; }
+    toast('E' + newVer + ' created — opening…', 'success');
+    setTimeout(function(){ location.href = 'bid-project.html?id=' + ins.data.id; }, 500);
+  }
+
+  // ─── Templates ──────────────────────────────────────────────────
+  async function saveAsTemplate() {
+    if (!canEdit) return;
+    var tplName = prompt('Template name:', (currentEstimate.name || 'Untitled') + ' Template');
+    if (!tplName) return;
+    // Duplicate the estimate as a template
+    var src = Object.assign({}, currentEstimate);
+    delete src.id; delete src.quote_number;
+    delete src.created_at; delete src.updated_at;
+    delete src.sent_at; delete src.awarded_at; delete src.aia_project_id;
+    src.name             = tplName;
+    src.is_template      = true;
+    src.template_source_id = currentEstimate.id;
+    src.bid_stage        = 'estimating';
+    src.parent_estimate_id = null;
+    src.version_number   = 1;
+    src.archived_at      = null;
+    var ins = await supabaseClient.from('estimates').insert(src).select().single();
+    if (ins.error) { toast('Template save failed: ' + ins.error.message, 'error'); return; }
+    // Copy line items too
+    var li = await supabaseClient.from('estimate_line_items').select('*').eq('estimate_id', currentEstimate.id);
+    if (li.data && li.data.length) {
+      var copies = li.data.map(function(r) {
+        var c = Object.assign({}, r); delete c.id; delete c.created_at; delete c.updated_at;
+        c.estimate_id = ins.data.id;
+        return c;
+      });
+      await supabaseClient.from('estimate_line_items').insert(copies);
+    }
+    toast('✅ Saved as template: ' + tplName, 'success');
+  }
+
+  async function duplicateProject() {
+    if (!canEdit) return;
+    if (!confirm('Duplicate this bid project (with all line items) as a new draft?')) return;
+    var src = Object.assign({}, currentEstimate);
+    delete src.id; delete src.quote_number;
+    delete src.created_at; delete src.updated_at;
+    delete src.sent_at; delete src.awarded_at; delete src.aia_project_id;
+    src.name = (currentEstimate.name || 'Untitled') + ' (copy)';
+    src.bid_stage = 'estimating';
+    src.parent_estimate_id = null;
+    src.version_number = 1;
+    src.is_template = false;
+    src.template_source_id = currentEstimate.id;
+    src.archived_at = null;
+    var ins = await supabaseClient.from('estimates').insert(src).select().single();
+    if (ins.error) { toast('Duplicate failed: ' + ins.error.message, 'error'); return; }
+    var li = await supabaseClient.from('estimate_line_items').select('*').eq('estimate_id', currentEstimate.id);
+    if (li.data && li.data.length) {
+      var copies = li.data.map(function(r) {
+        var c = Object.assign({}, r); delete c.id; delete c.created_at; delete c.updated_at;
+        c.estimate_id = ins.data.id;
+        return c;
+      });
+      await supabaseClient.from('estimate_line_items').insert(copies);
+    }
+    toast('Duplicated — opening…', 'success');
+    setTimeout(function(){ location.href = 'bid-project.html?id=' + ins.data.id; }, 500);
+  }
+
+  // ─── Proposal editor ────────────────────────────────────────────
+  var proposalLoaded = false;
+  function loadProposal() {
+    if (proposalLoaded) return;
+    var ed = document.getElementById('propEditor');
+    if (currentEstimate && currentEstimate.proposal_html) {
+      ed.innerHTML = currentEstimate.proposal_html;
+    } else {
+      loadDefaultProposal();
+    }
+    proposalLoaded = true;
+  }
+
+  function loadDefaultProposal() {
+    var e = currentEstimate;
+    var today = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+    var html =
+      '<h1>' + esc(e.name || 'Proposal') + '</h1>' +
+      '<div class="co-header">' +
+        '<div class="col"><b>From</b>' +
+          'Northern Wolves AC<br>124 9th St, #274<br>Brooklyn, NY 11215<br>(347) 440-3030' +
+        '</div>' +
+        '<div class="col"><b>To</b>' +
+          esc(e.requester_company || e.client_name || 'Customer name') + '<br>' +
+          esc(e.project_address || 'Project address') +
+        '</div>' +
+      '</div>' +
+      '<p style="text-align:right;margin-top:8px"><b>Quote #' + (e.quote_number || '—') + '</b> · ' + today + '</p>' +
+      '<h2>Scope of Work</h2>' +
+      '<p>' + esc(e.scope_summary || e.project_description || 'Enter scope of work here…') + '</p>' +
+      '<h3>Inclusions</h3>' +
+      '<p>' + esc(e.inclusions || '—') + '</p>' +
+      '<h3>Exclusions</h3>' +
+      '<p>' + esc(e.exclusions || '—') + '</p>' +
+      '<h2>Pricing</h2>' +
+      '<p><span id="_totals_placeholder">Click <b>💰 Totals</b> to insert live pricing from the estimate.</span></p>' +
+      '<h2>Terms</h2>' +
+      '<p>Payment terms: Net 30. Proposal valid for 30 days.<br>Northern Wolves AC · Licensed HVAC contractor NY/NJ.</p>';
+    document.getElementById('propEditor').innerHTML = html;
+  }
+
+  function insertAtCursor(html) {
+    var ed = document.getElementById('propEditor');
+    ed.focus();
+    var sel = window.getSelection();
+    if (sel.rangeCount) {
+      var r = sel.getRangeAt(0);
+      var frag = r.createContextualFragment(html);
+      r.deleteContents(); r.insertNode(frag);
+      sel.removeAllRanges();
+    } else {
+      ed.insertAdjacentHTML('beforeend', html);
+    }
+  }
+
+  function insertHeader() {
+    var e = currentEstimate;
+    insertAtCursor(
+      '<div class="co-header">' +
+        '<div class="col"><b>From</b>Northern Wolves AC<br>124 9th St, #274<br>Brooklyn, NY 11215<br>(347) 440-3030</div>' +
+        '<div class="col"><b>To</b>' + esc(e.requester_company || e.client_name || 'Customer name') + '<br>' +
+        esc(e.project_address || 'Project address') + '</div>' +
+      '</div>'
+    );
+  }
+
+  function insertScope() {
+    var e = currentEstimate;
+    insertAtCursor(
+      '<h2>Scope of Work</h2><p>' + esc(e.scope_summary || e.project_description || '…') + '</p>' +
+      '<h3>Inclusions</h3><p>' + esc(e.inclusions || '—') + '</p>' +
+      '<h3>Exclusions</h3><p>' + esc(e.exclusions || '—') + '</p>'
+    );
+  }
+
+  async function insertLineItems() {
+    var li = await supabaseClient.from('estimate_line_items').select('*').eq('estimate_id', estimateId).order('sort_order');
+    var lines = li.data || [];
+    if (!lines.length) { toast('No line items to insert', 'error'); return; }
+    var laborRate = Number(currentEstimate.labor_rate) || 60;
+    var rows = lines.map(function(l) {
+      var mat = (Number(l.quantity)||0) * (Number(l.unit_material_cost)||0);
+      var lab = (Number(l.quantity)||0) * (Number(l.unit_labor_hours)||0) * laborRate;
+      var t = mat + lab;
+      return '<tr><td>' + esc(l.category.replace('_',' ')) + '</td>' +
+        '<td>' + esc(l.description || '') + '</td>' +
+        '<td style="text-align:right">' + (Number(l.quantity)||0) + ' ' + esc(l.unit || '') + '</td>' +
+        '<td style="text-align:right">$' + Math.round(t).toLocaleString() + '</td></tr>';
+    }).join('');
+    insertAtCursor(
+      '<h3>Line Items</h3>' +
+      '<table><thead><tr><th>Category</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:right">Total</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>'
+    );
+  }
+
+  async function insertTotals() {
+    var li = await supabaseClient.from('estimate_line_items').select('quantity, unit_material_cost, unit_labor_hours').eq('estimate_id', estimateId);
+    var matTot = 0, hrs = 0;
+    (li.data || []).forEach(function(l) {
+      matTot += (Number(l.quantity)||0) * (Number(l.unit_material_cost)||0);
+      hrs    += (Number(l.quantity)||0) * (Number(l.unit_labor_hours)||0);
+    });
+    var laborRate = Number(currentEstimate.labor_rate) || 60;
+    var laborTot = hrs * laborRate;
+    var subtotal = matTot + laborTot;
+    var ovh   = subtotal * (Number(currentEstimate.overhead_pct)      || 0.20);
+    var misc  = subtotal * (Number(currentEstimate.miscellaneous_pct) || 0.02);
+    var tax   = matTot   * (Number(currentEstimate.tax_rate)          || 0.08875);
+    var total = subtotal + ovh + misc + tax;
+    var money = function(n){ return '$' + Math.round(n).toLocaleString(); };
+    insertAtCursor(
+      '<table><tbody>' +
+      '<tr><td>Materials + Equipment</td><td style="text-align:right">' + money(matTot) + '</td></tr>' +
+      '<tr><td>Labor (' + hrs.toFixed(1) + ' hrs @ $' + laborRate + ')</td><td style="text-align:right">' + money(laborTot) + '</td></tr>' +
+      '<tr><td>Overhead (' + Math.round((currentEstimate.overhead_pct||0.20)*100) + '%)</td><td style="text-align:right">' + money(ovh) + '</td></tr>' +
+      '<tr><td>Miscellaneous (2%)</td><td style="text-align:right">' + money(misc) + '</td></tr>' +
+      '<tr><td>NY Sales Tax (8.875%)</td><td style="text-align:right">' + money(tax) + '</td></tr>' +
+      '<tr class="totals-row grand"><td>Total</td><td style="text-align:right">' + money(total) + '</td></tr>' +
+      '</tbody></table>'
+    );
+  }
+
+  async function savePropHtml() {
+    if (!canEdit) { toast('View only', 'error'); return; }
+    var html = document.getElementById('propEditor').innerHTML;
+    var upd = await supabaseClient.from('estimates').update({ proposal_html: html }).eq('id', estimateId);
+    if (upd.error) { toast('Save failed: ' + upd.error.message, 'error'); return; }
+    toast('Proposal saved', 'success');
+    currentEstimate.proposal_html = html;
+  }
+
+  function exportPropPdf() {
+    var ed = document.getElementById('propEditor');
+    if (!ed.innerHTML.trim()) { toast('Nothing to export', 'error'); return; }
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:30px;font-family:sans-serif;font-size:12px;line-height:1.5;color:#0f172a';
+    wrap.innerHTML = ed.innerHTML;
+    var name = (currentEstimate.quote_number ? 'Q' + currentEstimate.quote_number + '_' : '') +
+               (currentEstimate.name || 'Proposal').replace(/[^A-Za-z0-9_-]+/g, '_') + '.pdf';
+    html2pdf().set({
+      margin: [12, 12, 12, 12], filename: name,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    }).from(wrap).save();
   }
 
   function hydrateOverview() {
@@ -450,17 +796,12 @@ requireAuth().catch(function(){});
     document.getElementById('ovCustomer').value    = e.client_name || '';
     document.getElementById('ovAddress').value     = e.project_address || '';
 
-    document.getElementById('propScope').value = e.scope_summary || '';
-    document.getElementById('propInc').value   = e.inclusions   || '';
-    document.getElementById('propExc').value   = e.exclusions   || '';
-
     // Wire tab links
-    document.getElementById('openDocsBtn').href    = 'project-files.html?project=' + estimateId + '&kind=estimate';
+    document.getElementById('openDocsBtn').href    = 'project-files.html?estimate=' + estimateId;
     document.getElementById('openTakeoffBtn').href = 'takeoff.html?est=' + estimateId;
     document.getElementById('tabTakeoff').href     = 'takeoff.html?est=' + estimateId;
     document.getElementById('openEstBtn').href     = 'estimating.html?est=' + estimateId;
     document.getElementById('tabEstimating').href  = 'estimating.html?est=' + estimateId;
-    document.getElementById('openPropBtn').href    = 'estimating.html?est=' + estimateId + '&tab=proposal';
 
     // Make Takeoff / Estimating tabs actually navigate away (they open the full-featured pages)
     document.getElementById('tabTakeoff').addEventListener('click', function(ev) {
@@ -520,17 +861,6 @@ requireAuth().catch(function(){});
     currentEstimate = Object.assign({}, currentEstimate, payload);
     document.getElementById('crumbName').textContent = payload.name;
     document.getElementById('bpTitle').value = payload.name;
-  }
-
-  async function saveProposalText() {
-    if (!canEdit) { toast('View only', 'error'); return; }
-    var upd = await supabaseClient.from('estimates').update({
-      scope_summary: document.getElementById('propScope').value.trim() || null,
-      inclusions:    document.getElementById('propInc').value.trim() || null,
-      exclusions:    document.getElementById('propExc').value.trim() || null
-    }).eq('id', estimateId);
-    if (upd.error) { toast('Save failed: ' + upd.error.message, 'error'); return; }
-    toast('Proposal text saved', 'success');
   }
 
   async function archive() {
@@ -609,10 +939,9 @@ requireAuth().catch(function(){});
   async function loadDocs() {
     var host = document.getElementById('docsList');
     host.innerHTML = '<div class="empty-block">Loading…</div>';
-    // project-files uses ?project=<projectId>; when opened from a bid estimate we key by estimateId
     var q = await supabaseClient.from('project_files')
-      .select('id, file_name, file_size, category, storage_path, uploaded_by, created_at')
-      .eq('project_id', estimateId).order('created_at', {ascending:false});
+      .select('id, filename, size_bytes, category, storage_path, uploaded_by, created_at')
+      .eq('estimate_id', estimateId).order('created_at', {ascending:false});
     if (q.error) {
       host.innerHTML = '<div class="empty-block" style="color:#dc2626">' + esc(q.error.message) + '</div>'; return;
     }
@@ -622,10 +951,10 @@ requireAuth().catch(function(){});
       return;
     }
     host.innerHTML = files.slice(0, 30).map(function(f) {
-      var kb = f.file_size ? Math.round(f.file_size / 1024) + ' KB' : '';
+      var kb = f.size_bytes ? Math.round(f.size_bytes / 1024) + ' KB' : '';
       return '<div class="doc-row">' +
         '<span style="font-size:16px">📄</span>' +
-        '<div style="flex:1"><div class="fname">' + esc(f.file_name) + '</div>' +
+        '<div style="flex:1"><div class="fname">' + esc(f.filename) + '</div>' +
         '<div class="size">' + esc(f.category || 'other') + ' · ' + kb + ' · ' + new Date(f.created_at).toLocaleDateString() + '</div>' +
         '</div></div>';
     }).join('') + (files.length > 30 ? '<div style="font-size:11px;color:#94a3b8;margin-top:6px">Showing 30 of ' + files.length + '. Open full docs page →</div>' : '');
@@ -690,6 +1019,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=177"></script>
+<script src="sw-register.js?v=178"></script>
 </body>
 </html>

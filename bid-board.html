@@ -230,6 +230,12 @@
   <div class="modal-card">
     <h2>New Bid Project</h2>
     <div class="field">
+      <label>Start from template (optional)</label>
+      <select id="npTemplate">
+        <option value="">— Blank project —</option>
+      </select>
+    </div>
+    <div class="field">
       <label>Estimate name</label>
       <input type="text" id="npName" placeholder="e.g. Yeshiva University Gym" autofocus>
     </div>
@@ -334,14 +340,18 @@ requireAuth().catch(function(){});
   }
 
   async function loadEstimates() {
-    // Pull every estimate + a few line-item aggregates for the $ totals
+    // Pull primary estimate rows only (alternate versions handled inside bid-project.html)
+    // and exclude templates (shown in the New Project dropdown instead)
     var { data, error } = await supabaseClient
       .from('estimates')
       .select('id, name, quote_number, project_number, bid_stage, bid_intent, ' +
               'requester_company, requester_email, invitation_date, ' +
               'bid_due_date, due_time, project_address, client_name, ' +
               'estimator_name, created_at, updated_at, ' +
-              'labor_rate, overhead_pct, miscellaneous_pct, tax_rate, is_ofci')
+              'labor_rate, overhead_pct, miscellaneous_pct, tax_rate, is_ofci, ' +
+              'parent_estimate_id, is_template')
+      .is('parent_estimate_id', null)
+      .eq('is_template', false)
       .order('updated_at', { ascending: false });
     if (error) { toast('Load failed: ' + error.message, 'error'); return; }
     estimates = data || [];
@@ -560,7 +570,7 @@ requireAuth().catch(function(){});
     renderTable();
   }
 
-  function openCreate() {
+  async function openCreate() {
     if (!canEdit) { toast('Only management can create bid projects', 'error'); return; }
     document.getElementById('npName').value = '';
     document.getElementById('npNumber').value = '';
@@ -568,27 +578,66 @@ requireAuth().catch(function(){});
     document.getElementById('npGc').value = '';
     document.getElementById('npDue').value = '';
     document.getElementById('npStage').value = currentStage === 'invitation' ? 'invitation' : 'estimating';
+    // Populate templates
+    var tplSel = document.getElementById('npTemplate');
+    tplSel.innerHTML = '<option value="">— Blank project —</option>';
+    var t = await supabaseClient.from('estimates')
+      .select('id, name, quote_number').eq('is_template', true).order('name');
+    (t.data || []).forEach(function(tpl) {
+      var o = document.createElement('option');
+      o.value = tpl.id;
+      o.textContent = tpl.name + (tpl.quote_number ? ' (Q' + tpl.quote_number + ')' : '');
+      tplSel.appendChild(o);
+    });
     document.getElementById('createModal').classList.add('open');
   }
 
   async function createProject() {
     var name = document.getElementById('npName').value.trim();
     if (!name) { toast('Estimate name required', 'error'); return; }
-    var payload = {
-      name:              name,
-      project_number:    document.getElementById('npNumber').value.trim() || null,
-      project_address:   document.getElementById('npAddress').value.trim() || null,
-      requester_company: document.getElementById('npGc').value.trim() || null,
-      bid_due_date:      document.getElementById('npDue').value || null,
-      bid_stage:         document.getElementById('npStage').value,
-      bid_intent:        document.getElementById('npStage').value === 'invitation' ? 'undecided' : null,
-      invitation_date:   document.getElementById('npStage').value === 'invitation'
-                           ? new Date().toISOString().slice(0,10) : null,
-      estimator_name:    (userProfile && userProfile.full_name) || (currentUser && currentUser.email) || null,
-      created_by:        currentUser ? currentUser.id : null
-    };
+    var templateId = document.getElementById('npTemplate').value || null;
+    var payload;
+    if (templateId) {
+      // Duplicate the template row + its line items
+      var tpl = await supabaseClient.from('estimates').select('*').eq('id', templateId).single();
+      if (tpl.error || !tpl.data) { toast('Template load failed: ' + (tpl.error && tpl.error.message), 'error'); return; }
+      payload = Object.assign({}, tpl.data);
+      delete payload.id; delete payload.quote_number;
+      delete payload.created_at; delete payload.updated_at;
+      delete payload.sent_at; delete payload.awarded_at; delete payload.aia_project_id;
+      payload.is_template = false;
+      payload.template_source_id = templateId;
+      payload.parent_estimate_id = null;
+      payload.version_number = 1;
+      payload.archived_at = null;
+    } else {
+      payload = {};
+    }
+    payload.name              = name;
+    payload.project_number    = document.getElementById('npNumber').value.trim() || null;
+    payload.project_address   = document.getElementById('npAddress').value.trim() || null;
+    payload.requester_company = document.getElementById('npGc').value.trim() || null;
+    payload.bid_due_date      = document.getElementById('npDue').value || null;
+    payload.bid_stage         = document.getElementById('npStage').value;
+    payload.bid_intent        = payload.bid_stage === 'invitation' ? 'undecided' : null;
+    payload.invitation_date   = payload.bid_stage === 'invitation'
+                                  ? new Date().toISOString().slice(0,10) : null;
+    payload.estimator_name    = (userProfile && userProfile.full_name) || (currentUser && currentUser.email) || null;
+    payload.created_by        = currentUser ? currentUser.id : null;
     var ins = await supabaseClient.from('estimates').insert(payload).select().single();
     if (ins.error) { toast('Create failed: ' + ins.error.message, 'error'); return; }
+    // Copy line items from template
+    if (templateId) {
+      var li = await supabaseClient.from('estimate_line_items').select('*').eq('estimate_id', templateId);
+      if (li.data && li.data.length) {
+        var copies = li.data.map(function(r) {
+          var c = Object.assign({}, r); delete c.id; delete c.created_at; delete c.updated_at;
+          c.estimate_id = ins.data.id;
+          return c;
+        });
+        await supabaseClient.from('estimate_line_items').insert(copies);
+      }
+    }
     location.href = 'bid-project.html?id=' + ins.data.id;
   }
 
@@ -618,6 +667,6 @@ requireAuth().catch(function(){});
   }
 })();
 </script>
-<script src="sw-register.js?v=177"></script>
+<script src="sw-register.js?v=178"></script>
 </body>
 </html>

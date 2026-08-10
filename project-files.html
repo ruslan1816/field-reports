@@ -179,7 +179,10 @@ requireAuth().catch(function(){});
 
   var params = new URLSearchParams(window.location.search);
   var projectId = params.get('project');
-  if (!projectId) { alert('Missing ?project=<id>'); }
+  var estimateId = params.get('estimate');
+  if (!projectId && !estimateId) { alert('Missing ?project=<id> or ?estimate=<id>'); }
+  var ownerCol = estimateId ? 'estimate_id' : 'project_id';
+  var ownerId  = estimateId || projectId;
 
   var currentUserId = null;
   var currentUserName = null;
@@ -230,6 +233,26 @@ requireAuth().catch(function(){});
   }
 
   async function loadProject() {
+    if (estimateId) {
+      var e = await supabaseClient.from('estimates')
+        .select('id, name, quote_number, project_number, bid_stage, estimator_name, project_address')
+        .eq('id', estimateId).maybeSingle();
+      if (e.data) {
+        project = e.data;
+        var stageBadge = e.data.bid_stage
+          ? '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:5px;font-size:11px;margin-right:8px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">' + escHtml(e.data.bid_stage.replace('_',' ')) + '</span>'
+          : '';
+        var qn = e.data.quote_number ? '<span style="background:var(--nw-primary);color:#fff;padding:2px 8px;border-radius:5px;font-size:12px;margin-right:8px">Q' + e.data.quote_number + '</span>' : '';
+        document.getElementById('pfHeader').innerHTML =
+          '<h2>' + stageBadge + qn + escHtml(e.data.name || 'Bid Project') + '</h2>' +
+          '<div class="pf-sub">' +
+            '<a href="bid-project.html?id=' + estimateId + '#documents" style="color:var(--nw-primary);font-weight:600;text-decoration:none">← Back to bid project</a>' +
+            (e.data.estimator_name ? '<span>Estimator: <b>' + escHtml(e.data.estimator_name) + '</b></span>' : '') +
+            (e.data.project_address ? '<span>' + escHtml(e.data.project_address) + '</span>' : '') +
+          '</div>';
+      }
+      return;
+    }
     var r = await supabaseClient.from('projects').select('id, short_code, project_name, pm_name, status')
       .eq('id', projectId).maybeSingle();
     if (r.data) {
@@ -249,7 +272,7 @@ requireAuth().catch(function(){});
     main.innerHTML = '<div class="iv-empty"><div class="icon">⏳</div><p>Loading…</p></div>';
     var r = await supabaseClient.from('project_files')
       .select('*, uploader:profiles(full_name)')
-      .eq('project_id', projectId)
+      .eq(ownerCol, ownerId)
       .order('created_at', { ascending: false });
     if (r.error) {
       main.innerHTML = '<div class="iv-empty"><div class="icon">⚠️</div><p>Error: ' + escHtml(r.error.message) + '</p></div>';
@@ -336,14 +359,14 @@ requireAuth().catch(function(){});
     var successCount = 0;
     for (var i = 0; i < pendingFiles.length; i++) {
       var file = pendingFiles[i];
-      var path = projectId + '/' + Date.now() + '_' + i + '_' + file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      var pathPrefix = (estimateId ? 'est-' : 'proj-') + ownerId;
+      var path = pathPrefix + '/' + Date.now() + '_' + i + '_' + file.name.replace(/[^A-Za-z0-9._-]/g, '_');
       btn.textContent = 'Uploading ' + (i + 1) + ' of ' + pendingFiles.length + '…';
       var up = await supabaseClient.storage.from('project-files').upload(path, file, {
         cacheControl: '3600', upsert: false, contentType: file.type || null
       });
       if (up.error) { showToast('Upload failed for ' + file.name + ': ' + up.error.message, 'error'); continue; }
-      var ins = await supabaseClient.from('project_files').insert({
-        project_id:   projectId,
+      var payload = {
         filename:     file.name,
         storage_path: path,
         category:     category,
@@ -351,7 +374,9 @@ requireAuth().catch(function(){});
         content_type: file.type || null,
         notes:        notes,
         uploaded_by:  currentUserId
-      });
+      };
+      payload[ownerCol] = ownerId;
+      var ins = await supabaseClient.from('project_files').insert(payload);
       if (ins.error) { showToast('Row insert failed for ' + file.name + ': ' + ins.error.message, 'error'); continue; }
       successCount++;
     }
